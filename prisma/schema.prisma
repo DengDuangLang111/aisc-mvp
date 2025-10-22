@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions      StudySession[]
+  bookmarks     Bookmark[]
+  subjects      Subject[]
+  practiceTests PracticeTest[]
+}
+
+model Subject {
+  id        String   @id @default(cuid())
+  name      String
+  color     String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions      StudySession[]
+  bookmarks     Bookmark[]
+  practiceTests PracticeTest[]
+
+  @@unique([userId, name])
+}
+
+model StudySession {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectId         String?
+  subject           Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  title             String
+  estimatedMinutes  Int
+  actualMinutes     Int?
+  startTime         DateTime
+  endTime           DateTime?
+  isCompleted       Boolean  @default(false)
+  isLocked          Boolean  @default(false)
+
+  questionsCount    Int      @default(0)
+  bookmarksCreated  Int      @default(0)
+  focusScore        Int?     // 0-100 based on interruptions
+
+  homeworkImageUrl  String?  // Scanned homework completion
+  notes             String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Bookmark {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectId   String?
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  question    String
+  concept     String?  // The main concept/topic
+  difficulty  String   @default("medium") // easy, medium, hard
+  notes       String?
+  aiExplanation String? // Stored AI explanation
+
+  isResolved  Boolean  @default(false)
+  reviewCount Int      @default(0)
+  lastReviewedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PracticeTest {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectId   String?
+  subject     Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+
+  title       String
+  questions   String   // JSON array of generated questions
+  totalQuestions Int
+  completedQuestions Int @default(0)
+  score       Int?
+
+  isCompleted Boolean  @default(false)
+  completedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
