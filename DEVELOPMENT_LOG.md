@@ -139,6 +139,179 @@
 2. **git filter-branch**: 用于重写 Git 历史，清除大文件
 3. **GitHub 文件限制**: 单文件不能超过 100 MB
 4. **node_modules 管理**: 始终排除，只追踪 package.json 和 lock 文件
+
+---
+
+## 2025年1月 - 前端 UI 重构 (参考设计)
+
+### 完成时间
+2025年1月29日
+
+### 功能描述
+重构所有前端页面，统一设计风格，参考 Study Oasis 设计稿。
+
+#### 设计系统
+- **渐变文字**: `from-cyan-500 to-blue-500` 使用 `bg-clip-text`
+- **配色方案**: 浅灰背景 (gray-50/100) + 白色卡片
+- **圆角**: rounded-xl/2xl/3xl 大圆角设计
+- **阴影**: shadow-xl + shadow-cyan-500/25 高亮效果
+- **图标**: Emoji 快速原型 (🎯📚⚡✨🔒🤖)
+
+#### 页面改造
+
+**1. 首页 (apps/web/app/page.tsx)**
+- ✅ 添加导航栏 (Logo + Home/Focus/Progress)
+- ✅ Hero Section 两栏布局
+  - 左侧: 渐变标题 "Learn independently" + CTA 按钮
+  - 右侧: Quick Start 引导卡片 (3步流程)
+- ✅ 统计数据展示 (MVP 时间线 2-4周, 可用性 99.5%, 响应时间 <1.5s)
+- ✅ 内部路由链接到 /upload 和 /chat
+
+**2. Chat 页面 (apps/web/app/chat/page.tsx)**
+- ✅ 完整聊天界面实现
+- ✅ 消息气泡样式 (用户右对齐蓝色渐变, AI左对齐白色卡片)
+- ✅ Hint Level 徽章 (Level 1🤔/2💡/3✨ 彩色背景)
+- ✅ 欢迎屏幕 + 示例问题快速开始
+- ✅ 输入区域 (自动扩展 textarea + 拖拽发送)
+- ✅ 加载状态动画 (typing dots)
+- ✅ 支持 uploadId query 参数
+- ✅ 自动滚动到最新消息
+
+**3. Upload 页面 (apps/web/app/upload/page.tsx)**
+- ✅ 拖拽上传 UI (Drag & Drop 虚线边框)
+- ✅ 上传状态管理 (idle/uploading/success/error)
+- ✅ 成功后显示文件信息卡片
+- ✅ "Start Learning Session" 跳转到 /chat?uploadId=xxx
+- ✅ "Upload Another" 重置功能
+- ✅ 特性展示区 (Secure Storage🔒, Fast Processing⚡, AI-Ready🤖)
+- ✅ 拖拽高亮效果 (border-cyan-500)
+
+#### 技术实现
+
+**颜色系统**:
+```css
+主色调: cyan-400/500/600, blue-500/600
+中性色: gray-50/100/200/500/600/700/800
+渐变: from-cyan-500 to-blue-500
+高亮: shadow-cyan-500/25
+```
+
+**布局标准**:
+- Container: max-w-5xl (Chat/Upload), max-w-7xl (Home)
+- Padding: px-6 py-16/py-8
+- Grid: lg:grid-cols-2 (响应式)
+- Gap: gap-6/gap-12
+
+**交互效果**:
+- Hover: 颜色加深 (hover:from-cyan-600)
+- 禁用状态: opacity-50 + cursor-not-allowed
+- 过渡动画: transition-all duration-200
+- 加载动画: animate-spin / animate-pulse
+
+#### 文档体系
+为每个页面创建完整 README.md:
+
+1. **apps/web/app/README.md** (首页文档)
+   - 设计理念与目标
+   - 页面结构分解
+   - 样式规范与颜色定义
+   - SEO 优化建议
+   - 可访问性清单
+
+2. **apps/web/app/chat/README.md** (Chat UI 文档)
+   - 组件功能概述
+   - 状态管理逻辑
+   - API 集成细节
+   - Hint Level 渐进系统说明
+   - 用户交互流程图
+   - 测试用例
+
+3. **apps/web/app/upload/README.md** (Upload 文档)
+   - 上传流程图
+   - 拖拽交互实现
+   - 状态机设计
+   - 路由跳转逻辑
+   - 错误处理
+
+### 技术栈
+- **React 19.2.0**: 最新特性 (use hook, Server Components)
+- **Next.js 16.0.1**: App Router + Turbopack 构建
+- **Tailwind CSS 4.1.16**: 工具类优先开发
+- **TypeScript 5.9.3**: 完整类型安全
+
+### 用户体验改进
+
+1. **统一视觉语言**: 所有页面使用相同的渐变、圆角、阴影
+2. **流畅导航**: Upload成功→Chat (携带uploadId), Chat→Home
+3. **状态反馈**: 加载、成功、错误清晰可见
+4. **响应式设计**: 移动端自适应布局
+5. **可访问性**: aria-label, keyboard navigation
+
+### 开发过程
+
+**顺利部分**:
+- Chat UI 完整实现 (200+ lines)
+- Home 页面重构成功
+- 所有文档按时完成
+
+**遇到问题**:
+- Upload page 文件损坏: 在重写时出现内容合并导致语法错误 (77+ TypeScript errors)
+- 解决方案: 使用 `rm -f` 强制删除后重新创建
+
+### Git 提交
+```bash
+git add apps/web/app/
+git commit -m "feat: UI 重构 - 统一设计风格
+
+- 实现 Chat 界面 (多轮对话 + 渐进式提示徽章)
+- 重构 Home 页面 (Hero Section + Quick Start)
+- 创建 Upload 页面 (拖拽上传 + 状态管理)
+- 为所有页面添加完整 README.md 文档
+- 统一使用 cyan-blue 渐变设计系统"
+```
+
+### 学习要点
+1. **Tailwind 渐变文字**: `bg-gradient-to-r from-x to-y bg-clip-text text-transparent`
+2. **拖拽事件**: onDragEnter/Over/Leave/Drop + preventDefault()
+3. **Next.js 路由**: useRouter().push(), useSearchParams()
+4. **状态提升**: 父组件管理状态，子组件展示
+5. **文档驱动开发**: 每个功能模块配套完整文档，便于团队协作和后期维护
+
+---
+
+## 2025年1月 - AI Chatbot 多轮对话功能 (后端)
+
+### 完成时间
+2025年10月29日 (实际应为2025年1月)
+
+### 功能描述
+实现了渐进式提示的 AI 对话系统后端，支持多轮对话：
+
+#### 后端实现
+- **Chat 模块**: 使用 NestJS CLI 生成完整模块结构
+- **POST /chat 端点**:
+  - 接收参数: `{message, conversationHistory, uploadId?}`
+  - 返回数据: `{reply, hintLevel, timestamp, sources?}`
+  
+- **渐进式提示逻辑**:
+  ```
+  用户提问次数 → 提示等级
+  0-1次       → Level 1 (轻微提示，给方向)
+  2-3次       → Level 2 (中等提示，给步骤)
+  4+次        → Level 3 (详细提示，但不给答案)
+  ```
+
+- **Zod 类型定义** (apps/api/src/chat/chat.types.ts):
+  - `MessageSchema`: 单条消息结构
+  - `HintLevelSchema`: 提示等级 (1|2|3)
+  - `ChatRequestSchema`: 聊天请求验证
+  - `ChatResponseSchema`: 聊天响应验证
+
+#### 技术实现细节
+
+1. **多轮对话状态管理**:
+   - 前端维护 conversationHistory 数组
+   - 后端根据历史消息数量计算 hintLevel
    - 每次请求携带完整历史记录
 
 2. **提示策略**:
