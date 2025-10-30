@@ -43,9 +43,14 @@ describe('UploadController (e2e)', () => {
 
       const response = await request(app.getHttpServer())
         .post('/upload')
-        .attach('file', pdfBuffer, 'test-document.pdf')
-        .expect(201);
+        .attach('file', pdfBuffer, 'test-document.pdf');
 
+      // 调试：打印实际响应
+      if (response.status !== 201) {
+        console.log('Error response:', response.status, response.body);
+      }
+      
+      expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('id');
       expect(response.body).toHaveProperty('filename', 'test-document.pdf');
       expect(response.body).toHaveProperty('mimetype', 'application/pdf');
@@ -119,10 +124,11 @@ describe('UploadController (e2e)', () => {
         .attach('file', textBuffer, 'test<script>alert(1)</script>.txt')
         .expect(201);
 
-      // 文件名应该被清理
+      // 文件名应该被清理，特殊字符被替换为下划线
       expect(response.body.filename).not.toContain('<');
       expect(response.body.filename).not.toContain('>');
-      expect(response.body.filename).toMatch(/test.*alert.*\.txt/);
+      expect(response.body.filename).toContain('.txt');
+      expect(response.body.filename).toMatch(/^[a-zA-Z0-9._\u4e00-\u9fa5-]+$/); // 只包含安全字符
     });
 
     it('should reject file without file field', async () => {

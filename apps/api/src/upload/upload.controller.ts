@@ -1,9 +1,7 @@
-import { Controller, Post, UploadedFile, UseInterceptors, UseGuards } from '@nestjs/common';
+import { Controller, Post, UploadedFile, UseInterceptors, UseGuards, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { diskStorage } from 'multer';
-import { randomUUID } from 'crypto';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { UploadService } from './upload.service';
 
 @Controller('upload')
@@ -14,17 +12,13 @@ export class UploadController {
   @Post()
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const uniqueId = randomUUID();
-          const ext = extname(file.originalname);
-          cb(null, `${uniqueId}${ext}`);
-        },
-      }),
+      storage: memoryStorage(), // 使用内存存储以便进行文件类型验证
     }),
   )
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('请上传文件');
+    }
     return this.uploadService.saveFile(file);
   }
 }

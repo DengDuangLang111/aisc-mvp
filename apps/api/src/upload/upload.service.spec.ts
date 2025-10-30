@@ -12,6 +12,8 @@ jest.mock('fs', () => ({
   promises: {
     readdir: jest.fn(),
     readFile: jest.fn(),
+    mkdir: jest.fn(),
+    writeFile: jest.fn(),
   },
 }));
 
@@ -93,6 +95,8 @@ describe('UploadService', () => {
     (fs.writeFileSync as jest.Mock).mockClear();
     (fs.existsSync as jest.Mock).mockReturnValue(true);
     (fs.mkdirSync as jest.Mock).mockClear();
+    (fs.promises.mkdir as jest.Mock).mockResolvedValue(undefined);
+    (fs.promises.writeFile as jest.Mock).mockResolvedValue(undefined);
     
     // Setup file-type mock - by default return PDF type (most common in tests)
     // Individual tests can override this for specific file types
@@ -245,13 +249,15 @@ describe('UploadService', () => {
   });
 
   describe('saveFile - file info generation', () => {
-    it('should extract UUID from filename', async () => {
+    it('should generate unique UUID for file', async () => {
       const file = createMockFile({
-        filename: '550e8400-e29b-41d4-a716-446655440000.pdf',
+        originalname: 'test-document.pdf',
+        mimetype: 'application/pdf',
       });
       const result = await service.saveFile(file);
 
-      expect(result.id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      // UUID should be a valid format
+      expect(result.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
     });
 
     it('should preserve original filename', async () => {
@@ -263,12 +269,12 @@ describe('UploadService', () => {
 
     it('should generate complete file URL', async () => {
       const file = createMockFile({
-        filename: 'abc-123.pdf',
+        originalname: 'test-document.pdf',
       });
       const result = await service.saveFile(file);
       
       expect(result.url).toContain('http://localhost:4000/uploads/');
-      expect(result.url).toContain('abc-123.pdf');
+      expect(result.url).toContain('.pdf');
     });
 
     it('should return all required fields', async () => {
@@ -284,21 +290,30 @@ describe('UploadService', () => {
 
     it('should handle different file extensions', async () => {
       const extensions = [
-        { originalName: 'document.txt', filename: 'abc-123.txt', mime: 'text/plain' },
-        { originalName: 'image.png', filename: 'def-456.png', mime: 'image/png' },
-        { originalName: 'notes.md', filename: 'ghi-789.md', mime: 'text/markdown' },
+        { originalName: 'document.txt', mime: 'text/plain' },
+        { originalName: 'image.png', mime: 'image/png' },
+        { originalName: 'notes.md', mime: 'text/markdown' },
       ];
 
-      for (const { originalName, filename, mime } of extensions) {
+      for (const { originalName, mime } of extensions) {
+        // Mock file-type for non-PDF files
+        if (mime === 'text/plain' || mime === 'text/markdown') {
+          (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValueOnce(undefined);
+        } else if (mime === 'image/png') {
+          (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValueOnce({
+            ext: 'png',
+            mime: 'image/png'
+          });
+        }
+        
         const file = createMockFile({ 
           originalname: originalName,
-          filename: filename,
           mimetype: mime 
         });
         const result = await service.saveFile(file);
         
         expect(result.filename).toBe(originalName);
-        expect(result.url).toContain(filename);
+        expect(result.url).toContain(originalName.split('.').pop()); // Check extension is in URL
       }
     });
   });

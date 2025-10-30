@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { extname, join } from 'path';
 import { promises as fs } from 'fs';
+import { randomUUID } from 'crypto';
 const fileTypeImport = require('file-type');
 
 export interface UploadResult {
@@ -90,7 +91,18 @@ export class UploadService {
     buffer: Buffer,
     declaredMimetype: string,
   ): Promise<void> {
-    const detected = await fileTypeImport.fromBuffer(buffer);
+    let detected;
+    try {
+      detected = await fileTypeImport.fromBuffer(buffer);
+    } catch (error) {
+      this.logger.error('Error detecting file type', {
+        context: 'UploadService',
+        error: error.message,
+        stack: error.stack,
+        bufferLength: buffer?.length,
+      });
+      throw new BadRequestException('文件类型检测失败');
+    }
 
     // 某些文件类型（如纯文本）没有魔数，对于这些类型只检查是否在允许列表中
     if (!detected) {
@@ -200,10 +212,40 @@ export class UploadService {
       );
     }
 
+    // 6. 生成唯一文件名并保存文件到磁盘
+    const uniqueId = randomUUID();
+    const ext = extname(sanitizedFilename);
+    const diskFilename = `${uniqueId}${ext}`;
+    
+    // 确保上传目录存在
+    const uploadDir = './uploads';
+    const uploadPath = join(uploadDir, diskFilename);
+    
+    try {
+      // 创建上传目录（如果不存在）
+      await fs.mkdir(uploadDir, { recursive: true });
+      
+      // 将文件从内存写入磁盘
+      await fs.writeFile(uploadPath, file.buffer);
+      
+      this.logger.log('info', 'File saved to disk', {
+        context: 'UploadService',
+        diskFilename,
+        path: uploadPath,
+      });
+    } catch (error) {
+      this.logger.error('Failed to save file to disk', {
+        context: 'UploadService',
+        error: error.message,
+        diskFilename,
+      });
+      throw new BadRequestException('文件保存失败');
+    }
+
     const result = {
-      id: this.extractFileId(file.filename),
+      id: uniqueId,
       filename: sanitizedFilename, // 使用清理后的文件名
-      url: this.buildFileUrl(file.filename),
+      url: this.buildFileUrl(diskFilename),
       size: file.size,
       mimetype: file.mimetype,
     };
@@ -215,7 +257,7 @@ export class UploadService {
       size: result.size,
     });
 
-    // 3. 返回文件信息
+    // 7. 返回文件信息
     return result;
   }
 
