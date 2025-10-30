@@ -1,5 +1,92 @@
 # Study Oasis 开发日志
 
+## 2025年1月XX日 - Phase 2.5.1: 增强文件上传安全性
+
+### 完成时间
+2025年1月XX日
+
+### 功能描述
+完成 Phase 2.5.1 的文件上传安全增强，防止 MIME 欺骗、可执行文件上传和路径遍历攻击。
+
+#### 安全功能实现
+1. **危险文件类型黑名单**
+   - 阻止 14 种可执行文件类型：.exe, .dll, .bat, .cmd, .sh, .bash, .scr, .vbs, .js, .jar, .app, .msi, .com, .pif, .ps1, .psm1
+   - 在文件验证的第一步就拦截危险扩展名
+
+2. **文件名清理 (sanitizeFilename)**
+   - 防止路径遍历: `../../etc/passwd` → `___etc_passwd`
+   - 防止 Shell 注入: `file|rm -rf` → `file_rm_-rf`
+   - 防止 XSS: `<script>` → `_script_`
+   - 保留中文、字母、数字、点、下划线、连字符
+   - 限制文件名长度为 255 字符
+
+3. **文件魔数验证 (validateFileType)**
+   - 使用 `file-type@16.5.4` 库读取文件头部魔数
+   - 验证文件真实类型与声明类型是否一致
+   - 特殊处理文本类型文件（text/plain, text/markdown, text/csv 等无魔数）
+   - 防止伪装文件（如伪装成 .pdf 的 .exe）
+
+4. **五步验证流程**
+   - ✅ 检查危险文件扩展名
+   - ✅ 清理文件名
+   - ✅ 验证文件魔数
+   - ✅ 验证声明的 MIME 类型
+   - ✅ 验证文件大小
+
+#### 技术细节
+- **file-type 版本选择**: 使用 v16.5.4 而非 v19+
+  - 原因: v19+ 是纯 ESM 模块，与 Jest CommonJS 环境不兼容
+  - 解决: 降级到 CommonJS 兼容版本
+
+- **测试覆盖**: 新增 6 个安全测试
+  - Dangerous File Detection: 6 个测试
+  - Filename Sanitization: 5 个测试  
+  - Magic Number Validation: 3 个测试
+  - 总测试数: 72 (100% 通过)
+  - upload.service.ts 覆盖率: 97.26%
+
+- **Mock 配置**: 正确配置 file-type mock
+  - 默认返回 PDF 类型
+  - 文本文件返回 undefined
+  - 图片/文档返回对应类型
+
+### 代码变更
+**文件修改**:
+- `apps/api/src/upload/upload.service.ts`: 添加 3 个安全方法，增强 saveFile 方法
+- `apps/api/src/upload/upload.service.spec.ts`: 添加安全测试，修复 mock 配置
+- `apps/api/package.json`: 安装 file-type@16.5.4
+
+### 安全评估
+| 攻击类型 | 之前 | 现在 | 防御方法 |
+|---------|------|------|---------|
+| MIME 欺骗 | ❌ 可被绕过 | ✅ 魔数验证 | fileTypeFromBuffer |
+| 可执行文件 | ❌ 允许上传 | ✅ 扩展名黑名单 | DANGEROUS_EXTENSIONS |
+| 路径遍历 | ❌ 可能成功 | ✅ 文件名清理 | sanitizeFilename() |
+| Shell 注入 | ❌ 风险存在 | ✅ 特殊字符过滤 | Regex sanitization |
+| XSS 攻击 | ❌ 可能成功 | ✅ HTML 标签清理 | Replace < > |
+
+### 测试结果
+```
+Test Suites: 8 passed, 8 total
+Tests:       72 passed, 72 total
+Code Coverage: 57.22% (upload.service.ts: 97.26%)
+```
+
+### Git 提交
+```bash
+git add .
+git commit -m "feat(upload): Phase 2.5.1 - Enhanced file upload security
+
+- Add file-type@16.5.4 for magic number validation
+- Implement dangerous file extension blacklist (14 types)
+- Add filename sanitization (prevent path traversal, XSS, shell injection)
+- Add 5-step validation pipeline
+- Add comprehensive security tests (72 tests, 100% pass)
+- Improve upload.service.ts coverage to 97.26%"
+```
+
+---
+
 ## 2025年1月20日 - 完整 UI 系统与自动化测试
 
 ### 完成时间

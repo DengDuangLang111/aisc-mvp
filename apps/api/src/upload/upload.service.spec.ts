@@ -15,7 +15,13 @@ jest.mock('fs', () => ({
   },
 }));
 
+// Mock file-type module
+jest.mock('file-type', () => ({
+  fileTypeFromBuffer: jest.fn(),
+}));
+
 import * as fs from 'fs';
+import { fileTypeFromBuffer } from 'file-type';
 
 describe('UploadService', () => {
   let service: UploadService;
@@ -87,6 +93,13 @@ describe('UploadService', () => {
     (fs.writeFileSync as jest.Mock).mockClear();
     (fs.existsSync as jest.Mock).mockReturnValue(true);
     (fs.mkdirSync as jest.Mock).mockClear();
+    
+    // Setup file-type mock - by default return PDF type (most common in tests)
+    // Individual tests can override this for specific file types
+    (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ 
+      ext: 'pdf', 
+      mime: 'application/pdf' 
+    });
   });
 
   afterEach(() => {
@@ -99,6 +112,11 @@ describe('UploadService', () => {
 
   describe('saveFile - file type validation', () => {
     it('should accept PDF files', async () => {
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ 
+        ext: 'pdf', 
+        mime: 'application/pdf' 
+      });
+      
       const file = createMockFile({ mimetype: 'application/pdf' });
       const result = await service.saveFile(file);
       
@@ -107,6 +125,9 @@ describe('UploadService', () => {
     });
 
     it('should accept text files', async () => {
+      // Text files don't have magic numbers
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue(undefined);
+      
       const file = createMockFile({ 
         originalname: 'document.txt',
         mimetype: 'text/plain' 
@@ -117,9 +138,14 @@ describe('UploadService', () => {
     });
 
     it('should accept image files', async () => {
-      const imageTypes = ['image/png', 'image/jpeg', 'image/gif'];
+      const mimetypes = ['image/png', 'image/jpeg', 'image/gif'];
       
-      for (const mimetype of imageTypes) {
+      for (const mimetype of mimetypes) {
+        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ 
+          ext: mimetype.split('/')[1], 
+          mime: mimetype 
+        });
+        
         const file = createMockFile({ mimetype });
         const result = await service.saveFile(file);
         expect(result.mimetype).toBe(mimetype);
@@ -127,6 +153,12 @@ describe('UploadService', () => {
     });
 
     it('should accept Word documents', async () => {
+      const mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ 
+        ext: 'docx', 
+        mime: mimetype 
+      });
+      
       const docFile = createMockFile({ 
         originalname: 'document.docx',
         mimetype: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
@@ -143,7 +175,7 @@ describe('UploadService', () => {
       });
 
       await expect(service.saveFile(file)).rejects.toThrow(BadRequestException);
-      await expect(service.saveFile(file)).rejects.toThrow('不支持的文件类型');
+      await expect(service.saveFile(file)).rejects.toThrow('不允许上传可执行文件类型');
     });
 
     it('should reject video files', async () => {
@@ -343,7 +375,8 @@ describe('UploadService', () => {
       });
       
       const result = await service.saveFile(file);
-      expect(result.filename).toBe('文档-2025(测试).pdf');
+      // Parentheses are sanitized to underscores for security
+      expect(result.filename).toBe('文档-2025_测试_.pdf');
     });
 
     it('should use ConfigService for settings', async () => {
@@ -427,6 +460,160 @@ describe('UploadService', () => {
           error: 'Permission denied',
         })
       );
+    });
+  });
+
+  describe('Enhanced Security Features', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    describe('Dangerous File Detection', () => {
+      it('should reject executable files', async () => {
+        const dangerousFiles = [
+          'virus.exe',
+          'malware.dll',
+          'script.bat',
+          'command.cmd',
+          'shell.sh',
+          'app.jar',
+        ];
+
+        for (const filename of dangerousFiles) {
+          const file = createMockFile({ 
+            originalname: filename,
+            mimetype: 'application/octet-stream',
+          });
+
+          await expect(service.saveFile(file)).rejects.toThrow(
+            BadRequestException
+          );
+          expect(mockLogger.warn).toHaveBeenCalledWith(
+            'Dangerous file type detected',
+            expect.objectContaining({ filename })
+          );
+        }
+      });
+
+      it('should allow safe file types', async () => {
+        const safeFiles = ['document.pdf', 'text.txt', 'image.png'];
+        
+        // Mock file-type detection
+        const { fileTypeFromBuffer } = require('file-type');
+        jest.mock('file-type');
+        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+          mime: 'application/pdf',
+          ext: 'pdf',
+        });
+
+        for (const filename of safeFiles) {
+          const file = createMockFile({ originalname: filename });
+          const result = await service.saveFile(file);
+          
+          expect(result).toHaveProperty('id');
+          expect(result).toHaveProperty('url');
+        }
+      });
+    });
+
+    describe('Filename Sanitization', () => {
+      it('should sanitize dangerous filenames', async () => {
+        const dangerousNames = [
+          '../../../etc/passwd',
+          '..\\..\\windows\\system32',
+          'file<script>.txt',
+          'file|pipe.txt',
+          'file;command.txt',
+        ];
+
+        // Mock file-type
+        const { fileTypeFromBuffer } = require('file-type');
+        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+          mime: 'text/plain',
+          ext: 'txt',
+        });
+
+        for (const name of dangerousNames) {
+          const file = createMockFile({ 
+            originalname: name,
+            mimetype: 'text/plain',
+          });
+          
+          const result = await service.saveFile(file);
+          
+          // 清理后的文件名不应包含危险字符
+          expect(result.filename).not.toContain('..');
+          expect(result.filename).not.toContain('<');
+          expect(result.filename).not.toContain('>');
+          expect(result.filename).not.toContain('|');
+          expect(mockLogger.log).toHaveBeenCalledWith(
+            'info',
+            'Filename sanitized',
+            expect.any(Object)
+          );
+        }
+      });
+
+      it('should preserve Chinese characters in filename', async () => {
+        const { fileTypeFromBuffer } = require('file-type');
+        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+          mime: 'text/plain',
+          ext: 'txt',
+        });
+
+        const file = createMockFile({ 
+          originalname: '测试文档-2025.txt',
+          mimetype: 'text/plain',
+        });
+        
+        const result = await service.saveFile(file);
+        
+        expect(result.filename).toContain('测试文档');
+        expect(result.filename).toContain('2025');
+      });
+    });
+
+    describe('File Type Validation (Magic Number)', () => {
+      it('should validate file type using magic numbers', async () => {
+        const { fileTypeFromBuffer } = require('file-type');
+        
+        // Mock: 声明是 PNG，但实际是 EXE
+        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+          mime: 'application/x-msdownload', // EXE 文件
+          ext: 'exe',
+        });
+
+        const file = createMockFile({ 
+          originalname: 'fake-image.png',
+          mimetype: 'image/png', // 声称是 PNG
+        });
+
+        await expect(service.saveFile(file)).rejects.toThrow(
+          BadRequestException
+        );
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          'File type mismatch detected',
+          expect.objectContaining({
+            declared: 'image/png',
+            actual: 'application/x-msdownload',
+          })
+        );
+      });
+
+      it('should reject files with undetectable type', async () => {
+        const { fileTypeFromBuffer } = require('file-type');
+        (fileTypeFromBuffer as jest.Mock).mockResolvedValue(undefined);
+
+        const file = createMockFile({ originalname: 'unknown.dat' });
+
+        await expect(service.saveFile(file)).rejects.toThrow(
+          BadRequestException
+        );
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          'Unable to detect file type from buffer',
+          expect.any(Object)
+        );
+      });
     });
   });
 });

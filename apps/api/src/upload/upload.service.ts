@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { extname, join } from 'path';
 import { promises as fs } from 'fs';
+import { fileTypeFromBuffer } from 'file-type';
 
 export interface UploadResult {
   id: string;
@@ -14,6 +15,13 @@ export interface UploadResult {
 
 @Injectable()
 export class UploadService {
+  // 危险文件扩展名黑名单
+  private readonly DANGEROUS_EXTENSIONS = [
+    '.exe', '.dll', '.bat', '.cmd', '.sh', '.bash',
+    '.scr', '.vbs', '.js', '.jar', '.app', '.msi',
+    '.com', '.pif', '.ps1', '.psm1',
+  ];
+
   constructor(
     private configService: ConfigService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
@@ -24,7 +32,7 @@ export class UploadService {
    */
   private isAllowedMimeType(mimetype: string): boolean {
     const allowed = this.configService.get<string[]>('upload.allowedMimeTypes') || [];
-    return allowed.some(allowedType => {
+    return allowed.some((allowedType: string) => {
       if (allowedType.endsWith('/*')) {
         const prefix = allowedType.slice(0, -2);
         return mimetype.startsWith(prefix);
@@ -57,21 +65,117 @@ export class UploadService {
   }
 
   /**
+   * 检查是否为危险文件类型
+   */
+  private isDangerousFile(filename: string): boolean {
+    const ext = extname(filename).toLowerCase();
+    return this.DANGEROUS_EXTENSIONS.includes(ext);
+  }
+
+  /**
+   * 清理文件名，防止路径遍历和特殊字符攻击
+   */
+  private sanitizeFilename(filename: string): string {
+    return filename
+      .replace(/[^a-zA-Z0-9._\u4e00-\u9fa5-]/g, '_') // 保留中文、字母、数字、点、下划线、连字符
+      .replace(/\.{2,}/g, '_') // 防止 ../ 路径遍历
+      .replace(/^\.+/, '') // 移除开头的点
+      .substring(0, 255); // 限制长度
+  }
+
+  /**
+   * 验证文件真实类型（通过文件魔数）
+   */
+  private async validateFileType(
+    buffer: Buffer,
+    declaredMimetype: string,
+  ): Promise<void> {
+    const detected = await fileTypeFromBuffer(buffer);
+
+    // 某些文件类型（如纯文本）没有魔数，对于这些类型只检查是否在允许列表中
+    if (!detected) {
+      const textBasedTypes = [
+        'text/plain',
+        'text/markdown',
+        'text/csv',
+        'application/json',
+        'text/html',
+        'text/css',
+        'application/javascript',
+      ];
+      
+      if (textBasedTypes.includes(declaredMimetype)) {
+        this.logger.debug('Text-based file accepted without magic number validation', {
+          context: 'UploadService',
+          declaredMimetype,
+          bufferSize: buffer.length,
+        });
+        return; // 文本类型文件允许通过
+      }
+      
+      this.logger.warn('Unable to detect file type from buffer', {
+        context: 'UploadService',
+        declaredMimetype,
+        bufferSize: buffer.length,
+      });
+      throw new BadRequestException('无法识别文件类型，请确保上传的是有效文件');
+    }
+
+    // 检查真实类型是否在允许列表中
+    if (!this.isAllowedMimeType(detected.mime)) {
+      this.logger.warn('File type mismatch detected', {
+        context: 'UploadService',
+        declared: declaredMimetype,
+        actual: detected.mime,
+      });
+      throw new BadRequestException(
+        `文件类型不匹配。声明类型: ${declaredMimetype}, 实际类型: ${detected.mime}`
+      );
+    }
+  }
+
+  /**
    * 处理文件上传
    */
   async saveFile(file: Express.Multer.File): Promise<UploadResult> {
+    const originalFilename = file.originalname;
+    
     this.logger.log('info', 'Processing file upload', {
       context: 'UploadService',
-      filename: file.originalname,
+      filename: originalFilename,
       mimetype: file.mimetype,
       size: file.size,
     });
 
-    // 1. 验证文件类型
+    // 1. 检查危险文件类型
+    if (this.isDangerousFile(originalFilename)) {
+      this.logger.warn('Dangerous file type detected', {
+        context: 'UploadService',
+        filename: originalFilename,
+      });
+      throw new BadRequestException(
+        `不允许上传可执行文件类型: ${extname(originalFilename)}`
+      );
+    }
+
+    // 2. 清理文件名
+    const sanitizedFilename = this.sanitizeFilename(originalFilename);
+    if (sanitizedFilename !== originalFilename) {
+      this.logger.log('info', 'Filename sanitized', {
+        context: 'UploadService',
+        original: originalFilename,
+        sanitized: sanitizedFilename,
+      });
+    }
+
+    // 3. 验证文件真实类型（魔数检查）
+    await this.validateFileType(file.buffer, file.mimetype);
+
+    // 4. 验证声明的文件类型
     if (!this.isAllowedMimeType(file.mimetype)) {
       this.logger.warn('File type not allowed', {
         context: 'UploadService',
-        filename: file.originalname,
+        filename: originalFilename,
         mimetype: file.mimetype,
       });
 
@@ -80,13 +184,13 @@ export class UploadService {
       );
     }
 
-    // 2. 验证文件大小
+    // 5. 验证文件大小
     if (!this.isAllowedSize(file.size)) {
       const maxSizeMB = (this.configService.get<number>('upload.maxSize') || 10485760) / 1024 / 1024;
       
       this.logger.warn('File size exceeds limit', {
         context: 'UploadService',
-        filename: file.originalname,
+        filename: originalFilename,
         size: file.size,
         maxSize: maxSizeMB,
       });
@@ -98,7 +202,7 @@ export class UploadService {
 
     const result = {
       id: this.extractFileId(file.filename),
-      filename: file.originalname,
+      filename: sanitizedFilename, // 使用清理后的文件名
       url: this.buildFileUrl(file.filename),
       size: file.size,
       mimetype: file.mimetype,
@@ -131,7 +235,7 @@ export class UploadService {
     try {
       // 查找文件（支持多种扩展名）
       const files = await fs.readdir(uploadDir);
-      const targetFile = files.find(file => file.startsWith(fileId));
+      const targetFile = files.find((file: string) => file.startsWith(fileId));
       
       if (!targetFile) {
         this.logger.warn('File not found', {
