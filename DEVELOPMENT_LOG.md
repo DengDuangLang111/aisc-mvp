@@ -409,6 +409,228 @@ curl -X POST http://localhost:4000/chat \
 
 ---
 
+## 2025年10月30日 - Phase 1: 安全与稳定性重构
+
+### 完成时间
+2025年10月30日
+
+### 背景
+在接入真实 AI API 之前，对代码库进行全面的安全加固和架构优化。修复了代码审查中发现的 15 个问题中的高优先级问题。
+
+### 重构内容
+
+#### 1. 环境变量管理 ✅
+**问题**: 配置散落在代码中，无法适应不同环境
+
+**解决方案**:
+- 创建 `.env.example` 模板文件
+- 创建 `apps/api/.env` 和 `apps/api/.env.example`
+- 创建 `apps/web/.env.local` 和 `apps/web/.env.example`
+- 集成 `@nestjs/config` (v4.0.2)
+- 实现 `config/configuration.ts` 统一配置管理
+- 实现 `config/validation.ts` 配置验证
+
+**配置项**:
+```typescript
+{
+  port: 4000,
+  baseUrl: 'http://localhost:4000',
+  cors: { origin: 'http://localhost:3000' },
+  upload: { maxSize: 10MB, allowedTypes: [...] },
+  rateLimit: { ttl: 60000, limit: 20 },
+  ai: { apiKey, baseUrl, model }
+}
+```
+
+#### 2. 输入验证 ✅
+**问题**: API 接口无输入验证，存在注入攻击风险
+
+**解决方案**:
+- 安装 `class-validator` (v0.14.2) 和 `class-transformer` (v0.5.1)
+- 创建 `chat/dto/chat-request.dto.ts` 验证类
+- 实现全局 `ValidationPipe`:
+  - `whitelist: true` - 去除未定义属性
+  - `forbidNonWhitelisted: true` - 拒绝额外属性
+  - `transform: true` - 自动类型转换
+- 限制消息长度 4000 字符
+
+**DTO 示例**:
+```typescript
+export class ChatRequestDto {
+  @IsString()
+  @MaxLength(4000)
+  message: string;
+  
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  conversationHistory?: MessageDto[];
+}
+```
+
+#### 3. 全局错误处理 ✅
+**问题**: 错误处理不统一，可能泄露敏感信息
+
+**解决方案**:
+- 创建 `common/filters/all-exceptions.filter.ts`
+- 捕获所有异常并统一格式化
+- 记录详细错误日志
+- 返回安全的错误信息给客户端
+
+**错误响应格式**:
+```json
+{
+  "statusCode": 400,
+  "message": "用户友好的错误信息",
+  "timestamp": "2025-10-30T...",
+  "path": "/chat"
+}
+```
+
+#### 4. API Rate Limiting ✅
+**问题**: 无限流保护，易被滥用，AI 费用失控
+
+**解决方案**:
+- 集成 `@nestjs/throttler` (v6.4.0)
+- 全局配置: 20 requests / 60 seconds
+- 应用到所有敏感接口 (`/chat`, `/upload`)
+- 使用 `@UseGuards(ThrottlerGuard)` 装饰器
+
+#### 5. UploadService 重构 ✅
+**问题**: Service 层完全为空，Controller 承担过多职责
+
+**解决方案**:
+- 实现完整的 `upload.service.ts` 业务逻辑
+- 文件类型验证（白名单机制）
+- 文件大小验证（10MB 限制）
+- 安全的 URL 构建（使用 ConfigService）
+- MIME 类型检查
+
+**新增方法**:
+```typescript
+async saveFile(file: Express.Multer.File): Promise<UploadResult> {
+  // 1. 验证文件类型
+  // 2. 验证文件大小
+  // 3. 返回文件信息
+}
+```
+
+#### 6. CORS 安全配置 ✅
+**问题**: `app.enableCors()` 允许所有来源，存在安全风险
+
+**解决方案**:
+```typescript
+app.enableCors({
+  origin: process.env.CORS_ORIGIN,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+});
+```
+
+#### 7. 前端 API 客户端 ✅
+**问题**: 每个页面都直接调用 fetch，代码重复，硬编码 URL
+
+**解决方案**:
+- 创建 `lib/api-client.ts` 统一客户端
+- 封装所有 API 调用方法
+- 自定义 `ApiError` 错误类
+- 使用环境变量配置 API URL
+
+**API 客户端方法**:
+```typescript
+export class ApiClient {
+  static async chat(request: ChatRequest): Promise<ChatResponse>
+  static async uploadFile(file: File): Promise<UploadResponse>
+  static buildFileUrl(fileId: string, ext: string): string
+}
+```
+
+#### 8. 移除硬编码 URL ✅
+**修改文件**:
+- `apps/web/app/chat/page.tsx` - 使用 ApiClient
+- `apps/web/app/upload/page.tsx` - 使用 ApiClient
+- `apps/api/src/upload/upload.controller.ts` - 使用 ConfigService
+- `apps/api/src/main.ts` - 使用 ConfigService
+
+### 技术栈更新
+
+**新增依赖**:
+```json
+{
+  "@nestjs/config": "^4.0.2",
+  "@nestjs/throttler": "^6.4.0",
+  "class-validator": "^0.14.2",
+  "class-transformer": "^0.5.1"
+}
+```
+
+### 文件变更统计
+
+| 类型 | 数量 |
+|------|------|
+| 新增文件 | 9 |
+| 修改文件 | 9 |
+| 新增代码行 | ~700 |
+| 删除代码行 | ~70 |
+
+**新增文件**:
+1. `.env.example`
+2. `apps/api/.env.example`
+3. `apps/api/.env`
+4. `apps/api/src/config/configuration.ts`
+5. `apps/api/src/config/validation.ts`
+6. `apps/api/src/common/filters/all-exceptions.filter.ts`
+7. `apps/api/src/chat/dto/chat-request.dto.ts`
+8. `apps/web/.env.local`
+9. `apps/web/.env.example`
+10. `apps/web/lib/api-client.ts`
+
+### 测试验证
+
+```bash
+✅ Test Suites: 3 passed, 3 total
+✅ Tests:       33 passed, 33 total
+✅ Time:        0.948s
+✅ Backend Build: Success
+✅ TypeScript Errors: 0
+```
+
+### 安全性提升对比
+
+| 安全项 | 重构前 | 重构后 |
+|--------|--------|--------|
+| 输入验证 | ❌ 无 | ✅ 全局 ValidationPipe |
+| 错误处理 | ❌ 暴露细节 | ✅ 统一安全格式 |
+| Rate Limiting | ❌ 无限制 | ✅ 20 req/60s |
+| CORS | ❌ 允许所有来源 | ✅ 白名单限制 |
+| 文件上传验证 | ❌ 无验证 | ✅ 类型+大小验证 |
+| 硬编码 URL | ❌ 5+ 处 | ✅ 0 处 |
+| 配置管理 | ❌ 散落代码中 | ✅ 统一 ConfigService |
+
+### Git 提交
+- Commit: `50db478d`
+- Message: "refactor(phase1): 完成安全与稳定性重构"
+- Files Changed: 18 files, +2597, -71
+- 状态: ✅ 已推送到 GitHub
+
+### 下一步计划
+
+**Phase 2: 代码质量提升** (预计 1-2 天)
+- [ ] 添加后端单元测试
+- [ ] 实现日志系统 (winston)
+- [ ] 添加健康检查端点
+- [ ] 性能优化和缓存
+
+**Phase 3: AI 功能接入** (预计 2-3 天)
+- [ ] 创建 AI Service 模块
+- [ ] 实现文档解析 (pdf-parse)
+- [ ] 实现流式响应
+- [ ] 提示词工程
+- [ ] E2E 测试
+
+---
+
 ## 待实现功能
 
 ### 下一步: AI Chatbot 多轮对话
@@ -418,3 +640,4 @@ curl -X POST http://localhost:4000/chat \
 - [ ] 渐进式提示系统 (hintLevel 1→2→3)
 - [ ] 创建聊天界面 UI
 - [ ] 集成文件上传和对话功能
+
