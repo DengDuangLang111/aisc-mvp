@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { MessageList } from './components/MessageList'
 import { MessageInput } from './components/MessageInput'
 import { Message } from './components/MessageBubble'
 import { DocumentViewer } from './components/DocumentViewer'
+import { ApiClient, ApiError } from '../../lib/api-client'
 
 export default function ChatPage() {
   const searchParams = useSearchParams()
@@ -17,7 +18,9 @@ export default function ChatPage() {
   // 从 URL 获取文件信息
   const fileId = searchParams.get('fileId')
   const filename = searchParams.get('filename')
-  const fileUrl = fileId ? `http://localhost:4000/uploads/${fileId}.${filename?.split('.').pop()}` : undefined
+  const fileUrl = fileId && filename
+    ? ApiClient.buildFileUrl(fileId, filename.split('.').pop() || 'txt')
+    : undefined
 
   const handleSend = async (content: string) => {
     // Add user message
@@ -37,23 +40,12 @@ export default function ChatPage() {
         content: msg.content,
       }))
 
-      // Call chat API
-      const response = await fetch('http://localhost:4000/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: content,
-          conversationHistory,
-        }),
+      // Call chat API using ApiClient
+      const data = await ApiClient.chat({
+        message: content,
+        conversationHistory,
+        fileId: fileId || undefined,
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to get response')
-      }
-
-      const data = await response.json()
 
       // Add assistant message
       const assistantMessage: Message = {
@@ -64,7 +56,11 @@ export default function ChatPage() {
       }
       setMessages((prev) => [...prev, assistantMessage])
     } catch (err) {
-      setError('发送消息失败，请重试')
+      if (err instanceof ApiError) {
+        setError(`发送失败 (${err.statusCode}): ${err.message}`)
+      } else {
+        setError('发送消息失败，请重试')
+      }
       console.error('Chat error:', err)
     } finally {
       setIsLoading(false)

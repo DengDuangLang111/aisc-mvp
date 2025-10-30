@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Layout } from "../components/Layout";
+import { ApiClient, ApiError } from "../../lib/api-client";
 
 export default function UploadPage() {
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -28,26 +29,18 @@ export default function UploadPage() {
     setStatus(`正在上传：${file.name}...`);
     setUploading(true);
 
-    const fd = new FormData();
-    fd.append("file", file);
-
     try {
-      const res = await fetch("http://localhost:4000/upload", {
-        method: "POST",
-        body: fd,
-      });
-
-      if (!res.ok) {
-        throw new Error(`上传失败: ${res.statusText}`);
-      }
-
-      const json = await res.json();
-      console.log("后端返回：", json);
-      setUploadedFile(json);
-      setStatus(`✅ 上传成功！文件：${json.filename}`);
+      const result = await ApiClient.uploadFile(file);
+      console.log("上传成功：", result);
+      setUploadedFile(result);
+      setStatus(`✅ 上传成功！文件：${result.filename}`);
     } catch (err) {
       console.error("上传错误：", err);
-      setStatus(`❌ 上传失败：${err instanceof Error ? err.message : "未知错误"}`);
+      if (err instanceof ApiError) {
+        setStatus(`❌ 上传失败 (${err.statusCode}): ${err.message}`);
+      } else {
+        setStatus(`❌ 上传失败：${err instanceof Error ? err.message : "未知错误"}`);
+      }
     } finally {
       setUploading(false);
     }

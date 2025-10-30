@@ -1,10 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type {
-  ChatRequest,
   ChatResponse,
   HintLevel,
-  Message,
 } from './chat.types';
+import { ChatRequestDto } from './dto/chat-request.dto';
 
 @Injectable()
 export class ChatService {
@@ -12,7 +11,7 @@ export class ChatService {
    * 处理聊天请求
    * 核心逻辑：根据对话历史判断提示等级，返回渐进式提示
    */
-  async chat(request: ChatRequest): Promise<ChatResponse> {
+  async chat(request: ChatRequestDto): Promise<ChatResponse> {
     const { message, conversationHistory = [] } = request;
 
     // 计算当前提示等级
