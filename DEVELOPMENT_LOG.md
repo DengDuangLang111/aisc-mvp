@@ -65,6 +65,124 @@
 
 ---
 
+## 2025年10月 - AI Chatbot 多轮对话功能
+
+### 完成时间
+2025年10月29日（第二个功能提交）
+
+### 功能描述
+实现了渐进式提示的 AI 对话系统，支持多轮对话：
+
+#### 后端实现
+- **Chat 模块**: 使用 NestJS CLI 生成完整模块结构
+- **POST /chat 端点**:
+  - 接收参数: `{message, conversationHistory, uploadId?}`
+  - 返回数据: `{reply, hintLevel, timestamp, sources?}`
+  
+- **渐进式提示逻辑**:
+  ```
+  用户提问次数 → 提示等级
+  0-1次       → Level 1 (轻微提示，给方向)
+  2-3次       → Level 2 (中等提示，给步骤)
+  4+次        → Level 3 (详细提示，但不给答案)
+  ```
+
+- **Zod 类型定义** (apps/api/src/chat/chat.types.ts):
+  - `MessageSchema`: 单条消息结构
+  - `HintLevelSchema`: 提示等级 (1|2|3)
+  - `ChatRequestSchema`: 聊天请求验证
+  - `ChatResponseSchema`: 聊天响应验证
+
+#### 技术实现细节
+
+1. **多轮对话状态管理**:
+   - 前端维护 conversationHistory 数组
+   - 后端根据历史消息数量计算 hintLevel
+   - 每次请求携带完整历史记录
+
+2. **提示策略**:
+   - Level 1: 🤔 轻微提示，引导思考方向
+   - Level 2: 💡 中等提示，给出解题步骤
+   - Level 3: ✨ 详细提示，接近答案但不直接给出
+
+3. **类型安全**:
+   - 使用 Zod 进行运行时验证
+   - TypeScript 类型推导 (`z.infer<>`)
+   - 前后端共享类型定义（通过 contracts 包）
+
+### 测试验证
+```bash
+# Level 1 测试
+curl -X POST http://localhost:4000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "什么是递归?", "conversationHistory": []}'
+✅ 返回 hintLevel: 1
+
+# Level 2 测试 (包含 2 个用户消息)
+curl -X POST http://localhost:4000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "还是不懂", "conversationHistory": [...]}'
+✅ 返回 hintLevel: 2
+
+# Level 3 测试 (包含 4 个用户消息)
+curl -X POST http://localhost:4000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "再给更多提示", "conversationHistory": [...]}'
+✅ 返回 hintLevel: 3
+```
+
+### Git 提交
+- Commit: `feat: implement AI chatbot with progressive hints`
+- 新增文件:
+  - `apps/api/src/chat/` (完整 chat 模块)
+  - `apps/api/src/chat/chat.types.ts` (Zod schemas)
+  - `study_oasis_simple/packages/contracts/` (共享类型包)
+  - `.gitignore` (忽略 node_modules 等)
+
+### 学习要点
+1. **NestJS 模块化**: 学习了如何用 CLI 生成 module/controller/service
+2. **Zod 验证**: 理解运行时类型验证的重要性
+3. **状态管理**: 多轮对话需要前端维护历史状态
+4. **渐进式教学**: 实现了 PRD 中"不给直接答案"的策略
+5. **API 测试**: 使用 curl 测试不同场景的响应
+
+### 架构决策
+
+**为什么用 Zod？**
+- 运行时验证 API 请求格式
+- 自动生成 TypeScript 类型
+- 易于维护和文档化
+
+**为什么用 conversationHistory？**
+- 无状态设计，后端不需要存储会话
+- 前端完全控制对话流程
+- 方便后期添加持久化存储
+
+**为什么硬编码回复？**
+- 快速验证核心逻辑
+- 后期可轻松替换为 OpenAI/Claude API
+- 降低初期开发复杂度
+
+---
+
+## 待实现功能
+
+### 下一步: 聊天 UI 界面
+- [ ] 创建 /chat 页面
+- [ ] 消息列表组件 (user/assistant 消息)
+- [ ] 输入框 + 发送按钮
+- [ ] 显示 hintLevel 指示器
+- [ ] 实现对话状态管理 (useState)
+
+### 未来功能
+- [ ] 集成上传文件 → 对话流程
+- [ ] 从上传文件提取 sources
+- [ ] 接入真实 AI API (OpenAI/Claude)
+- [ ] 对话历史持久化
+- [ ] 用户认证和会话管理
+
+---
+
 ## 待实现功能
 
 ### 下一步: AI Chatbot 多轮对话
