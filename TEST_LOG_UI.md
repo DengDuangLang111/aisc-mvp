@@ -195,4 +195,67 @@ cd study_oasis_simple/apps/web && pnpm lint-staged
 
 ---
 
-**最后更新**: 2025年1月20日
+## 2025年10月30日 - DocumentViewer 组件测试 ✨
+
+### 测试概览
+
+**新增组件**: DocumentViewer  
+**测试数量**: 20 个测试用例  
+**测试结果**: ✅ 20/20 通过  
+**总测试数**: 33/33 通过
+
+### 测试套件详情
+
+#### 1. Empty State (2 测试) ✅
+- 显示空状态当没有 fileUrl 时
+- 空状态包含跳转到上传页面的链接
+
+#### 2. Document Header (2 测试) ✅
+- 显示文件名在 header 中
+- 显示"新窗口打开"链接
+
+#### 3. PDF Files (1 测试) ✅
+- 使用 iframe 显示 PDF 文件
+
+#### 4. Image Files (5 测试) ✅
+- JPG, JPEG, PNG, GIF, WEBP 格式支持
+
+#### 5. Text Files (5 测试) ✅
+- TXT, MD, JSON, JS, TS 格式支持
+
+#### 6. Unsupported Files (1 测试) ✅
+- 显示下载选项对于不支持的文件类型
+
+#### 7. File Extension Detection (2 测试) ✅
+- 正确识别大小写扩展名
+- 处理没有扩展名的文件
+
+#### 8. Edge Cases (2 测试) ✅
+- fileUrl 存在但 filename 不存在
+- 带多个点的文件名处理
+
+### 测试运行结果
+
+```bash
+Test Suites: 3 passed, 3 total
+Tests:       33 passed, 33 total
+Snapshots:   0 total
+Time:        0.827 s
+```
+
+### 关键测试覆盖
+- ✅ 多种文件格式识别和渲染
+- ✅ 空状态和错误状态处理
+- ✅ Props 验证（可选参数）
+- ✅ DOM 结构和样式类验证
+- ✅ 链接属性验证（href, target, rel）
+- ✅ 边界情况处理
+
+### Git 提交
+- Commit: `0c819cdd`
+- 消息: "test: 添加 DocumentViewer 组件测试"
+- 状态: ✅ 已推送到 GitHub
+
+---
+
+**最后更新**: 2025年10月30日
