@@ -303,6 +303,139 @@ curl -s http://localhost:3000/upload | head -20
 
 ### Git 状态
 ```
+最新提交: 3864524a
+提交数量: 8
+分支: main
+远程: https://github.com/DengDuangLang111/aisc-mvp.git
+推送状态: ✅ 已同步
+```
+
+---
+
+## 2025年1月 - Git 推送测试
+
+### 测试目的
+验证代码能否成功推送到 GitHub 远程仓库
+
+### 遇到的问题
+
+#### 问题 1: 大文件错误
+```
+remote: error: File study_oasis_simple/node_modules/.pnpm/@next+swc-darwin-arm64@16.0.1/
+  .../next-swc.darwin-arm64.node is 119.93 MB; 
+  this exceeds GitHub's file size limit of 100.00 MB
+```
+
+**原因**: `node_modules` 被 Git 追踪，包含大型编译产物
+
+#### 问题 2: .gitignore 无效
+```
+# .gitignore 中有 node_modules/，但仍被追踪
+```
+
+**原因**: `.gitignore` 在文件已被追踪后添加，不影响已有历史
+
+### 解决步骤
+
+#### 步骤 1: 移除当前追踪
+```bash
+git rm -r --cached study_oasis_simple/node_modules
+git add .
+git commit -m "移除 node_modules 从 Git 追踪"
+```
+
+**结果**: 
+- ✅ 从暂存区移除 ~35,000 个文件
+- ✅ 当前工作目录中 node_modules 未被追踪
+
+#### 步骤 2: 清理历史记录
+```bash
+git filter-branch --force --index-filter \
+  'git rm -rf --cached --ignore-unmatch study_oasis_simple/node_modules' \
+  --prune-empty --tag-name-filter cat -- --all
+```
+
+**结果**:
+- ✅ 重写所有 12 个提交
+- ✅ 重写 3 个引用 (main, 2个远程分支)
+- ✅ 处理时间: ~1 秒
+
+#### 步骤 3: 强制推送
+```bash
+git push -u origin main --force
+```
+
+**结果**:
+```
+Enumerating objects: 74, done.
+Counting objects: 100% (74/74), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (65/65), done.
+Writing objects: 100% (74/74), 714.24 KiB | 34.01 MiB/s, done.
+Total 74 (delta 19), reused 24 (delta 2), pack-reused 0
+remote: Resolving deltas: 100% (19/19), done.
+To https://github.com/DengDuangLang111/aisc-mvp.git
+ + 1ada2905...3864524a main -> main (forced update)
+branch 'main' set up to track 'origin/main'.
+```
+
+### 优化效果
+
+| 指标 | 清理前 | 清理后 | 优化 |
+|------|--------|--------|------|
+| Git 对象数 | 20,307 | 74 | 99.6% ↓ |
+| 压缩大小 | 85.14 MiB | 714.24 KiB | 99.2% ↓ |
+| 最大文件 | 119.93 MB | < 1 MB | - |
+| 推送时间 | 失败 | < 5s | ✅ |
+
+### 关键学习点
+
+1. **预防措施**: 
+   - 在首次 `git init` 后立即创建 `.gitignore`
+   - 在首次 commit 前验证 `git status`
+
+2. **Git 历史清理**: 
+   - `git rm --cached`: 只影响当前和未来
+   - `git filter-branch`: 重写整个历史记录
+   - 强制推送会覆盖远程历史
+
+3. **GitHub 限制**:
+   - 单文件不能超过 100 MB
+   - 建议使用 Git LFS 处理大文件
+   - node_modules 始终应该排除
+
+### 测试结论
+✅ **推送成功**: 代码已完整同步到 GitHub
+✅ **仓库优化**: 大小减少 99%+
+✅ **历史干净**: 不包含任何 node_modules 文件
+
+---
+
+## 附录: 测试命令速查
+
+```bash
+# 后端健康检查
+curl http://localhost:4000
+
+# 文件上传
+curl -X POST http://localhost:4000/upload -F "file=@/path/to/file"
+
+# AI 对话测试
+curl -X POST http://localhost:4000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "你的问题", "conversationHistory": []}'
+
+# 检查进程
+lsof -ti:4000  # 后端
+lsof -ti:3000  # 前端
+
+# 查看上传文件
+ls -lh /Users/knight/study_oasis_simple/apps/api/uploads/
+
+# Git 推送
+git push -u origin main
+```
+```
 最新提交: a5662cc1
 提交数量: 4
 分支: main

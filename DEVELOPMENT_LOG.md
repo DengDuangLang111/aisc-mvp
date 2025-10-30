@@ -98,6 +98,47 @@
 1. **多轮对话状态管理**:
    - 前端维护 conversationHistory 数组
    - 后端根据历史消息数量计算 hintLevel
+
+---
+
+## 2025年1月 - Git 历史清理与 GitHub 推送
+
+### 完成时间
+2025年1月
+
+### 问题描述
+- 初次推送时因 `node_modules` 被追踪，导致大文件错误
+- Next.js 编译产物 (next-swc.darwin-arm64.node) 达 119.93 MB，超过 GitHub 100 MB 限制
+
+### 解决方案
+
+1. **移除当前追踪的 node_modules**:
+   ```bash
+   git rm -r --cached study_oasis_simple/node_modules
+   ```
+
+2. **清理 Git 历史**:
+   ```bash
+   git filter-branch --force --index-filter \
+     'git rm -rf --cached --ignore-unmatch study_oasis_simple/node_modules' \
+     --prune-empty --tag-name-filter cat -- --all
+   ```
+
+3. **强制推送到远程**:
+   ```bash
+   git push -u origin main --force
+   ```
+
+### 推送结果
+- ✅ 成功推送到 https://github.com/DengDuangLang111/aisc-mvp
+- ✅ 仓库大小优化: 85.14 MiB → 714.24 KiB
+- ✅ Git 对象数量优化: 20307 → 74
+
+### 学习要点
+1. **`.gitignore` 时机**: 必须在初次 commit 前配置
+2. **git filter-branch**: 用于重写 Git 历史，清除大文件
+3. **GitHub 文件限制**: 单文件不能超过 100 MB
+4. **node_modules 管理**: 始终排除，只追踪 package.json 和 lock 文件
    - 每次请求携带完整历史记录
 
 2. **提示策略**:
