@@ -15,13 +15,13 @@ jest.mock('fs', () => ({
   },
 }));
 
-// Mock file-type module
+// Mock file-type module - mocking fromBuffer method
 jest.mock('file-type', () => ({
-  fileTypeFromBuffer: jest.fn(),
+  fromBuffer: jest.fn(),
 }));
 
 import * as fs from 'fs';
-import { fileTypeFromBuffer } from 'file-type';
+const fileTypeMock = require('file-type');
 
 describe('UploadService', () => {
   let service: UploadService;
@@ -96,7 +96,7 @@ describe('UploadService', () => {
     
     // Setup file-type mock - by default return PDF type (most common in tests)
     // Individual tests can override this for specific file types
-    (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ 
+    (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue({ 
       ext: 'pdf', 
       mime: 'application/pdf' 
     });
@@ -112,7 +112,7 @@ describe('UploadService', () => {
 
   describe('saveFile - file type validation', () => {
     it('should accept PDF files', async () => {
-      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ 
+      (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue({ 
         ext: 'pdf', 
         mime: 'application/pdf' 
       });
@@ -126,7 +126,7 @@ describe('UploadService', () => {
 
     it('should accept text files', async () => {
       // Text files don't have magic numbers
-      (fileTypeFromBuffer as jest.Mock).mockResolvedValue(undefined);
+      (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue(undefined);
       
       const file = createMockFile({ 
         originalname: 'document.txt',
@@ -141,7 +141,7 @@ describe('UploadService', () => {
       const mimetypes = ['image/png', 'image/jpeg', 'image/gif'];
       
       for (const mimetype of mimetypes) {
-        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ 
+        (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue({ 
           ext: mimetype.split('/')[1], 
           mime: mimetype 
         });
@@ -154,7 +154,7 @@ describe('UploadService', () => {
 
     it('should accept Word documents', async () => {
       const mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      (fileTypeFromBuffer as jest.Mock).mockResolvedValue({ 
+      (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue({ 
         ext: 'docx', 
         mime: mimetype 
       });
@@ -501,7 +501,7 @@ describe('UploadService', () => {
         // Mock file-type detection
         const { fileTypeFromBuffer } = require('file-type');
         jest.mock('file-type');
-        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue({
           mime: 'application/pdf',
           ext: 'pdf',
         });
@@ -528,7 +528,7 @@ describe('UploadService', () => {
 
         // Mock file-type
         const { fileTypeFromBuffer } = require('file-type');
-        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue({
           mime: 'text/plain',
           ext: 'txt',
         });
@@ -556,7 +556,7 @@ describe('UploadService', () => {
 
       it('should preserve Chinese characters in filename', async () => {
         const { fileTypeFromBuffer } = require('file-type');
-        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue({
           mime: 'text/plain',
           ext: 'txt',
         });
@@ -578,7 +578,7 @@ describe('UploadService', () => {
         const { fileTypeFromBuffer } = require('file-type');
         
         // Mock: 声明是 PNG，但实际是 EXE
-        (fileTypeFromBuffer as jest.Mock).mockResolvedValue({
+        (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue({
           mime: 'application/x-msdownload', // EXE 文件
           ext: 'exe',
         });
@@ -602,7 +602,7 @@ describe('UploadService', () => {
 
       it('should reject files with undetectable type', async () => {
         const { fileTypeFromBuffer } = require('file-type');
-        (fileTypeFromBuffer as jest.Mock).mockResolvedValue(undefined);
+        (fileTypeMock.fromBuffer as jest.Mock).mockResolvedValue(undefined);
 
         const file = createMockFile({ originalname: 'unknown.dat' });
 

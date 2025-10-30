@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { extname, join } from 'path';
 import { promises as fs } from 'fs';
-import { fileTypeFromBuffer } from 'file-type';
+const fileTypeImport = require('file-type');
 
 export interface UploadResult {
   id: string;
@@ -90,7 +90,7 @@ export class UploadService {
     buffer: Buffer,
     declaredMimetype: string,
   ): Promise<void> {
-    const detected = await fileTypeFromBuffer(buffer);
+    const detected = await fileTypeImport.fromBuffer(buffer);
 
     // 某些文件类型（如纯文本）没有魔数，对于这些类型只检查是否在允许列表中
     if (!detected) {
