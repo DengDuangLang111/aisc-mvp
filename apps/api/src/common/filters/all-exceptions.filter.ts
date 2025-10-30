@@ -4,11 +4,18 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
+  Inject,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger } from 'winston';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+  ) {}
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
@@ -24,8 +31,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.message
         : 'Internal server error';
 
-    // 记录错误日志
-    console.error('[Exception Filter]', {
+    // 使用 Winston 记录错误日志
+    this.logger.error('[Exception Filter]', {
       timestamp: new Date().toISOString(),
       path: request.url,
       method: request.method,

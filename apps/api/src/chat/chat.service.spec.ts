@@ -1,13 +1,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ChatService } from './chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 
 describe('ChatService', () => {
   let service: ChatService;
 
+  const mockLogger = {
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
+
   beforeEach(async () => {
+    jest.clearAllMocks();
+    
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ChatService],
+      providers: [
+        ChatService,
+        {
+          provide: WINSTON_MODULE_PROVIDER,
+          useValue: mockLogger,
+        },
+      ],
     }).compile();
 
     service = module.get<ChatService>(ChatService);

@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, Logger } from '@nestjs/common';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import type {
   ChatResponse,
   HintLevel,
@@ -7,12 +8,22 @@ import { ChatRequestDto } from './dto/chat-request.dto';
 
 @Injectable()
 export class ChatService {
+  constructor(
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+  ) {}
+
   /**
    * 处理聊天请求
    * 核心逻辑：根据对话历史判断提示等级，返回渐进式提示
    */
   async chat(request: ChatRequestDto): Promise<ChatResponse> {
     const { message, conversationHistory = [] } = request;
+
+    this.logger.log('info', 'Processing chat request', {
+      context: 'ChatService',
+      messageLength: message.length,
+      historyCount: conversationHistory.length,
+    });
 
     // 计算当前提示等级
     // 逻辑：统计用户已经问了多少次相关问题
@@ -21,6 +32,12 @@ export class ChatService {
     ).length;
 
     const hintLevel = this.calculateHintLevel(userMessageCount);
+
+    this.logger.log('info', `Calculated hint level: ${hintLevel}`, {
+      context: 'ChatService',
+      userMessageCount,
+      hintLevel,
+    });
 
     // 生成回复（目前是硬编码，后面会接入 AI API）
     const reply = this.generateHintResponse(message, hintLevel);

@@ -4,16 +4,24 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import compression from 'compression';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
-  // 获取配置服务
+  // 获取配置服务和日志服务
   const configService = app.get(ConfigService);
+  const logger = app.get(WINSTON_MODULE_PROVIDER);
   const port = configService.get<number>('port') || 4000;
   const corsOrigin = configService.get<string>('cors.origin') || 'http://localhost:3000';
   const uploadDir = configService.get<string>('upload.destination') || './uploads';
+  
+  // 启用压缩中间件 (gzip/deflate)
+  app.use(compression({
+    threshold: 1024, // 只压缩大于 1KB 的响应
+    level: 6, // 压缩级别 (0-9, 6 是平衡点)
+  }));
   
   // 配置 CORS
   app.enableCors({
@@ -35,17 +43,20 @@ async function bootstrap() {
     }),
   );
   
-  // 全局异常过滤器
-  app.useGlobalFilters(new AllExceptionsFilter());
-  
   // Serve uploaded files as static assets
   app.useStaticAssets(join(__dirname, '..', uploadDir), {
     prefix: '/uploads/',
   });
   
   await app.listen(port);
-  console.log(`✅ API running at http://localhost:${port}`);
-  console.log(`📁 Uploads directory: ${uploadDir}`);
-  console.log(`🔐 CORS origin: ${corsOrigin}`);
+  
+  // 使用 Winston 记录启动信息
+  logger.log('info', '✅ API Server Started Successfully', {
+    port,
+    uploadDir,
+    corsOrigin,
+    environment: configService.get('nodeEnv'),
+    timestamp: new Date().toISOString(),
+  });
 }
 bootstrap();

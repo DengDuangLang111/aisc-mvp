@@ -1,10 +1,17 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { CacheModule } from '@nestjs/cache-manager';
+import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UploadModule } from './upload/upload.module';
 import { ChatModule } from './chat/chat.module';
+import { HealthModule } from './health/health.module';
+import { LoggerModule } from './common/logger/logger.module';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { HttpCacheInterceptor } from './common/interceptors/cache.interceptor';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import configuration from './config/configuration';
 import { validate } from './config/validation';
 
@@ -16,14 +23,41 @@ import { validate } from './config/validation';
       isGlobal: true,
       envFilePath: '.env',
     }),
-    ThrottlerModule.forRoot([{
-      ttl: parseInt(process.env.RATE_LIMIT_TTL || '60000', 10),
-      limit: parseInt(process.env.RATE_LIMIT_MAX || '20', 10),
-    }]),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => [{
+        ttl: configService.get<number>('rateLimit.ttl') || 60000,
+        limit: configService.get<number>('rateLimit.limit') || 20,
+      }],
+    }),
+    CacheModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        ttl: configService.get<number>('cache.ttl') || 60000,
+        max: configService.get<number>('cache.max') || 100,
+        isGlobal: true,
+      }),
+    }),
+    LoggerModule,
     UploadModule,
     ChatModule,
+    HealthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: HttpCacheInterceptor,
+    },
+  ],
 })
 export class AppModule {}

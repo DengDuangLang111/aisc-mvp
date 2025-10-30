@@ -1,13 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { UploadService } from './upload.service';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 
 // Mock fs module
 jest.mock('fs', () => ({
   writeFileSync: jest.fn(),
   existsSync: jest.fn(),
   mkdirSync: jest.fn(),
+  promises: {
+    readdir: jest.fn(),
+    readFile: jest.fn(),
+  },
 }));
 
 import * as fs from 'fs';
@@ -16,9 +21,16 @@ describe('UploadService', () => {
   let service: UploadService;
   let configService: ConfigService;
 
+  const mockLogger = {
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  };
+
   const mockConfigService = {
     get: jest.fn((key: string) => {
-      const config = {
+      const config: Record<string, unknown> = {
         'upload.allowedMimeTypes': [
           'application/pdf',
           'text/plain',
@@ -30,7 +42,7 @@ describe('UploadService', () => {
           'image/gif',
         ],
         'upload.maxSize': 10 * 1024 * 1024, // 10MB
-        'upload.uploadDir': './uploads',
+        'upload.destination': './uploads',
         'baseUrl': 'http://localhost:4000',
       };
       return config[key];
@@ -52,12 +64,18 @@ describe('UploadService', () => {
   });
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+    
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UploadService,
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: WINSTON_MODULE_PROVIDER,
+          useValue: mockLogger,
         },
       ],
     }).compile();
@@ -335,6 +353,80 @@ describe('UploadService', () => {
       expect(configService.get).toHaveBeenCalledWith('upload.allowedMimeTypes');
       expect(configService.get).toHaveBeenCalledWith('upload.maxSize');
       expect(configService.get).toHaveBeenCalledWith('baseUrl');
+    });
+  });
+
+  describe('readFileContent', () => {
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('should read text file content successfully', async () => {
+      const fileId = 'test-file-123';
+      const fileContent = 'This is test content';
+      
+      // Mock readdir to return file list
+      (fs.promises.readdir as jest.Mock).mockResolvedValue([
+        'test-file-123.txt',
+        'other-file.pdf',
+      ]);
+      
+      // Mock readFile to return content
+      (fs.promises.readFile as jest.Mock).mockResolvedValue(fileContent);
+      
+      const result = await service.readFileContent(fileId);
+      
+      expect(result).toBe(fileContent);
+      expect(fs.promises.readdir).toHaveBeenCalledWith('./uploads');
+      expect(fs.promises.readFile).toHaveBeenCalledWith(
+        expect.stringContaining('test-file-123.txt'),
+        'utf-8'
+      );
+      expect(mockLogger.log).toHaveBeenCalledWith(
+        'info',
+        'File content read successfully',
+        expect.objectContaining({
+          fileId,
+          contentLength: fileContent.length,
+        })
+      );
+    });
+
+    it('should throw NotFoundException for non-existent file', async () => {
+      const fileId = 'non-existent-file';
+      
+      // Mock readdir to return empty list
+      (fs.promises.readdir as jest.Mock).mockResolvedValue([
+        'other-file.txt',
+      ]);
+      
+      await expect(service.readFileContent(fileId)).rejects.toThrow(NotFoundException);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'File not found',
+        expect.objectContaining({ fileId })
+      );
+    });
+
+    it('should throw BadRequestException on read error', async () => {
+      const fileId = 'error-file';
+      
+      (fs.promises.readdir as jest.Mock).mockResolvedValue([
+        'error-file.txt',
+      ]);
+      
+      // Mock readFile to throw error
+      (fs.promises.readFile as jest.Mock).mockRejectedValue(
+        new Error('Permission denied')
+      );
+      
+      await expect(service.readFileContent(fileId)).rejects.toThrow(BadRequestException);
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        'Failed to read file content',
+        expect.objectContaining({
+          fileId,
+          error: 'Permission denied',
+        })
+      );
     });
   });
 });

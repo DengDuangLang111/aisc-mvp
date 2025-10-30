@@ -26,6 +26,11 @@ export default () => ({
     limit: parseInt(process.env.RATE_LIMIT_MAX || '20', 10), // 20 requests
   },
   
+  cache: {
+    ttl: parseInt(process.env.CACHE_TTL || '60000', 10), // 60 seconds
+    max: parseInt(process.env.CACHE_MAX || '100', 10), // 100 entries
+  },
+  
   ai: {
     apiKey: process.env.AI_API_KEY || '',
     baseUrl: process.env.AI_API_BASE_URL || '',
