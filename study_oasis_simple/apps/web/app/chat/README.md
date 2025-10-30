@@ -1,135 +1,152 @@
-# Chat 功能文档
+# Chat Page
 
-AI 聊天界面，支持渐进式提示的多轮对话。
+AI 对话学习页面，支持文档查看与对话并行。
 
-## 功能特性
+## 功能
 
-1. **多轮对话**: 维护完整的对话历史
-2. **渐进式提示**: 根据提问次数自动调整提示等级
-3. **实时反馈**: 打字动画和状态提示
-4. **消息气泡**: 区分用户和 AI 消息
-5. **自动滚动**: 新消息自动滚动到底部
+### 核心功能
+1. **实时对话**: 与 AI 进行学习讨论
+2. **提示等级**: AI 回复带有提示等级（轻度、中度、详细）
+3. **历史记录**: 保存对话历史
+4. **响应式设计**: 适配各种屏幕尺寸
+
+### ✨ 分屏布局（新）
+5. **文档查看器**: 左侧显示上传的学习材料
+6. **切换显示**: 可以显示/隐藏文档查看器
+7. **动态布局**: 根据是否有文档自动调整宽度
+8. **多格式支持**: PDF、图片、文本文件预览
+
+## 页面布局
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Header: AI学习助手        [显示/隐藏文档] 按钮      │
+├────────────────────────┬────────────────────────────┤
+│                        │                            │
+│   文档查看器           │    聊天消息列表            │
+│   (DocumentViewer)     │    (MessageList)           │
+│                        │                            │
+│   - PDF预览            │    - 用户消息              │
+│   - 图片显示           │    - AI回复                │
+│   - 文本预览           │    - 提示等级              │
+│   - 新窗口打开         │                            │
+│                        │                            │
+│   50% 宽度             │    50% 宽度                │
+│   (可隐藏)             │    (可扩展到100%)          │
+│                        │                            │
+├────────────────────────┼────────────────────────────┤
+│                        │  消息输入框                │
+│                        │  (MessageInput)            │
+└────────────────────────┴────────────────────────────┘
+```
+
+## 使用方式
+
+### 方式 1: 从上传页面跳转
+1. 在上传页面上传文件
+2. 点击"开始对话学习"按钮
+3. 自动跳转到聊天页面，带上 `fileId` 和 `filename` 参数
+4. 左侧自动显示文档，右侧开始对话
+
+### 方式 2: 直接访问
+直接访问 `/chat` 页面，无文档模式，全屏聊天界面。
+
+### 方式 3: URL 参数访问
+```
+/chat?fileId=abc123&filename=study.pdf
+```
+
+## URL 参数
+
+| 参数 | 类型 | 说明 | 示例 |
+|------|------|------|------|
+| `fileId` | string | 上传文件的 ID | `9c7f7648-75b9-44e2-a123-0866de434e62` |
+| `filename` | string | 原始文件名 | `数学作业.pdf` |
+
+## 技术实现
+
+### 前端架构
+- **框架**: Next.js 16 App Router
+- **状态管理**: React useState hooks
+- **URL 参数**: `useSearchParams()` hook
+- **客户端渲染**: 'use client' 指令
+
+### API 集成
+```typescript
+const response = await fetch('http://localhost:4000/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    message: userMessage,
+    fileId: fileId, // 可选，如果有上传文件
+  }),
+})
+```
+
+### 文档 URL 构建
+```typescript
+const fileUrl = fileId 
+  ? `http://localhost:4000/uploads/${fileId}.${filename?.split('.').pop()}`
+  : undefined
+```
+
+### 响应式宽度
+```typescript
+className={`flex flex-col ${showDocument && fileUrl ? 'w-1/2' : 'w-full'}`}
+```
 
 ## 组件结构
 
 ```
-chat/
-├── README.md           # 本文档
-├── page.tsx           # 聊天页面主组件
-└── components/        # 聊天相关组件
-    ├── README.md      # 组件文档
-    ├── MessageList.tsx    # 消息列表
-    ├── MessageBubble.tsx  # 单条消息气泡
-    ├── MessageInput.tsx   # 输入框
-    └── HintLevelBadge.tsx # 提示等级标识
+page.tsx (Client Component)
+├── Layout
+│   ├── Header
+│   │   ├── Title: "AI学习助手"
+│   │   └── Toggle Button: 显示/隐藏文档
+│   ├── Content (flex-1 flex)
+│   │   ├── DocumentViewer (w-1/2, 条件渲染)
+│   │   └── Chat Area (w-1/2 or w-full)
+│   │       ├── MessageList
+│   │       └── MessageInput
 ```
-
-## API 接口
-
-### POST /chat
-
-**请求格式:**
-```typescript
-{
-  message: string                    // 用户输入的消息
-  conversationHistory: Message[]     // 对话历史
-  uploadId?: string                  // 关联的文件 ID（可选）
-}
-
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
-}
-```
-
-**响应格式:**
-```typescript
-{
-  reply: string          // AI 回复内容
-  hintLevel: 1 | 2 | 3  // 提示等级
-  timestamp: number      // 时间戳
-  sources?: string[]     // 来源（可选）
-}
-```
-
-## 提示等级说明
-
-### Level 1 - 轻微提示 🤔
-- **触发条件**: 0-1 次提问
-- **提示风格**: 引导思考方向，不给具体答案
-- **徽章颜色**: 绿色 (#10b981)
-
-### Level 2 - 中等提示 💡
-- **触发条件**: 2-3 次提问
-- **提示风格**: 提供思路步骤，接近答案但不直接给出
-- **徽章颜色**: 橙色 (#f59e0b)
-
-### Level 3 - 详细提示 ✨
-- **触发条件**: 4+ 次提问
-- **提示风格**: 详细指导，非常接近答案
-- **徽章颜色**: 红色 (#ef4444)
 
 ## 状态管理
 
-使用 React useState 管理以下状态：
-- `messages`: 消息列表
-- `input`: 输入框内容
-- `isLoading`: 是否正在发送/接收消息
-- `error`: 错误信息
+| State | Type | 说明 |
+|-------|------|------|
+| `messages` | `Message[]` | 聊天消息列表 |
+| `isLoading` | `boolean` | API 请求加载状态 |
+| `error` | `string \| null` | 错误信息 |
+| `showDocument` | `boolean` | 是否显示文档查看器 |
 
-## 样式设计
+## 交互流程
 
-### 消息气泡
-- **用户消息**: 
-  - 背景: `bg-blue-600`
-  - 文字: `text-white`
-  - 位置: 右对齐
-  
-- **AI 消息**:
-  - 背景: `bg-gray-100`
-  - 文字: `text-gray-900`
-  - 位置: 左对齐
+### 发送消息
+1. 用户在 `MessageInput` 输入内容
+2. 点击发送或按 Enter
+3. 消息添加到 `messages` 状态
+4. 调用后端 `/api/chat` 接口
+5. 接收 AI 回复并添加到消息列表
+6. 自动滚动到最新消息
 
-### 输入框
-- 固定在底部
-- 自适应高度（multiline）
-- 发送按钮带加载动画
+### 切换文档显示
+1. 点击 Header 的"显示/隐藏文档"按钮
+2. `showDocument` 状态切换
+3. 左侧面板显示/隐藏
+4. 右侧聊天区宽度自动调整
 
-## 使用示例
+## 错误处理
 
-```tsx
-// 基本使用
-import ChatPage from '@/app/chat/page'
-
-// 在应用中使用
-<ChatPage />
-
-// 从上传页面跳转
-router.push(`/chat?uploadId=${fileId}`)
-```
-
-## 测试覆盖
-
-- [x] 消息发送功能
-- [x] 消息显示
-- [x] 提示等级徽章
-- [x] 加载状态
-- [x] 错误处理
-- [x] 自动滚动
+- API 请求失败：显示错误消息横幅
+- 文档加载失败：显示上传引导
+- 网络断开：提示重新连接
 
 ## 性能优化
 
-1. **虚拟滚动**: 大量消息时使用虚拟列表
-2. **防抖输入**: 防止频繁触发
-3. **缓存历史**: LocalStorage 持久化对话
-4. **懒加载**: 按需加载历史消息
+- 使用 `useEffect` 自动滚动到底部
+- 条件渲染避免不必要的组件加载
+- 文件 URL 延迟构建（仅在需要时）
 
-## 更新日志
+---
 
-### 2025-10-29
-- ✅ 创建聊天功能文档
-- ⏳ 实现消息列表组件
-- ⏳ 实现输入框组件
-- ⏳ 实现提示等级徽章
-- ⏳ 集成 API
-- ⏳ 添加测试
+**最后更新**: 2025年10月30日
