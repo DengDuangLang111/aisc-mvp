@@ -276,98 +276,236 @@ describe('VisionService', () => {
     });
   });
 
-  describe('language detection', () => {
-    it('should detect language from textAnnotations', async () => {
-      const buffer = Buffer.from('test');
-      const documentId = 'doc-lang';
+  describe('getOcrResult', () => {
+    it('should return OCR result for a document', async () => {
+      const documentId = 'doc-123';
+      const mockOcrResult = {
+        id: 'ocr-123',
+        documentId,
+        fullText: 'Sample text',
+        confidence: 0.95,
+        language: 'en',
+        pageCount: 1,
+        extractedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      (prisma.ocrResult.findUnique as jest.Mock).mockResolvedValue(mockOcrResult);
+
+      const result = await service.getOcrResult(documentId);
+
+      expect(result).toBeDefined();
+      expect(result?.fullText).toBe('Sample text');
+      expect(result?.confidence).toBe(0.95);
+      expect(prisma.ocrResult.findUnique).toHaveBeenCalledWith({
+        where: { documentId },
+      });
+    });
+
+    it('should return null when OCR result not found', async () => {
+      const documentId = 'non-existent';
+
+      (prisma.ocrResult.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.getOcrResult(documentId);
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle empty Vision API response', async () => {
+      const gcsPath = 'gs://bucket/empty.pdf';
+      const documentId = 'doc-empty';
+
+      mockDocumentTextDetection.mockResolvedValue([{}]); // Empty response
+
+      await expect(
+        service.extractTextFromGcs(gcsPath, documentId),
+      ).rejects.toThrow('OCR failed: No text found in document');
+    });
+
+    it('should handle Vision API response without text annotations', async () => {
+      const gcsPath = 'gs://bucket/notext.pdf';
+      const documentId = 'doc-notext';
 
       mockDocumentTextDetection.mockResolvedValue([
         {
           fullTextAnnotation: {
-            text: 'Bonjour',
-            pages: [{ confidence: 0.95, blocks: [] }],
+            text: 'Some text',
+            pages: [{ confidence: 0.9 }],
+          },
+          // No textAnnotations
+        },
+      ]);
+
+      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(
+        createMockOcrResult({ 
+          documentId, 
+          fullText: 'Some text',
+          language: 'unknown',
+        }),
+      );
+
+      const result = await service.extractTextFromGcs(gcsPath, documentId);
+
+      expect(result.fullText).toBe('Some text');
+      expect(result.language).toBe('unknown');
+    });
+  });
+
+  describe('extractTextFromBuffer', () => {
+    it('should handle buffer OCR failure', async () => {
+      const buffer = Buffer.from('invalid pdf content');
+      const documentId = 'doc-buffer-fail';
+
+      mockDocumentTextDetection.mockRejectedValue(new Error('Vision API timeout'));
+
+      await expect(
+        service.extractTextFromBuffer(buffer, documentId),
+      ).rejects.toThrow('OCR failed: Vision API timeout');
+    });
+
+    it('should process buffer with multiple pages', async () => {
+      const buffer = Buffer.from('multi page pdf');
+      const documentId = 'doc-multipage';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: {
+            text: 'Page 1\nPage 2\nPage 3',
+            pages: [
+              { 
+                confidence: 0.9,
+                blocks: [{
+                  paragraphs: [{
+                    words: [
+                      { confidence: 0.9 },
+                      { confidence: 0.8 },
+                    ],
+                  }],
+                }],
+              },
+              { 
+                confidence: 0.85,
+                blocks: [{
+                  paragraphs: [{
+                    words: [
+                      { confidence: 0.85 },
+                      { confidence: 0.90 },
+                    ],
+                  }],
+                }],
+              },
+              { 
+                confidence: 0.95,
+                blocks: [{
+                  paragraphs: [{
+                    words: [
+                      { confidence: 0.95 },
+                      { confidence: 0.92 },
+                    ],
+                  }],
+                }],
+              },
+            ],
           },
           textAnnotations: [
-            { locale: 'fr', description: 'Bonjour' },
+            { description: 'Page 1\nPage 2\nPage 3', locale: 'en' },
           ],
         },
       ]);
 
-      const mockOcrResult = createMockOcrResult({
-        documentId,
-        fullText: 'Bonjour',
-        language: 'fr',
-      });
-
-      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(mockOcrResult);
-
-      const result = await service.extractTextFromBuffer(buffer, documentId);
-
-      expect(result.language).toBe('fr');
-    });
-
-    it('should use default language when not detected', async () => {
-      const buffer = Buffer.from('test');
-      const documentId = 'doc-no-lang';
-
-      mockDocumentTextDetection.mockResolvedValue([
-        {
-          fullTextAnnotation: {
-            text: 'Text content',
-            pages: [{ confidence: 0.9, blocks: [] }],
-          },
-          textAnnotations: [],
-        },
-      ]);
-
-      const mockOcrResult = createMockOcrResult({
-        documentId,
-        fullText: 'Text content',
-        language: 'unknown',
-      });
-
-      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(mockOcrResult);
+      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(
+        createMockOcrResult({ 
+          documentId, 
+          fullText: 'Page 1\nPage 2\nPage 3',
+          pageCount: 3,
+          confidence: 0.89,
+        }),
+      );
 
       const result = await service.extractTextFromBuffer(buffer, documentId);
-
-      expect(result.language).toBeDefined();
-    });
-  });
-
-  describe('confidence calculation', () => {
-    it('should calculate average confidence from pages', async () => {
-      const gcsPath = 'gs://bucket/multi-page.pdf';
-      const documentId = 'doc-multi';
-
-      mockDocumentTextDetection.mockResolvedValue([
-        {
-          fullTextAnnotation: {
-            text: 'Multi-page content',
-            pages: [
-              { confidence: 0.95, blocks: [] },
-              { confidence: 0.90, blocks: [] },
-              { confidence: 0.85, blocks: [] },
-            ],
-          },
-          textAnnotations: [{ locale: 'en', description: 'Test' }],
-        },
-      ]);
-
-      const mockOcrResult = createMockOcrResult({
-        documentId,
-        fullText: 'Multi-page content',
-        confidence: 0.90,
-        pageCount: 3,
-      });
-
-      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(mockOcrResult);
-
-      const result = await service.extractTextFromGcs(gcsPath, documentId);
 
       expect(result.pageCount).toBe(3);
+      expect(result.fullText).toContain('Page 1');
       expect(result.confidence).toBeGreaterThan(0);
     });
   });
 
+  describe('language detection', () => {
+    it('should detect Chinese language', async () => {
+      const gcsPath = 'gs://bucket/chinese.pdf';
+      const documentId = 'doc-chinese';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: {
+            text: '你好世界',
+            pages: [
+              { 
+                confidence: 0.95,
+                property: {
+                  detectedLanguages: [{ languageCode: 'zh' }],
+                },
+              },
+            ],
+          },
+          textAnnotations: [
+            { description: '你好世界', locale: 'zh' },
+          ],
+        },
+      ]);
+
+      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(
+        createMockOcrResult({ 
+          documentId,
+          fullText: '你好世界',
+          language: 'zh',
+        }),
+      );
+
+      const result = await service.extractTextFromGcs(gcsPath, documentId);
+
+      expect(result.language).toBe('zh');
+    });
+
+    it('should detect English language', async () => {
+      const gcsPath = 'gs://bucket/english.pdf';
+      const documentId = 'doc-english';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: {
+            text: 'Hello World',
+            pages: [
+              { 
+                confidence: 0.98,
+                property: {
+                  detectedLanguages: [{ languageCode: 'en' }],
+                },
+              },
+            ],
+          },
+          textAnnotations: [
+            { description: 'Hello World', locale: 'en' },
+          ],
+        },
+      ]);
+
+      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(
+        createMockOcrResult({ 
+          documentId,
+          fullText: 'Hello World',
+          language: 'en',
+        }),
+      );
+
+      const result = await service.extractTextFromGcs(gcsPath, documentId);
+
+      expect(result.language).toBe('en');
+    });
+  });
 
 });

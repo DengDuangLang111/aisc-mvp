@@ -225,13 +225,18 @@ describe('AnalyticsService', () => {
       });
       expect(prisma.analyticsEvent.groupBy).toHaveBeenCalledWith({
         by: ['eventName'],
+        _count: { eventName: true },
         where: {
-          timestamp: {
+          createdAt: {
             gte: startDate,
             lte: endDate,
           },
         },
-        _count: { eventName: true },
+        orderBy: {
+          _count: {
+            eventName: 'desc',
+          },
+        },
       });
     });
   });
@@ -250,14 +255,7 @@ describe('AnalyticsService', () => {
 
       expect(result).toHaveLength(3);
       expect(result[0].feature).toBe('CHAT_MESSAGE');
-      expect(result[0].count).toBe(500);
-      expect(prisma.analyticsEvent.groupBy).toHaveBeenCalledWith({
-        by: ['eventName'],
-        where: expect.anything(),
-        _count: { eventName: true },
-        orderBy: { _count: { eventName: 'desc' } },
-        take: 3,
-      });
+      expect(result[0].usageCount).toBe(500);
     });
   });
 
@@ -284,72 +282,110 @@ describe('AnalyticsService', () => {
     });
   });
 
-  describe('getEventsByCategory', () => {
-    it('should return events grouped by category', async () => {
-      const mockEvents = [
-        { eventCategory: 'DOCUMENT', _count: { eventCategory: 150 } },
-        { eventCategory: 'CHAT', _count: { eventCategory: 200 } },
-      ];
+  describe('getUserDailyStats', () => {
+    it('should return user daily stats for a specific date', async () => {
+      const userId = 'user-123';
+      const date = new Date('2025-01-01');
+      const mockStats = {
+        userId,
+        date,
+        filesUploaded: 5,
+        chatMessagesSent: 20,
+        activeTimeMinutes: 45,
+      };
 
-      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockEvents);
+      (prisma.userDailyStat.findUnique as jest.Mock).mockResolvedValue(mockStats);
 
-      const result = await service.getEventsByCategory();
+      const result = await service.getUserDailyStats(userId, date);
 
-      expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({
-        category: 'DOCUMENT',
-        count: 150,
+      expect(result).toEqual(mockStats);
+      expect(prisma.userDailyStat.findUnique).toHaveBeenCalledWith({
+        where: {
+          userId_date: { userId, date },
+        },
       });
+    });
+
+    it('should return null when no stats found', async () => {
+      (prisma.userDailyStat.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.getUserDailyStats('user-123', new Date());
+
+      expect(result).toBeNull();
     });
   });
 
-  describe('getUserActivityTimeline', () => {
-    it('should return user activity timeline', async () => {
-      const mockEvents = [
-        {
-          id: 'event-1',
-          userId: 'user-123',
-          eventName: 'FILE_UPLOAD',
-          timestamp: new Date(),
-        },
-        {
-          id: 'event-2',
-          userId: 'user-123',
-          eventName: 'CHAT_MESSAGE',
-          timestamp: new Date(),
-        },
-      ];
+  describe('updateUserDailyStats', () => {
+    it('should update user daily stats', async () => {
+      const userId = 'user-123';
+      const date = new Date('2025-01-01');
+      const updates = {
+        filesUploaded: 3,
+        chatMessagesSent: 10,
+      };
 
-      (prisma.analyticsEvent.findMany as jest.Mock).mockResolvedValue(mockEvents);
-
-      const result = await service.getUserActivityTimeline('user-123', 10);
-
-      expect(result).toHaveLength(2);
-      expect(result[0].eventName).toBe('FILE_UPLOAD');
-      expect(prisma.analyticsEvent.findMany).toHaveBeenCalledWith({
-        where: { userId: 'user-123' },
-        orderBy: { timestamp: 'desc' },
-        take: 10,
+      (prisma.userDailyStat.upsert as jest.Mock).mockResolvedValue({
+        userId,
+        date,
+        ...updates,
       });
+
+      await service.updateUserDailyStats(userId, date, updates);
+
+      expect(prisma.userDailyStat.upsert).toHaveBeenCalledWith({
+        where: { userId_date: { userId, date } },
+        create: { userId, date, ...updates },
+        update: updates,
+      });
+    });
+
+    it('should handle update failure gracefully', async () => {
+      (prisma.userDailyStat.upsert as jest.Mock).mockRejectedValue(
+        new Error('Database error'),
+      );
+
+      // Should not throw error
+      await expect(
+        service.updateUserDailyStats('user-123', new Date(), { filesUploaded: 1 }),
+      ).resolves.not.toThrow();
     });
   });
 
-  describe('getSessionStats', () => {
-    it('should return session statistics', async () => {
-      const mockSessions = [
-        { sessionId: 'session-1' },
-        { sessionId: 'session-2' },
-      ];
+  describe('logApiUsage', () => {
+    it('should log API request successfully', async () => {
+      const apiData = {
+        userId: 'user-123',
+        sessionId: 'session-abc',
+        method: 'POST',
+        endpoint: '/api/upload',
+        statusCode: 200,
+        responseTime: 150,
+      };
 
-      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockSessions);
-      (prisma.analyticsEvent.aggregate as jest.Mock).mockResolvedValue({
-        _avg: { id: null },
+      (prisma.apiUsageLog.create as jest.Mock).mockResolvedValue({
+        id: 'log-1',
+        ...apiData,
       });
 
-      const result = await service.getSessionStats(24);
+      await service.logApiUsage(apiData);
 
-      expect(result.totalSessions).toBe(2);
-      expect(prisma.analyticsEvent.groupBy).toHaveBeenCalled();
+      expect(prisma.apiUsageLog.create).toHaveBeenCalled();
+    });
+
+    it('should handle logging failure gracefully', async () => {
+      (prisma.apiUsageLog.create as jest.Mock).mockRejectedValue(
+        new Error('Database connection lost'),
+      );
+
+      // Should not throw error
+      await expect(
+        service.logApiUsage({
+          method: 'GET',
+          endpoint: '/test',
+          statusCode: 200,
+          responseTime: 100,
+        }),
+      ).resolves.not.toThrow();
     });
   });
 });

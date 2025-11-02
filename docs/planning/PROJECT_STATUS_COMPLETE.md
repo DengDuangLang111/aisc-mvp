@@ -107,17 +107,17 @@
 |--------|-----|------|
 | **Base URL** | `https://api.deepseek.com/v1` | API 端点 |
 | **Model** | `deepseek-chat` | 对话模型 |
-| **API Key** | `sk-fb74f8a8e53f4d9a8aa55b85fdd41159` | 认证密钥 |
+| **API Key** | `sk-****...****` (已配置在 .env) | 认证密钥 |
 | **定价** | $0.14/M tokens | 输入+输出均价 |
 
 #### 3.3 Supabase
 
 | 配置项 | 值 | 说明 |
 |--------|-----|------|
-| **Project** | study-oasis (rtdbfisxskunrkjmjpvv) | 项目标识 |
+| **Project** | study-oasis (rtdb***...***) | 项目标识 |
 | **Region** | us-east-1 | 数据中心 |
 | **Connection Pool** | PostgreSQL 17 connections | 连接池 |
-| **URL** | `postgresql://postgres.rtdbfisxskunrkjmjpvv:...@aws-1-us-east-1.pooler.supabase.com:6543/postgres` | 数据库连接 |
+| **URL** | `postgresql://postgres:****@aws-1-us-east-1.pooler.supabase.com:6543/postgres` | 数据库连接 (已配置在 .env) |
 
 ---
 

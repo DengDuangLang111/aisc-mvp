@@ -1,45 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Request, Response, NextFunction } from 'express';
 import { AnalyticsMiddleware } from './analytics.middleware';
 import { AnalyticsService } from './analytics.service';
+import { Request, Response } from 'express';
 
 describe('AnalyticsMiddleware', () => {
   let middleware: AnalyticsMiddleware;
-  let analyticsService: jest.Mocked<AnalyticsService>;
-
-  const mockRequest = {
-    method: 'GET',
-    path: '/api/test',
-    headers: {
-      'user-agent': 'test-agent',
-    },
-    body: {},
-    query: {},
-    ip: '127.0.0.1',
-  } as unknown as Request;
-
-  const mockResponse = {
-    statusCode: 200,
-    on: jest.fn((event: string, callback: () => void) => {
-      if (event === 'finish') {
-        callback();
-      }
-      return mockResponse;
-    }),
-  } as unknown as Response;
-
-  const mockNext: NextFunction = jest.fn();
+  let analyticsService: any;
 
   beforeEach(async () => {
+    const mockAnalyticsService = {
+      logApiUsage: jest.fn().mockResolvedValue(undefined),
+      trackEvent: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AnalyticsMiddleware,
         {
           provide: AnalyticsService,
-          useValue: {
-            trackEvent: jest.fn().mockResolvedValue(undefined),
-            logApiUsage: jest.fn().mockResolvedValue(undefined),
-          },
+          useValue: mockAnalyticsService,
         },
       ],
     }).compile();
@@ -52,59 +31,160 @@ describe('AnalyticsMiddleware', () => {
     expect(middleware).toBeDefined();
   });
 
-  it('should track API request and call next', () => {
-    middleware.use(mockRequest, mockResponse, mockNext);
+  describe('use', () => {
+    let mockRequest: Partial<Request>;
+    let mockResponse: Partial<Response>;
+    let nextFunction: jest.Mock;
 
-    expect(mockNext).toHaveBeenCalled();
-    expect(mockResponse.on).toHaveBeenCalledWith('finish', expect.any(Function));
-  });
-
-  it('should log API usage on response finish', async () => {
-    middleware.use(mockRequest, mockResponse, mockNext);
-
-    // Wait for async operations
-    await new Promise(resolve => setTimeout(resolve, 10));
-
-    expect(analyticsService.logApiUsage).toHaveBeenCalledWith({
-      endpoint: '/api/test',
-      method: 'GET',
-      statusCode: 200,
-      responseTime: expect.any(Number),
+    beforeEach(() => {
+      mockRequest = {
+        method: 'GET',
+        path: '/api/test',
+        ip: '127.0.0.1',
+        socket: {
+          remoteAddress: '127.0.0.1',
+        },
+        get: jest.fn((header: string) => {
+          if (header === 'content-length') return '100';
+          return undefined;
+        }),
+      } as any;
+      mockResponse = {
+        statusCode: 200,
+        on: jest.fn((event: string, callback: Function) => {
+          if (event === 'finish') {
+            // Simulate response finish
+            setTimeout(() => callback(), 0);
+          }
+        }),
+        get: jest.fn((header: string) => {
+          if (header === 'content-length') return '500';
+          return undefined;
+        }),
+      };
+      nextFunction = jest.fn();
     });
-  });
 
-  it('should handle errors gracefully', () => {
-    analyticsService.logApiUsage.mockRejectedValue(new Error('Analytics error'));
+    it('should call next() immediately', async () => {
+      middleware.use(
+        mockRequest as Request,
+        mockResponse as Response,
+        nextFunction,
+      );
 
-    expect(() => {
-      middleware.use(mockRequest, mockResponse, mockNext);
-    }).not.toThrow();
+      expect(nextFunction).toHaveBeenCalled();
+    });
 
-    expect(mockNext).toHaveBeenCalled();
-  });
+    it('should register finish event listener', async () => {
+      middleware.use(
+        mockRequest as Request,
+        mockResponse as Response,
+        nextFunction,
+      );
 
-  it('should track different HTTP methods', () => {
-    const postRequest = { ...mockRequest, method: 'POST' } as Request;
+      expect(mockResponse.on).toHaveBeenCalledWith('finish', expect.any(Function));
+    });
 
-    middleware.use(postRequest, mockResponse, mockNext);
+    it('should track API usage on response finish', async () => {
+      await new Promise<void>((resolve) => {
+        mockResponse.on = jest.fn((event: string, callback: Function) => {
+          if (event === 'finish') {
+            callback();
+            resolve();
+          }
+        });
 
-    expect(mockNext).toHaveBeenCalled();
-  });
+        middleware.use(
+          mockRequest as Request,
+          mockResponse as Response,
+          nextFunction,
+        );
+      });
 
-  it('should handle requests with different status codes', async () => {
-    const errorResponse = {
-      ...mockResponse,
-      statusCode: 500,
-    } as unknown as Response;
+      expect(analyticsService.logApiUsage).toHaveBeenCalledWith({
+        userId: undefined,
+        endpoint: '/api/test',
+        method: 'GET',
+        statusCode: 200,
+        responseTimeMs: expect.any(Number),
+        requestSizeBytes: 100,
+        responseSizeBytes: 500,
+      });
+    });
 
-    middleware.use(mockRequest, errorResponse, mockNext);
+    it('should handle missing content-length header', async () => {
+      mockRequest.get = jest.fn(() => undefined);
 
-    await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise<void>((resolve) => {
+        mockResponse.on = jest.fn((event: string, callback: Function) => {
+          if (event === 'finish') {
+            callback();
+            resolve();
+          }
+        });
 
-    expect(analyticsService.logApiUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        statusCode: 500,
-      })
-    );
+        middleware.use(
+          mockRequest as Request,
+          mockResponse as Response,
+          nextFunction,
+        );
+      });
+
+      expect(analyticsService.logApiUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestSizeBytes: 0,
+        }),
+      );
+    });
+
+    it('should handle error status codes', async () => {
+      mockResponse.statusCode = 500;
+
+      await new Promise<void>((resolve) => {
+        mockResponse.on = jest.fn((event: string, callback: Function) => {
+          if (event === 'finish') {
+            callback();
+            resolve();
+          }
+        });
+
+        middleware.use(
+          mockRequest as Request,
+          mockResponse as Response,
+          nextFunction,
+        );
+      });
+
+      expect(analyticsService.logApiUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: 500,
+        }),
+      );
+    });
+
+    it('should handle different HTTP methods', async () => {
+      mockRequest.method = 'POST';
+
+      await new Promise<void>((resolve) => {
+        mockResponse.on = jest.fn((event: string, callback: Function) => {
+          if (event === 'finish') {
+            callback();
+            resolve();
+          }
+        });
+
+        middleware.use(
+          mockRequest as Request,
+          mockResponse as Response,
+          nextFunction,
+        );
+      });
+
+      expect(analyticsService.logApiUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'POST',
+        }),
+      );
+    });
   });
 });

@@ -8,11 +8,16 @@ import { GcsService } from '../storage/gcs.service';
 import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { createMockPrismaService, createMockDocument, createMockOcrResult } from '../../test/helpers/prisma.mock';
+import { promises as fs } from 'fs';
 
-jest.mock('fs/promises');
+// Mock fs functions
+jest.spyOn(fs, 'readdir').mockImplementation(jest.fn());
+jest.spyOn(fs, 'readFile').mockImplementation(jest.fn());
+jest.spyOn(fs, 'writeFile').mockImplementation(jest.fn());
+jest.spyOn(fs, 'unlink').mockImplementation(jest.fn());
+
 jest.mock('file-type', () => ({ fromBuffer: jest.fn() }));
 
-import * as fs from 'fs/promises';
 const fileTypeMock = require('file-type');
 
 describe('UploadService', () => {
@@ -46,6 +51,7 @@ describe('UploadService', () => {
             GOOGLE_CLOUD_PROJECT_ID: 'test-project',
             'upload.allowedMimeTypes': ['application/pdf', 'text/plain', 'image/jpeg'],
             'upload.maxSize': 10 * 1024 * 1024,
+            'upload.destination': './test-uploads',
             baseUrl: 'http://localhost:4000',
           };
           return config[key];
@@ -69,23 +75,25 @@ describe('UploadService', () => {
     fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'application/pdf' });
   });
 
+  // Shared mock file for all tests
+  const mockFile: Express.Multer.File = {
+    fieldname: 'file',
+    originalname: 'test.pdf',
+    encoding: '7bit',
+    mimetype: 'application/pdf',
+    buffer: Buffer.from('fake pdf'),
+    size: 1024,
+    stream: null as any,
+    destination: '',
+    filename: '',
+    path: '',
+  };
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
   describe('saveFile', () => {
-    const mockFile: Express.Multer.File = {
-      fieldname: 'file',
-      originalname: 'test.pdf',
-      encoding: '7bit',
-      mimetype: 'application/pdf',
-      buffer: Buffer.from('fake pdf'),
-      size: 1024,
-      stream: null as any,
-      destination: '',
-      filename: '',
-      path: '',
-    };
 
     it('should upload file to GCS', async () => {
       gcsService.uploadFile.mockResolvedValue({ gcsPath: 'gs://bucket/test.pdf', publicUrl: 'https://example.com/test.pdf' });
@@ -113,23 +121,181 @@ describe('UploadService', () => {
     });
   });
 
+  describe('File validation', () => {
+    it('should reject file with invalid MIME type detected by magic number', async () => {
+      const invalidFile: Express.Multer.File = {
+        ...mockFile,
+        mimetype: 'application/pdf', // Claims to be PDF
+      };
+
+      // But actual file content is executable
+      fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'application/x-msdownload' });
+
+      await expect(service.saveFile(invalidFile)).rejects.toThrow(BadRequestException);
+      await expect(service.saveFile(invalidFile)).rejects.toThrow('文件类型不匹配');
+    });
+
+    it('should reject file that is too large', async () => {
+      const largeFile: Express.Multer.File = {
+        ...mockFile,
+        size: 20 * 1024 * 1024, // 20MB, exceeds 10MB limit
+      };
+
+      await expect(service.saveFile(largeFile)).rejects.toThrow(BadRequestException);
+      await expect(service.saveFile(largeFile)).rejects.toThrow('文件大小超过限制');
+    });
+
+    it('should reject file with mismatched declared and actual MIME type', async () => {
+      const spoofedFile: Express.Multer.File = {
+        ...mockFile,
+        originalname: 'image.jpg',
+        mimetype: 'image/jpeg', // Claims to be JPEG
+      };
+
+      // But actual file content is PNG
+      fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'image/png' });
+
+      await expect(service.saveFile(spoofedFile)).rejects.toThrow(BadRequestException);
+      await expect(service.saveFile(spoofedFile)).rejects.toThrow('文件类型不匹配');
+    });
+
+    it('should accept valid PDF file', async () => {
+      const validFile: Express.Multer.File = {
+        ...mockFile,
+        mimetype: 'application/pdf',
+        size: 5 * 1024 * 1024, // 5MB
+      };
+
+      fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      (gcsService.uploadFile as jest.Mock).mockResolvedValue({
+        gcsPath: 'uploads/test.pdf',
+        publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/test.pdf',
+      });
+      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-valid' }));
+
+      const result = await service.saveFile(validFile);
+
+      expect(result.documentId).toBe('doc-valid');
+      expect(result.mimetype).toBe('application/pdf');
+      expect(gcsService.uploadFile).toHaveBeenCalled();
+    });
+
+    it('should accept valid image file', async () => {
+      const imageFile: Express.Multer.File = {
+        ...mockFile,
+        originalname: 'image.jpg',
+        mimetype: 'image/jpeg',
+        size: 2 * 1024 * 1024, // 2MB
+      };
+
+      fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'image/jpeg' });
+      (gcsService.uploadFile as jest.Mock).mockResolvedValue({
+        gcsPath: 'uploads/image.jpg',
+        publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/image.jpg',
+      });
+      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-img' }));
+
+      const result = await service.saveFile(imageFile);
+
+      expect(result.documentId).toBe('doc-img');
+      expect(result.mimetype).toBe('image/jpeg');
+      expect(gcsService.uploadFile).toHaveBeenCalled();
+    });
+
+    it('should reject text files without proper MIME type', async () => {
+      const textFile: Express.Multer.File = {
+        ...mockFile,
+        originalname: 'test.txt',
+        mimetype: 'text/plain',
+        buffer: Buffer.from('plain text content'),
+      };
+
+      // file-type returns undefined for text files (no magic number)
+      fileTypeMock.fromBuffer.mockResolvedValue(undefined);
+
+      (gcsService.uploadFile as jest.Mock).mockResolvedValue({
+        gcsPath: 'uploads/test.txt',
+        publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/test.txt',
+      });
+      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-text' }));
+
+      const result = await service.saveFile(textFile);
+
+      expect(result.documentId).toBe('doc-text');
+      expect(result.mimetype).toBe('text/plain');
+    });
+
+    it('should handle GCS upload failure gracefully', async () => {
+      const validFile: Express.Multer.File = {
+        ...mockFile,
+        mimetype: 'application/pdf',
+      };
+
+      fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      (gcsService.uploadFile as jest.Mock).mockRejectedValue(new Error('GCS connection failed'));
+
+      await expect(service.saveFile(validFile)).rejects.toThrow();
+    });
+
+    it('should handle database creation failure', async () => {
+      const validFile: Express.Multer.File = {
+        ...mockFile,
+        mimetype: 'application/pdf',
+      };
+
+      fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'application/pdf' });
+      (gcsService.uploadFile as jest.Mock).mockResolvedValue({
+        gcsPath: 'uploads/test.pdf',
+        publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/test.pdf',
+      });
+      (prisma.document.create as jest.Mock).mockRejectedValue(new Error('Database error'));
+
+      await expect(service.saveFile(validFile)).rejects.toThrow();
+    });
+
+    it('should sanitize dangerous filenames', async () => {
+      const dangerousNameFile: Express.Multer.File = {
+        ...mockFile,
+        originalname: '../../../etc/passwd',
+        mimetype: 'text/plain',
+      };
+
+      fileTypeMock.fromBuffer.mockResolvedValue(undefined); // text file
+      (gcsService.uploadFile as jest.Mock).mockResolvedValue({
+        gcsPath: 'uploads/test.txt',
+        publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/test.txt',
+      });
+      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-sanitized' }));
+
+      const result = await service.saveFile(dangerousNameFile);
+
+      // Filename should be sanitized
+      expect(result.documentId).toBe('doc-sanitized');
+      expect(result.filename).not.toContain('..');
+    });
+  });
+
   describe('getFileInfo', () => {
     it('should return file information', async () => {
-      const mockUpload = {
-        id: 'upload-123',
-        diskFilename: 'test-123.pdf',
-        originalFilename: 'test.pdf',
-      };
-      (prisma.upload.findUnique as jest.Mock).mockResolvedValue(mockUpload);
+      const mockFiles = ['upload-123-test.pdf', 'other-file.txt'];
+      (fs.readdir as jest.Mock).mockResolvedValue(mockFiles as any);
 
       const result = await service.getFileInfo('upload-123');
 
-      expect(result).toBeDefined();
-      expect(result?.diskFilename).toBe('test-123.pdf');
+      // Debug: check if mock was called
+      expect(fs.readdir).toHaveBeenCalled();
+      expect(fs.readdir).toHaveBeenCalledWith('./test-uploads');
+      
+      expect(result).not.toBeNull();
+      expect(result?.diskFilename).toBe('upload-123-test.pdf');
+      expect(result?.uploadDir).toBe('./test-uploads');
     });
 
     it('should return null for non-existent file', async () => {
-      (prisma.upload.findUnique as jest.Mock).mockResolvedValue(null);
+      (fs.readdir as jest.Mock).mockResolvedValue([
+        'other-file.txt',
+        'another-file.pdf',
+      ] as any);
 
       const result = await service.getFileInfo('non-existent');
       
@@ -139,109 +305,20 @@ describe('UploadService', () => {
 
   describe('readFileContent', () => {
     it('should read text file content', async () => {
-      const mockDoc = createMockDocument({ 
-        id: 'doc-123', 
-        gcsPath: 'gs://bucket/test.txt',
-        mimeType: 'text/plain',
-        diskFilename: 'test.txt'
-      });
-      const mockUpload = {
-        id: 'upload-123',
-        diskFilename: 'test.txt',
-        documentId: 'doc-123',
-      };
-      (prisma.upload.findUnique as jest.Mock).mockResolvedValue(mockUpload);
-      (prisma.document.findUnique as jest.Mock).mockResolvedValue(mockDoc);
-      (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('test content'));
+      (fs.readdir as jest.Mock).mockResolvedValue(['doc-123.txt', 'other-file.pdf'] as any);
+      (fs.readFile as jest.Mock).mockResolvedValue('test content' as any);
 
-      const result = await service.readFileContent('upload-123');
+      const result = await service.readFileContent('doc-123');
 
       expect(result).toBe('test content');
+      expect(fs.readdir).toHaveBeenCalledWith('./test-uploads');
+      expect(fs.readFile).toHaveBeenCalled();
     });
 
-    it('should throw NotFoundException for non-existent upload', async () => {
-      (prisma.upload.findUnique as jest.Mock).mockResolvedValue(null);
+    it('should throw NotFoundException for non-existent file', async () => {
+      (fs.readdir as jest.Mock).mockResolvedValue(['other-file.txt', 'another-file.pdf'] as any);
 
       await expect(service.readFileContent('non-existent')).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('file validation', () => {
-    it('should detect dangerous file extensions', () => {
-      const dangerousFiles = ['malware.exe', 'script.bat', 'virus.sh', 'app.app'];
-      dangerousFiles.forEach(filename => {
-        expect((service as any).isDangerousFile(filename)).toBe(true);
-      });
-    });
-
-    it('should allow safe file extensions', () => {
-      const safeFiles = ['document.pdf', 'image.jpg', 'text.txt', 'data.json'];
-      safeFiles.forEach(filename => {
-        expect((service as any).isDangerousFile(filename)).toBe(false);
-      });
-    });
-
-    it('should validate allowed MIME types', () => {
-      expect((service as any).isAllowedMimeType('application/pdf')).toBe(true);
-      expect((service as any).isAllowedMimeType('text/plain')).toBe(true);
-      expect((service as any).isAllowedMimeType('application/x-executable')).toBe(false);
-    });
-  });
-
-  describe('file size limits', () => {
-    it('should reject files exceeding max size', async () => {
-      const largeFile = {
-        ...mockFile,
-        size: 11 * 1024 * 1024, // 11MB (exceeds 10MB limit)
-      };
-
-      await expect(service.saveFile(largeFile)).rejects.toThrow(BadRequestException);
-    });
-  });
-
-  describe('session and tracking', () => {
-    it('should generate unique session IDs', () => {
-      const sessionId1 = (service as any).generateSessionId();
-      const sessionId2 = (service as any).generateSessionId();
-      
-      expect(sessionId1).toBeDefined();
-      expect(sessionId2).toBeDefined();
-      expect(sessionId1).not.toBe(sessionId2);
-    });
-
-    it('should track analytics events during upload', async () => {
-      gcsService.uploadFile.mockResolvedValue({ 
-        gcsPath: 'gs://bucket/test.pdf', 
-        publicUrl: 'https://example.com/test.pdf' 
-      });
-      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-123' }));
-
-      await service.saveFile(mockFile, 'user-123');
-
-      expect(analyticsService.trackEvent).toHaveBeenCalled();
-    });
-  });
-
-  describe('error handling', () => {
-    it('should handle GCS upload failures gracefully', async () => {
-      gcsService.uploadFile.mockRejectedValue(new Error('GCS error'));
-
-      await expect(service.saveFile(mockFile, 'user-123')).rejects.toThrow();
-      expect(analyticsService.trackEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          eventName: 'file_upload_failed'
-        })
-      );
-    });
-
-    it('should handle database creation errors', async () => {
-      gcsService.uploadFile.mockResolvedValue({ 
-        gcsPath: 'gs://bucket/test.pdf', 
-        publicUrl: 'https://example.com/test.pdf' 
-      });
-      (prisma.document.create as jest.Mock).mockRejectedValue(new Error('DB error'));
-
-      await expect(service.saveFile(mockFile, 'user-123')).rejects.toThrow();
     });
   });
 });

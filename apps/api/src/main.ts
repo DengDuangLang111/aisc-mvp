@@ -86,5 +86,5 @@ async function bootstrap() {
     timestamp: new Date().toISOString(),
   });
 }
-bootstrap();
+
 bootstrap();

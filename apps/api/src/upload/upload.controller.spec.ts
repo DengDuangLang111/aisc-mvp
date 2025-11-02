@@ -243,4 +243,137 @@ describe('UploadController', () => {
       await expect(controller.getOcrResult('file-123')).rejects.toThrow(NotFoundException);
     });
   });
+
+  describe('Error handling', () => {
+    it('should handle service errors gracefully in uploadFile', async () => {
+      const mockFile = {
+        originalname: 'test.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      mockUploadService.saveFile.mockRejectedValue(new Error('Storage service unavailable'));
+
+      await expect(
+        controller.uploadFile(mockFile, 'user-123'),
+      ).rejects.toThrow('Storage service unavailable');
+    });
+
+    it('should handle invalid document ID in getDocumentInfo', async () => {
+      mockPrismaService.document.findUnique.mockRejectedValue(
+        new Error('Invalid ID format'),
+      );
+
+      await expect(
+        controller.getDocumentInfo('invalid-id'),
+      ).rejects.toThrow('Invalid ID format');
+    });
+
+    it('should handle database errors in listDocuments', async () => {
+      mockPrismaService.document.findMany.mockRejectedValue(
+        new Error('Database connection failed'),
+      );
+
+      await expect(
+        controller.getDocuments('user-123'),
+      ).rejects.toThrow('Database connection failed');
+    });
+  });
+
+  describe('Edge cases', () => {
+    it('should handle empty userId in listDocuments', async () => {
+      mockPrismaService.document.findMany.mockResolvedValue([]);
+
+      const result = await controller.getDocuments(undefined);
+
+      expect(result).toEqual([]);
+      expect(mockPrismaService.document.findMany).toHaveBeenCalledWith({
+        where: undefined,
+        include: {
+          ocrResult: {
+            select: {
+              confidence: true,
+              pageCount: true,
+            },
+          },
+        },
+        orderBy: { uploadedAt: 'desc' },
+        take: 20,
+      });
+    });
+
+    it('should handle very large file info request', async () => {
+      const largeDocument = {
+        id: 'doc-large',
+        filename: 'large-file.pdf',
+        mimeType: 'application/pdf',
+        size: 104857600, // 100MB
+        uploadedAt: new Date(),
+        ocrResult: {
+          id: 'ocr-large',
+          fullText: 'X'.repeat(1000000), // 1MB text
+          confidence: 0.95,
+          language: 'en',
+          pageCount: 1000,
+        },
+      };
+
+      mockPrismaService.document.findUnique.mockResolvedValue(largeDocument);
+
+      const result = await controller.getDocumentInfo('doc-large');
+
+      expect(result.id).toBe('doc-large');
+      expect(result.size).toBe(104857600);
+      expect(result.ocrStatus).toBe('completed');
+    });
+
+    it('should handle concurrent upload requests', async () => {
+      const mockFile = {
+        originalname: 'test.pdf',
+        mimetype: 'application/pdf',
+        size: 1024,
+        buffer: Buffer.from('test'),
+      } as Express.Multer.File;
+
+      const mockResult = {
+        id: 'doc-concurrent',
+        filename: 'test.pdf',
+        url: 'https://storage.example.com/test.pdf',
+      };
+
+      mockUploadService.saveFile.mockResolvedValue(mockResult);
+
+      const uploadPromises = Array(5).fill(null).map(() =>
+        controller.uploadFile(mockFile, 'user-123'),
+      );
+
+      const results = await Promise.all(uploadPromises);
+
+      expect(results).toHaveLength(5);
+      results.forEach(result => {
+        expect(result.id).toBe('doc-concurrent');
+      });
+    });
+
+    it('should handle special characters in document ID', async () => {
+      const docIdWithSpecialChars = 'doc-123-测试-文档';
+
+      const mockDocument = {
+        id: docIdWithSpecialChars,
+        filename: '测试文档.pdf',
+        mimeType: 'application/pdf',
+        size: 2048,
+        uploadedAt: new Date(),
+        ocrResult: null,
+      };
+
+      mockPrismaService.document.findUnique.mockResolvedValue(mockDocument);
+
+      const result = await controller.getDocumentInfo(docIdWithSpecialChars);
+
+      expect(result.id).toBe(docIdWithSpecialChars);
+      expect(result.filename).toBe('测试文档.pdf');
+    });
+  });
 });

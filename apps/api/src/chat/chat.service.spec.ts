@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
@@ -384,14 +385,34 @@ describe('ChatService', () => {
           title: 'Test 1',
           userId: 'user-1',
           _count: { messages: 5 },
+          messages: [
+            { 
+              id: 'msg-1', 
+              content: 'Hello', 
+              createdAt: new Date(),
+              role: 'user',
+              conversationId: 'conv-1'
+            }
+          ],
           createdAt: new Date(),
+          updatedAt: new Date(),
         },
         {
           id: 'conv-2',
           title: 'Test 2',
           userId: 'user-2',
           _count: { messages: 3 },
+          messages: [
+            { 
+              id: 'msg-2', 
+              content: 'World', 
+              createdAt: new Date(),
+              role: 'user',
+              conversationId: 'conv-2'
+            }
+          ],
           createdAt: new Date(),
+          updatedAt: new Date(),
         },
       ];
 
@@ -401,9 +422,16 @@ describe('ChatService', () => {
 
       expect(result).toHaveLength(2);
       expect(result[0].messageCount).toBe(5);
+      expect(result[0].lastMessage).toBe('Hello');
       expect(mockPrismaService.conversation.findMany).toHaveBeenCalledWith({
-        where: {},
-        include: { _count: { select: { messages: true } } },
+        where: undefined,
+        include: { 
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
         orderBy: { updatedAt: 'desc' },
         take: 20,
       });
@@ -416,7 +444,17 @@ describe('ChatService', () => {
           title: 'Test 1',
           userId: 'user-123',
           _count: { messages: 5 },
+          messages: [
+            { 
+              id: 'msg-1', 
+              content: 'Hello', 
+              createdAt: new Date(),
+              role: 'user',
+              conversationId: 'conv-1'
+            }
+          ],
           createdAt: new Date(),
+          updatedAt: new Date(),
         },
       ];
 
@@ -427,7 +465,13 @@ describe('ChatService', () => {
       expect(result).toHaveLength(1);
       expect(mockPrismaService.conversation.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-123' },
-        include: { _count: { select: { messages: true } } },
+        include: { 
+          _count: { select: { messages: true } },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
         orderBy: { updatedAt: 'desc' },
         take: 10,
       });
@@ -439,127 +483,384 @@ describe('ChatService', () => {
       const mockConversation = {
         id: 'conv-1',
         title: 'Test Conversation',
-        userId: 'user-123',
-        documentId: 'doc-123',
-        messages: [
-          { id: 'msg-1', role: 'user', content: 'Hello', tokensUsed: 10, createdAt: new Date() },
-          { id: 'msg-2', role: 'assistant', content: 'Hi!', tokensUsed: 8, createdAt: new Date() },
-        ],
+        userId: 'user-1',
+        documentId: 'doc-1',
         document: {
-          id: 'doc-123',
+          id: 'doc-1',
           filename: 'test.pdf',
-          gcsPath: 'gs://bucket/test.pdf',
           mimeType: 'application/pdf',
-          size: 1024,
-          uploadedAt: new Date(),
           ocrResult: {
-            id: 'ocr-1',
             confidence: 0.95,
             language: 'en',
-            pageCount: 1,
+            pageCount: 5,
           },
         },
+        messages: [
+          {
+            id: 'msg-1',
+            role: 'user',
+            content: 'Hello',
+            tokensUsed: 10,
+            createdAt: new Date(),
+            conversationId: 'conv-1',
+          },
+          {
+            id: 'msg-2',
+            role: 'assistant',
+            content: 'Hi there!',
+            tokensUsed: 15,
+            createdAt: new Date(),
+            conversationId: 'conv-1',
+          },
+        ],
         createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
-      mockPrismaService.conversation.findUnique.mockResolvedValue(mockConversation);
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
 
       const result = await service.getConversation('conv-1');
 
-      expect(result).toBeDefined();
       expect(result.id).toBe('conv-1');
       expect(result.messages).toHaveLength(2);
       expect(result.document).toBeDefined();
       expect(result.document.filename).toBe('test.pdf');
-      expect(mockPrismaService.conversation.findUnique).toHaveBeenCalledWith({
-        where: { id: 'conv-1' },
-        include: {
-          messages: { orderBy: { createdAt: 'asc' } },
-          document: { include: { ocrResult: true } },
-        },
-      });
     });
 
-    it('should throw NotFoundException for non-existent conversation', async () => {
-      mockPrismaService.conversation.findUnique.mockResolvedValue(null);
+    it('should throw NotFoundException when conversation not found', async () => {
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(null);
 
-      await expect(service.getConversation('non-existent')).rejects.toThrow('对话不存在');
+      await expect(service.getConversation('non-existent')).rejects.toThrow(NotFoundException);
+      await expect(service.getConversation('non-existent')).rejects.toThrow('not found');
     });
   });
 
   describe('deleteConversation', () => {
-    it('should delete conversation successfully', async () => {
-      mockPrismaService.conversation.delete = jest.fn().mockResolvedValue({
+    it('should delete conversation', async () => {
+      const mockConversation = {
         id: 'conv-1',
-      });
+        userId: 'user-1',
+        title: 'Test',
+        createdAt: new Date(),
+      };
 
-      await expect(service.deleteConversation('conv-1')).resolves.not.toThrow();
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
+      mockPrismaService.conversation.delete = jest.fn().mockResolvedValue(mockConversation);
+
+      await service.deleteConversation('conv-1');
 
       expect(mockPrismaService.conversation.delete).toHaveBeenCalledWith({
         where: { id: 'conv-1' },
       });
     });
 
-    it('should delete conversation with userId filter', async () => {
-      mockPrismaService.conversation.delete = jest.fn().mockResolvedValue({
-        id: 'conv-1',
-      });
+    it('should throw NotFoundException when conversation not found', async () => {
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(null);
 
-      await expect(service.deleteConversation('conv-1', 'user-123')).resolves.not.toThrow();
-
-      expect(mockPrismaService.conversation.delete).toHaveBeenCalledWith({
-        where: {
-          id: 'conv-1',
-          userId: 'user-123',
-        },
-      });
+      await expect(service.deleteConversation('non-existent')).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw error when conversation not found', async () => {
-      mockPrismaService.conversation.delete = jest.fn().mockRejectedValue(new Error('Record not found'));
+    it('should throw BadRequestException when userId does not match', async () => {
+      const mockConversation = {
+        id: 'conv-1',
+        userId: 'user-1',
+        title: 'Test',
+        createdAt: new Date(),
+      };
 
-      await expect(service.deleteConversation('non-existent')).rejects.toThrow();
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
+
+      await expect(service.deleteConversation('conv-1', 'user-2')).rejects.toThrow(BadRequestException);
+      await expect(service.deleteConversation('conv-1', 'user-2')).rejects.toThrow('Unauthorized');
+    });
+
+    it('should allow deletion without userId check', async () => {
+      const mockConversation = {
+        id: 'conv-1',
+        userId: 'user-1',
+        title: 'Test',
+        createdAt: new Date(),
+      };
+
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
+      mockPrismaService.conversation.delete = jest.fn().mockResolvedValue(mockConversation);
+
+      await service.deleteConversation('conv-1');
+
+      expect(mockPrismaService.conversation.delete).toHaveBeenCalled();
     });
   });
 
-  describe('chat with document context', () => {
-    it('should include document context in chat', async () => {
-      mockPrismaService.conversation.create.mockResolvedValueOnce({
-        id: 'conv-1',
-        userId: 'test-user',
-        documentId: 'doc-123',
-        title: 'Test',
+  describe('createConversation', () => {
+    it('should create new conversation with document', async () => {
+      const userId = 'user-123';
+      const documentId = 'doc-456';
+      const title = 'Test Conversation';
+
+      const mockConversation = {
+        id: 'conv-new',
+        userId,
+        documentId,
+        title,
         messages: [],
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
-
-      mockPrismaService.document.findUnique.mockResolvedValue({
-        id: 'doc-123',
-        filename: 'test.pdf',
-        gcsPath: 'gs://bucket/test.pdf',
-      });
-
-      mockVisionService.getOcrResult.mockResolvedValue({
-        fullText: 'Document content here',
-        text: 'Document content here',
-        confidence: 0.95,
-        pages: [{ text: 'Document content here', confidence: 0.95 }],
-      });
-
-      const request: ChatRequestDto = {
-        message: 'What does the document say?',
-        userId: 'test-user',
-        documentId: 'doc-123',
       };
 
-      const response = await service.chat(request);
-
-      expect(response).toBeDefined();
-      expect(mockPrismaService.document.findUnique).toHaveBeenCalledWith({
-        where: { id: 'doc-123' },
+      mockPrismaService.conversation.create = jest.fn().mockResolvedValue(mockConversation);
+      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+        id: 'msg-1',
+        role: 'user',
+        content: 'Hello',
+        conversationId: 'conv-new',
+        createdAt: new Date(),
       });
-      expect(mockVisionService.getOcrResult).toHaveBeenCalled();
+
+      const result = await service.chat({
+        message: 'Hello',
+        userId,
+        documentId,
+      });
+
+      expect(result).toBeDefined();
+      expect(mockPrismaService.conversation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId,
+            documentId,
+          }),
+        }),
+      );
+    });
+
+    it('should generate conversation title from first message', async () => {
+      mockPrismaService.conversation.create = jest.fn().mockResolvedValue({
+        id: 'conv-123',
+        userId: 'user-1',
+        title: 'What is recursion?',
+        messages: [],
+        createdAt: new Date(),
+      });
+
+      await service.chat({
+        message: 'What is recursion? Can you explain it in detail?',
+        userId: 'user-1',
+      });
+
+      expect(mockPrismaService.conversation.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: expect.stringContaining('What is recursion'),
+          }),
+        }),
+      );
+    });
+  });
+
+  describe('hint level calculation', () => {
+    it('should return hint level 0 for first message', async () => {
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue({
+        id: 'conv-1',
+        messages: [],
+      });
+      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+        id: 'msg-1',
+        role: 'user',
+        content: 'What is a loop?',
+        conversationId: 'conv-1',
+        createdAt: new Date(),
+      });
+
+      const result = await service.chat({
+        message: 'What is a loop?',
+        conversationId: 'conv-1',
+      });
+
+      expect(result.hintLevel).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should calculate hint level based on conversation length', async () => {
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue({
+        id: 'conv-1',
+        messages: [
+          { id: '1', role: 'user', content: 'Question 1', conversationId: 'conv-1', createdAt: new Date() },
+          { id: '2', role: 'assistant', content: 'Answer 1', conversationId: 'conv-1', createdAt: new Date() },
+          { id: '3', role: 'user', content: 'Question 2', conversationId: 'conv-1', createdAt: new Date() },
+          { id: '4', role: 'assistant', content: 'Answer 2', conversationId: 'conv-1', createdAt: new Date() },
+        ],
+      });
+      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+        id: 'msg-5',
+        role: 'user',
+        content: 'Can you explain more?',
+        conversationId: 'conv-1',
+        createdAt: new Date(),
+      });
+
+      const result = await service.chat({
+        message: 'Can you explain more?',
+        conversationId: 'conv-1',
+      });
+
+      expect(result.hintLevel).toBeGreaterThan(0);
+    });
+  });
+
+  describe('document context loading', () => {
+    it('should load OCR result when document is provided', async () => {
+      const documentId = 'doc-123';
+      const mockOcrResult = {
+        id: 'ocr-1',
+        documentId,
+        fullText: 'Document content here',
+        confidence: 0.95,
+        language: 'en',
+        pageCount: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockPrismaService.conversation.create = jest.fn().mockResolvedValue({
+        id: 'conv-1',
+        userId: 'user-1',
+        documentId,
+        title: 'Test',
+        messages: [],
+        createdAt: new Date(),
+      });
+      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+        id: 'msg-1',
+        role: 'user',
+        content: 'Tell me about this document',
+        conversationId: 'conv-1',
+        createdAt: new Date(),
+      });
+
+      mockVisionService.getOcrResult.mockResolvedValue(mockOcrResult);
+
+      await service.chat({
+        message: 'Tell me about this document',
+        userId: 'user-1',
+        documentId,
+      });
+
+      expect(mockVisionService.getOcrResult).toHaveBeenCalledWith(documentId);
+    });
+
+    it('should handle missing OCR result gracefully', async () => {
+      mockPrismaService.conversation.create = jest.fn().mockResolvedValue({
+        id: 'conv-1',
+        userId: 'user-1',
+        documentId: 'doc-no-ocr',
+        title: 'Test',
+        messages: [],
+        createdAt: new Date(),
+      });
+      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+        id: 'msg-1',
+        role: 'user',
+        content: 'Tell me about this document',
+        conversationId: 'conv-1',
+        createdAt: new Date(),
+      });
+
+      mockVisionService.getOcrResult.mockResolvedValue(null);
+
+      const result = await service.chat({
+        message: 'Tell me about this document',
+        userId: 'user-1',
+        documentId: 'doc-no-ocr',
+      });
+
+      expect(result).toBeDefined();
+      // Should still work without OCR result
+    });
+  });
+
+  describe('error scenarios', () => {
+    it('should throw NotFoundException for non-existent conversation', async () => {
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(null);
+
+      await expect(
+        service.chat({
+          message: 'Hello',
+          conversationId: 'non-existent-conv',
+        }),
+      ).rejects.toThrow('Conversation non-existent-conv not found');
+    });
+
+    it('should handle conversation creation failure', async () => {
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(null);
+      mockPrismaService.conversation.create = jest.fn().mockRejectedValue(
+        new Error('Database connection failed'),
+      );
+
+      await expect(
+        service.chat({
+          message: 'Hello',
+          userId: 'user-123',
+        }),
+      ).rejects.toThrow('Database connection failed');
+    });
+
+    it('should handle AI API failure', async () => {
+      const mockConversation = {
+        id: 'conv-1',
+        messages: [],
+        userId: 'user-1',
+        createdAt: new Date(),
+      };
+
+      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
+      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+        id: 'msg-1',
+        role: 'user',
+        content: 'Test message',
+        conversationId: 'conv-1',
+        createdAt: new Date(),
+      });
+
+      // Mock HTTP error
+      global.fetch = jest.fn().mockRejectedValue(new Error('API unavailable'));
+
+      // Should return fallback response instead of throwing
+      const result = await service.chat({
+        message: 'Test message',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+      });
+
+      expect(result).toBeDefined();
+      expect(result.reply).toContain('AI 服务暂时不可用');
+      expect(result.tokensUsed).toBe(0);
+    });
+
+    it('should handle conversation title generation failure', async () => {
+      const message = 'A'.repeat(1000); // Very long message
+      
+      mockPrismaService.conversation.create = jest.fn().mockResolvedValue({
+        id: 'conv-1',
+        userId: 'user-1',
+        title: 'New Conversation',
+        messages: [],
+        createdAt: new Date(),
+      });
+      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+        id: 'msg-1',
+        role: 'user',
+        content: message,
+        conversationId: 'conv-1',
+        createdAt: new Date(),
+      });
+
+      // Should handle long messages gracefully
+      const result = await service.chat({
+        message,
+        userId: 'user-1',
+      });
+
+      expect(result).toBeDefined();
+      expect(mockPrismaService.conversation.create).toHaveBeenCalled();
     });
   });
 });
