@@ -90,5 +90,68 @@ describe('UploadService', () => {
       const dangerousFile = { ...mockFile, originalname: 'malware.exe' };
       await expect(service.saveFile(dangerousFile)).rejects.toThrow(BadRequestException);
     });
+
+    it('should handle files without userId', async () => {
+      gcsService.uploadFile.mockResolvedValue({ gcsPath: 'gs://bucket/test.pdf', publicUrl: 'https://example.com/test.pdf' });
+      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-456' }));
+
+      const result = await service.saveFile(mockFile);
+
+      expect(result).toBeDefined();
+      expect(result.documentId).toBe('doc-456');
+    });
+  });
+
+  describe('getFileInfo', () => {
+    it('should return file information', async () => {
+      const mockUpload = {
+        id: 'upload-123',
+        diskFilename: 'test-123.pdf',
+        originalFilename: 'test.pdf',
+      };
+      (prisma.upload.findUnique as jest.Mock).mockResolvedValue(mockUpload);
+
+      const result = await service.getFileInfo('upload-123');
+
+      expect(result).toBeDefined();
+      expect(result?.diskFilename).toBe('test-123.pdf');
+    });
+
+    it('should return null for non-existent file', async () => {
+      (prisma.upload.findUnique as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.getFileInfo('non-existent');
+      
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('readFileContent', () => {
+    it('should read text file content', async () => {
+      const mockDoc = createMockDocument({ 
+        id: 'doc-123', 
+        gcsPath: 'gs://bucket/test.txt',
+        mimeType: 'text/plain',
+        diskFilename: 'test.txt'
+      });
+      const mockUpload = {
+        id: 'upload-123',
+        diskFilename: 'test.txt',
+        documentId: 'doc-123',
+      };
+      (prisma.upload.findUnique as jest.Mock).mockResolvedValue(mockUpload);
+      (prisma.document.findUnique as jest.Mock).mockResolvedValue(mockDoc);
+      (fs.readFile as jest.Mock).mockResolvedValue(Buffer.from('test content'));
+
+      const result = await service.readFileContent('upload-123');
+
+      expect(result).toBe('test content');
+    });
+
+    it('should throw NotFoundException for non-existent upload', async () => {
+      (prisma.upload.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.readFileContent('non-existent')).rejects.toThrow(NotFoundException);
+    });
   });
 });
