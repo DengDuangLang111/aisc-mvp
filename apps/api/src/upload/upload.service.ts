@@ -80,7 +80,7 @@ export class UploadService {
    * 构建文件 URL
    */
   private buildFileUrl(filename: string): string {
-    const baseUrl = this.configService.get<string>('baseUrl') || 'http://localhost:4000';
+    const baseUrl = this.configService.get<string>('baseUrl') || 'http://localhost:4001';
     return `${baseUrl}/uploads/${filename}`;
   }
 
@@ -301,9 +301,9 @@ export class UploadService {
         data: {
           userId,
           filename: sanitizedFilename,
-          gcsPath,
-          mimeType: file.mimetype,
+          s3Key: gcsPath, // 使用 s3Key 字段存储 GCS 路径
           size: file.size,
+          // 不传 mimeType，让数据库使用默认值 NULL
         },
       });
 

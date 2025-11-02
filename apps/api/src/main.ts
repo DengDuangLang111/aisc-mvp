@@ -45,7 +45,8 @@ async function bootstrap() {
   );
   
   // Serve uploaded files as static assets
-  app.useStaticAssets(join(__dirname, '..', uploadDir), {
+  const uploadsPath = join(process.cwd(), 'uploads');
+  app.useStaticAssets(uploadsPath, {
     prefix: '/uploads/',
   });
   

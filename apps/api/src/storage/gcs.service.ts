@@ -119,13 +119,14 @@ export class GcsService {
         },
       });
 
-      // 生成公开 URL（如果需要私有访问，使用 getSignedUrl）
-      const publicUrl = `https://storage.googleapis.com/${this.bucketName}/${gcsPath}`;
+      // 生成 signed URL（7天有效 - GCS 最大限制）
+      const gcsFullPath = `gs://${this.bucketName}/${gcsPath}`;
+      const publicUrl = await this.getSignedUrl(gcsFullPath, 7);
 
       this.logger.log(`File uploaded successfully: ${gcsPath}`);
 
       return {
-        gcsPath: `gs://${this.bucketName}/${gcsPath}`,
+        gcsPath: gcsFullPath,
         publicUrl,
         filename,
         bucket: this.bucketName,

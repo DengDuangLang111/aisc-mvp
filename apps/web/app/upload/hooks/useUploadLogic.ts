@@ -58,14 +58,14 @@ export function useUploadLogic() {
 
   function handleStartChat() {
     if (uploadedFile) {
-      router.push(`/chat?fileId=${uploadedFile.id}&filename=${encodeURIComponent(uploadedFile.filename)}`);
+      router.push(`/chat?fileId=${uploadedFile.id}&filename=${encodeURIComponent(uploadedFile.filename)}&fileUrl=${encodeURIComponent(uploadedFile.url)}`);
     } else {
       router.push('/chat');
     }
   }
 
   function handleContinueWithFile(record: UploadRecord) {
-    router.push(`/chat?fileId=${record.id}&filename=${encodeURIComponent(record.filename)}`);
+    router.push(`/chat?fileId=${record.id}&filename=${encodeURIComponent(record.filename)}&fileUrl=${encodeURIComponent(record.url)}`);
   }
 
   function handleDeleteRecord(id: string) {

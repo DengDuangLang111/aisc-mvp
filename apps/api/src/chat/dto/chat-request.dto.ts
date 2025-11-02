@@ -47,12 +47,12 @@ export class ChatRequestDto {
   conversationHistory?: MessageDto[];
 
   @ApiPropertyOptional({
-    description: '关联的文件 ID（如果是针对特定文件的提问）',
-    example: 'file-123456',
+    description: '关联的上传文件 ID（如果是针对特定文件的提问）',
+    example: 'a84da51f-6291-48de-9c33-d9dd1658cc0e',
   })
   @IsOptional()
   @IsString()
-  fileId?: string;
+  uploadId?: string;
 
   @ApiPropertyOptional({
     description: '用户 ID',

@@ -15,9 +15,7 @@ export function useChatLogic() {
   // 从 URL 获取文件信息
   const fileId = searchParams.get('fileId');
   const filename = searchParams.get('filename');
-  const fileUrl = fileId && filename
-    ? ApiClient.buildFileUrl(fileId, filename.split('.').pop() || 'txt')
-    : undefined;
+  const fileUrl = searchParams.get('fileUrl') || undefined;
 
   // 加载历史会话
   useEffect(() => {

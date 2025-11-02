@@ -29,15 +29,15 @@ model User {
 // ============================================
 model Document {
   id           String   @id @default(uuid())
-  userId       String?
+  userId       String?  @map("userid")
   filename     String
-  originalName String?
-  s3Key        String?   // AWS S3 路径
-  gcsPath      String?   // Google Cloud Storage 路径
-  mimeType     String
+  originalName String?  @map("originalname")
+  s3Key        String?  @map("s3key")
+  gcsPath      String?  @map("gcspath")
+  mimeType     String?  @map("mimetype")
   size         Int
-  ocrStatus    String   @default("pending") // 'pending' | 'processing' | 'completed' | 'failed'
-  uploadedAt   DateTime @default(now())
+  ocrStatus    String   @default("pending") @map("ocrstatus")
+  uploadedAt   DateTime @default(now()) @map("uploadedat")
   
   user          User?         @relation(fields: [userId], references: [id])
   ocrResult     OcrResult?
