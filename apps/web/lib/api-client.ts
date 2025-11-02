@@ -3,26 +3,14 @@
  * 封装所有与后端的交互
  */
 
+import type { 
+  Message, 
+  ChatRequest, 
+  ChatResponse, 
+  HintLevel 
+} from '@study-oasis/contracts';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
-export interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp?: number;
-  hintLevel?: 1 | 2 | 3;
-}
-
-export interface ChatRequest {
-  message: string;
-  conversationHistory?: Omit<Message, 'timestamp' | 'hintLevel'>[];
-  fileId?: string;
-}
-
-export interface ChatResponse {
-  reply: string;
-  hintLevel: 1 | 2 | 3;
-  timestamp: number;
-}
 
 export interface UploadResponse {
   id: string;
@@ -31,6 +19,9 @@ export interface UploadResponse {
   size: number;
   mimetype: string;
 }
+
+// Re-export types for convenience
+export type { Message, ChatRequest, ChatResponse, HintLevel };
 
 /**
  * 自定义 API 错误类

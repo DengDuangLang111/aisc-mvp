@@ -89,7 +89,7 @@ export default function ChatPage() {
       const data = await ApiClient.chat({
         message: content,
         conversationHistory,
-        fileId: fileId || undefined,
+        uploadId: fileId || undefined,
       })
 
       // Add assistant message

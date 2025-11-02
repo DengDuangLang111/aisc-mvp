@@ -47,6 +47,8 @@ export const ChatResponseSchema = z.object({
   hintLevel: HintLevelSchema,
   sources: z.array(z.string()).optional(), // 未来从上传的文件中提取引用
   timestamp: z.number(),
+  conversationId: z.string().optional(), // 对话 ID（用于继续对话）
+  tokensUsed: z.number().optional(), // AI API 使用的 token 数量
 });
 export type ChatResponse = z.infer<typeof ChatResponseSchema>;
 

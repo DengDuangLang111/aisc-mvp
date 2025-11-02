@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@study-oasis/contracts": ["../../packages/contracts/src"]
     }
   },
   "include": [

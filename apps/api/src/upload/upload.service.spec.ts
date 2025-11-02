@@ -39,7 +39,13 @@ describe('UploadService', () => {
           };
           return config[key];
         }) } },
-        { provide: WINSTON_MODULE_PROVIDER, useValue: { log: jest.fn(), error: jest.fn() } },
+        { provide: WINSTON_MODULE_PROVIDER, useValue: { 
+          log: jest.fn(), 
+          error: jest.fn(), 
+          warn: jest.fn(), 
+          debug: jest.fn(), 
+          info: jest.fn() 
+        } },
       ],
     }).compile();
 

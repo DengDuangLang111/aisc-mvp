@@ -6,7 +6,37 @@
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-11-red)](https://nestjs.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-6.18-2D3748)](https://www.prisma.io/)
+[![Tests](https://img.shields.io/badge/tests-91%2F104%20passing-yellow)](./TESTING_TODO.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
+
+---
+
+## 🚨 重要通知：Phase 3.5 代码质量修复（必须优先完成）
+
+**当前状态**: Phase 3 完成 90%，但存在 **13 个失败测试** 和代码质量问题  
+**必须行动**: 在开始新功能开发前，先完成 [Phase 3.5 代码质量修复](./PHASE_3.5_EXECUTION_SUMMARY.md)
+
+### 为什么必须优先修复？
+- ⚠️ **13 个失败测试** → 阻塞 CI/CD 流程
+- 🔒 **安全隐患** → `google-cloud-key.json` 可能暴露
+- 📚 **文档混乱** → 40+ 个文件散落根目录
+- 📦 **类型重复** → 影响维护性
+- 🧩 **大型组件** → 321 行难以维护
+
+### 快速开始修复
+```bash
+# 1. 查看详细计划
+cat PHASE_3.5_EXECUTION_SUMMARY.md
+
+# 2. 开始修复测试（Day 1）
+cd apps/api
+pnpm test
+
+# 3. 查看完整路线图
+cat DEVELOPMENT_EXECUTION_PLAN.md
+```
+
+**预计时间**: 3-5 天 | **目标**: 代码质量 7.2/10 → 8.5/10
 
 ---
 

@@ -10,7 +10,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
-import type { ChatResponse } from './chat.types';
+import type { ChatResponse } from '@study-oasis/contracts';
 import { ChatRequestDto } from './dto/chat-request.dto';
 
 @ApiTags('chat')

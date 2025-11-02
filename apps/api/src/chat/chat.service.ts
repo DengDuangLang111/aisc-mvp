@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { EventName, EventCategory } from '../analytics/analytics.types';
-import type { ChatResponse, HintLevel } from './chat.types';
+import type { ChatResponse, HintLevel } from '@study-oasis/contracts';
 import { ChatRequestDto } from './dto/chat-request.dto';
 
 /**
