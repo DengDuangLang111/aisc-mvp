@@ -218,12 +218,12 @@ export class AnalyticsService {
         tokensUsed: true,
       },
       where: {
-        timestamp: { gte: startOfMonth },
+        createdAt: { gte: startOfMonth },
         tokensUsed: { not: null },
       },
     });
 
-    const tokens = result._sum.tokensUsed || 0;
+    const tokens = result._sum?.tokensUsed || 0;
 
     // DeepSeek: $0.14 / 1M input tokens, $0.28 / 1M output tokens
     // 简化估算：平均 $0.21 / 1M tokens
