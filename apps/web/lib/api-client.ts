@@ -79,7 +79,11 @@ export class ApiClient {
    * 发送聊天消息（流式响应）
    * 返回 AsyncIterable，可用于逐个处理响应 chunks
    */
-  static async *chatStream(request: ChatRequest): AsyncIterable<{ token: string; complete: boolean }> {
+  static async *chatStream(request: ChatRequest): AsyncIterable<{ 
+    token: string; 
+    complete: boolean;
+    conversationId?: string;
+  }> {
     const params = new URLSearchParams({
       message: request.message,
       conversationId: request.conversationId || '',
@@ -124,6 +128,7 @@ export class ApiClient {
               yield {
                 token: data.token || '',
                 complete: data.complete || false,
+                conversationId: data.conversationId,
               };
             } catch (e) {
               console.error('Failed to parse SSE data:', e);

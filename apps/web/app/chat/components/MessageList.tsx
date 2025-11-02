@@ -6,16 +6,25 @@ import { MessageBubble, Message } from './MessageBubble'
 export interface MessageListProps {
   messages: Message[]
   isLoading?: boolean
+  streamingContent?: string // 方案7: 流式内容
+  isStreaming?: boolean // 方案7: 是否正在流式输出
+  isThinking?: boolean // 🧠 是否正在思考（等待第一个字）
 }
 
-export function MessageList({ messages, isLoading = false }: MessageListProps) {
+export function MessageList({ 
+  messages, 
+  isLoading = false,
+  streamingContent = '',
+  isStreaming = false,
+  isThinking = false
+}: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, streamingContent]) // 方案7: 添加 streamingContent 依赖
 
   if (messages.length === 0) {
     return (
@@ -45,9 +54,12 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
         const isLastMessage = index === messages.length - 1
         const isStreamingLastMessage = isLoading && isLastMessage && message.role === 'assistant'
         
+        // 使用稳定的 key，让 React 更新而不是重新创建组件
+        const messageKey = `msg-${index}`
+        
         return (
           <MessageBubble 
-            key={index} 
+            key={messageKey} 
             message={message}
             isLoading={isStreamingLastMessage}
             isStreaming={isStreamingLastMessage}
@@ -55,8 +67,23 @@ export function MessageList({ messages, isLoading = false }: MessageListProps) {
         )
       })}
       
+      {/* 方案7: 显示流式内容（独立于 messages） */}
+      {isStreaming && (
+        <MessageBubble
+          key="streaming-message"
+          message={{
+            role: 'assistant',
+            content: streamingContent || '', // 允许空内容显示占位符
+            hintLevel: undefined,
+            timestamp: Date.now(),
+          }}
+          isLoading={streamingContent.length === 0} // 空内容时显示loading
+          isStreaming={true}
+        />
+      )}
+      
       {/* Loading indicator while waiting for response */}
-      {isLoading && (messages.length === 0 || messages[messages.length - 1]?.role === 'user') && (
+      {isLoading && !isStreaming && (messages.length === 0 || messages[messages.length - 1]?.role === 'user') && (
         <div className="flex justify-start mb-4">
           <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-gray-100 rounded-bl-sm">
             <div className="flex gap-1">

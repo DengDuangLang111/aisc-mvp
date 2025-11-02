@@ -16,6 +16,9 @@ function ChatPageContent() {
     filename,
     conversationId,
     uploadId,
+    streamingContent, // 方案7: 获取流式内容
+    isStreaming, // 方案7: 获取流式状态
+    isThinking, // 🧠 获取思考状态
     handleSend,
     handleFileSelect,
     handleClearChat,
@@ -48,6 +51,9 @@ function ChatPageContent() {
         fileUrl={fileUrl}
         filename={filename || undefined}
         conversationId={conversationId || undefined}
+        streamingContent={streamingContent} // 方案7: 传递流式内容
+        isStreaming={isStreaming} // 方案7: 传递流式状态
+        isThinking={isThinking} // 🧠 传递思考状态
         onSend={handleSend}
         onFileSelect={handleFileSelect}
       />

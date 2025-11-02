@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom'; // 方案8: 使用 flushSync 强制同步刷新
 import { useSearchParams } from 'next/navigation';
 import { Message } from '../components/MessageBubble';
 import { ApiClient, ApiError } from '../../../lib/api-client';
@@ -17,6 +18,11 @@ export function useChatLogic() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [uploadId, setUploadId] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // 方案7: 分离流式状态 - 用单独的 state 存储流式内容
+  const [streamingContent, setStreamingContent] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [isThinking, setIsThinking] = useState(false); // AI 思考中（还没返回第一个字）
 
   // 从 URL 获取文件信息
   const fileId = searchParams.get('fileId');
@@ -116,18 +122,14 @@ export function useChatLogic() {
 
       if (streaming) {
         // 流式请求
+        console.log('[Streaming] Starting stream request...');
         let fullResponse = '';
         let lastConversationId = conversationId || undefined;
         
-        // 添加一个占位符消息
-        const placeholderMessage: Message = {
-          role: 'assistant',
-          content: '',
-          hintLevel: undefined,
-          timestamp: Date.now(),
-        };
-        setMessages((prev) => [...prev, placeholderMessage]);
-        const messageIndex = messages.length + 1; // 指向新添加的 AI 消息
+        // 方案10: 初始化流式状态
+        setStreamingContent(''); // 立即显示空的流式消息框
+        setIsStreaming(true);
+        setIsThinking(true); // 🧠 开始思考状态
 
         try {
           const stream = ApiClient.chatStream({
@@ -136,42 +138,69 @@ export function useChatLogic() {
             uploadId: uploadId || undefined,
             conversationId: conversationId || undefined,
           });
+          console.log('[Streaming] Stream created, starting to read chunks...');
 
+          // 方案10: 使用 requestAnimationFrame 确保每次更新都在新的渲染帧
+          // FORCE RELOAD - 强制浏览器加载新代码
+          let lastUpdateTime = 0;
+          const MIN_UPDATE_INTERVAL = 30; // 最小更新间隔 30ms，更流畅
+          let chunkCount = 0;
+          
           for await (const chunk of stream) {
             fullResponse += chunk.token || '';
+            chunkCount++;
+            console.log('[🔥 NEW CODE] Chunk:', chunk.token, '| Length:', fullResponse.length);
 
-            // 更新消息内容
-            setMessages((prev) => {
-              const updated = [...prev];
-              if (updated[messageIndex]) {
-                updated[messageIndex] = {
-                  ...updated[messageIndex],
-                  content: fullResponse,
-                };
-              }
-              return updated;
+            // 收到第一个 chunk，取消思考状态
+            if (chunkCount === 1) {
+              setIsThinking(false);
+            }
+
+            // 保存 conversationId（如果有）
+            if (chunk.conversationId) {
+              lastConversationId = chunk.conversationId;
+            }
+
+            // 🔥 简化版：移除节流，每个 chunk 都立即更新
+            const currentContent = fullResponse;
+            console.log('[🔥 RAF] About to update UI with length:', currentContent.length);
+            
+            await new Promise<void>((resolve) => {
+              requestAnimationFrame(() => {
+                setStreamingContent(currentContent);
+                console.log('[✅ RAF] UI updated!');
+                resolve();
+              });
             });
+
+            // 检查是否完成
+            if (chunk.complete) {
+              console.log('[Streaming] Stream complete!');
+              break;
+            }
           }
 
-          // 更新消息，标记为完成
-          setMessages((prev) => {
-            const updated = [...prev];
-            if (updated[messageIndex]) {
-              updated[messageIndex] = {
-                ...updated[messageIndex],
-                conversationId: lastConversationId,
-              };
-            }
-            return updated;
-          });
+          // 方案7: 流式完成后，将内容添加到 messages
+          setIsStreaming(false);
+          setIsThinking(false); // 确保思考状态关闭
+          const assistantMessage: Message = {
+            role: 'assistant',
+            content: fullResponse,
+            hintLevel: undefined,
+            timestamp: Date.now(),
+            conversationId: lastConversationId,
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+          setStreamingContent(''); // 清空流式内容
 
           // 流式响应完成后保存 conversationId
           if (!conversationId && lastConversationId) {
             setConversationId(lastConversationId);
           }
         } catch (err) {
-          // 移除占位符消息
-          setMessages((prev) => prev.slice(0, -1));
+          setIsStreaming(false);
+          setIsThinking(false); // 错误时也关闭思考状态
+          setStreamingContent('');
           throw err;
         }
       } else {
@@ -385,6 +414,9 @@ export function useChatLogic() {
     filename,
     conversationId,
     uploadId,
+    streamingContent, // 方案7: 导出流式内容
+    isStreaming, // 方案7: 导出流式状态
+    isThinking, // 🧠 导出思考状态
     handleSend,
     handleFileSelect,
     handleClearChat,

@@ -24,7 +24,7 @@ export function ConversationList({
     setSessions(allSessions);
   }, []);
 
-  const handleSelectSession = (session: Session) => {
+  const handleSelectSession = (session: ChatSession) => {
     onSelectSession(session);
     setIsOpen(false);
   };
@@ -45,7 +45,7 @@ export function ConversationList({
     setIsOpen(false);
   };
 
-  const getSessionPreview = (session: Session): string => {
+  const getSessionPreview = (session: ChatSession): string => {
     if (session.messages.length === 0) return '(空对话)';
     const lastUserMessage = [...session.messages]
       .reverse()

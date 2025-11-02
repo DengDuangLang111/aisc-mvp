@@ -11,6 +11,9 @@ interface ChatLayoutProps {
   fileUrl?: string;
   filename?: string;
   conversationId?: string;
+  streamingContent?: string; // 方案7: 流式内容
+  isStreaming?: boolean; // 方案7: 流式状态
+  isThinking?: boolean; // 🧠 思考状态
   onSend: (content: string, options?: { conversationId?: string; streaming?: boolean }) => Promise<void>;
   onFileSelect?: (file: File) => void;
 }
@@ -22,6 +25,9 @@ export function ChatLayout({
   fileUrl,
   filename,
   conversationId,
+  streamingContent,
+  isStreaming,
+  isThinking,
   onSend,
   onFileSelect,
 }: ChatLayoutProps) {
@@ -92,7 +98,13 @@ export function ChatLayout({
 
         {/* Messages */}
         <div className="flex-1 overflow-hidden">
-          <MessageList messages={messages} isLoading={isLoading} />
+          <MessageList 
+            messages={messages} 
+            isLoading={isLoading}
+            streamingContent={streamingContent}
+            isStreaming={isStreaming}
+            isThinking={isThinking}
+          />
         </div>
 
         {/* Input */}

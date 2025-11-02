@@ -17,6 +17,11 @@ export interface MessageBubbleProps {
 export function MessageBubble({ message, isLoading = false, isStreaming = false }: MessageBubbleProps) {
   const isUser = message.role === 'user'
 
+  // 调试：记录内容变化
+  if (isStreaming && !isUser) {
+    console.log('[MessageBubble] Rendering with content length:', message.content.length);
+  }
+
   const formatTime = (timestamp?: number) => {
     if (!timestamp) return ''
     const date = new Date(timestamp)
