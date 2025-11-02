@@ -219,5 +219,155 @@ describe('VisionService', () => {
     });
   });
 
+  describe('error handling', () => {
+    it('should handle empty fullTextAnnotation', async () => {
+      const gcsPath = 'gs://bucket/empty.pdf';
+      const documentId = 'doc-empty';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: null,
+          textAnnotations: [],
+        },
+      ]);
+
+      await expect(
+        service.extractTextFromGcs(gcsPath, documentId),
+      ).rejects.toThrow();
+    });
+
+    it('should handle missing text in fullTextAnnotation', async () => {
+      const buffer = Buffer.from('test');
+      const documentId = 'doc-no-text';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: { text: '', pages: [] },
+          textAnnotations: [],
+        },
+      ]);
+
+      await expect(
+        service.extractTextFromBuffer(buffer, documentId),
+      ).rejects.toThrow();
+    });
+
+    it('should handle database upsert errors', async () => {
+      const gcsPath = 'gs://bucket/test.pdf';
+      const documentId = 'doc-db-error';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: {
+            text: 'Test text',
+            pages: [{ confidence: 0.9, blocks: [] }],
+          },
+          textAnnotations: [{ locale: 'en', description: 'Test' }],
+        },
+      ]);
+
+      (prisma.ocrResult.upsert as jest.Mock).mockRejectedValue(
+        new Error('Database error'),
+      );
+
+      await expect(
+        service.extractTextFromGcs(gcsPath, documentId),
+      ).rejects.toThrow('Database error');
+    });
+  });
+
+  describe('language detection', () => {
+    it('should detect language from textAnnotations', async () => {
+      const buffer = Buffer.from('test');
+      const documentId = 'doc-lang';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: {
+            text: 'Bonjour',
+            pages: [{ confidence: 0.95, blocks: [] }],
+          },
+          textAnnotations: [
+            { locale: 'fr', description: 'Bonjour' },
+          ],
+        },
+      ]);
+
+      const mockOcrResult = createMockOcrResult({
+        documentId,
+        fullText: 'Bonjour',
+        language: 'fr',
+      });
+
+      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(mockOcrResult);
+
+      const result = await service.extractTextFromBuffer(buffer, documentId);
+
+      expect(result.language).toBe('fr');
+    });
+
+    it('should use default language when not detected', async () => {
+      const buffer = Buffer.from('test');
+      const documentId = 'doc-no-lang';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: {
+            text: 'Text content',
+            pages: [{ confidence: 0.9, blocks: [] }],
+          },
+          textAnnotations: [],
+        },
+      ]);
+
+      const mockOcrResult = createMockOcrResult({
+        documentId,
+        fullText: 'Text content',
+        language: 'unknown',
+      });
+
+      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(mockOcrResult);
+
+      const result = await service.extractTextFromBuffer(buffer, documentId);
+
+      expect(result.language).toBeDefined();
+    });
+  });
+
+  describe('confidence calculation', () => {
+    it('should calculate average confidence from pages', async () => {
+      const gcsPath = 'gs://bucket/multi-page.pdf';
+      const documentId = 'doc-multi';
+
+      mockDocumentTextDetection.mockResolvedValue([
+        {
+          fullTextAnnotation: {
+            text: 'Multi-page content',
+            pages: [
+              { confidence: 0.95, blocks: [] },
+              { confidence: 0.90, blocks: [] },
+              { confidence: 0.85, blocks: [] },
+            ],
+          },
+          textAnnotations: [{ locale: 'en', description: 'Test' }],
+        },
+      ]);
+
+      const mockOcrResult = createMockOcrResult({
+        documentId,
+        fullText: 'Multi-page content',
+        confidence: 0.90,
+        pageCount: 3,
+      });
+
+      (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(mockOcrResult);
+
+      const result = await service.extractTextFromGcs(gcsPath, documentId);
+
+      expect(result.pageCount).toBe(3);
+      expect(result.confidence).toBeGreaterThan(0);
+    });
+  });
+
 
 });

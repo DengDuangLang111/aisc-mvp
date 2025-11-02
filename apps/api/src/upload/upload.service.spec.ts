@@ -23,10 +23,21 @@ describe('UploadService', () => {
   let configService: any;
 
   beforeEach(async () => {
+    const mockPrismaService = createMockPrismaService();
+    
+    // 确保 upload 表的 mock 正确配置
+    mockPrismaService.upload = {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    } as any;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UploadService,
-        { provide: PrismaService, useValue: createMockPrismaService() },
+        { provide: PrismaService, useValue: mockPrismaService },
         { provide: GcsService, useValue: { uploadFile: jest.fn() } },
         { provide: VisionService, useValue: { extractTextFromGcs: jest.fn() } },
         { provide: AnalyticsService, useValue: { trackEvent: jest.fn().mockResolvedValue(undefined) } },
@@ -152,6 +163,85 @@ describe('UploadService', () => {
       (prisma.upload.findUnique as jest.Mock).mockResolvedValue(null);
 
       await expect(service.readFileContent('non-existent')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('file validation', () => {
+    it('should detect dangerous file extensions', () => {
+      const dangerousFiles = ['malware.exe', 'script.bat', 'virus.sh', 'app.app'];
+      dangerousFiles.forEach(filename => {
+        expect((service as any).isDangerousFile(filename)).toBe(true);
+      });
+    });
+
+    it('should allow safe file extensions', () => {
+      const safeFiles = ['document.pdf', 'image.jpg', 'text.txt', 'data.json'];
+      safeFiles.forEach(filename => {
+        expect((service as any).isDangerousFile(filename)).toBe(false);
+      });
+    });
+
+    it('should validate allowed MIME types', () => {
+      expect((service as any).isAllowedMimeType('application/pdf')).toBe(true);
+      expect((service as any).isAllowedMimeType('text/plain')).toBe(true);
+      expect((service as any).isAllowedMimeType('application/x-executable')).toBe(false);
+    });
+  });
+
+  describe('file size limits', () => {
+    it('should reject files exceeding max size', async () => {
+      const largeFile = {
+        ...mockFile,
+        size: 11 * 1024 * 1024, // 11MB (exceeds 10MB limit)
+      };
+
+      await expect(service.saveFile(largeFile)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('session and tracking', () => {
+    it('should generate unique session IDs', () => {
+      const sessionId1 = (service as any).generateSessionId();
+      const sessionId2 = (service as any).generateSessionId();
+      
+      expect(sessionId1).toBeDefined();
+      expect(sessionId2).toBeDefined();
+      expect(sessionId1).not.toBe(sessionId2);
+    });
+
+    it('should track analytics events during upload', async () => {
+      gcsService.uploadFile.mockResolvedValue({ 
+        gcsPath: 'gs://bucket/test.pdf', 
+        publicUrl: 'https://example.com/test.pdf' 
+      });
+      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-123' }));
+
+      await service.saveFile(mockFile, 'user-123');
+
+      expect(analyticsService.trackEvent).toHaveBeenCalled();
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle GCS upload failures gracefully', async () => {
+      gcsService.uploadFile.mockRejectedValue(new Error('GCS error'));
+
+      await expect(service.saveFile(mockFile, 'user-123')).rejects.toThrow();
+      expect(analyticsService.trackEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventName: 'file_upload_failed'
+        })
+      );
+    });
+
+    it('should handle database creation errors', async () => {
+      gcsService.uploadFile.mockResolvedValue({ 
+        gcsPath: 'gs://bucket/test.pdf', 
+        publicUrl: 'https://example.com/test.pdf' 
+      });
+      (prisma.document.create as jest.Mock).mockRejectedValue(new Error('DB error'));
+
+      await expect(service.saveFile(mockFile, 'user-123')).rejects.toThrow();
     });
   });
 });

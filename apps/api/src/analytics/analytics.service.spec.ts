@@ -204,4 +204,152 @@ describe('AnalyticsService', () => {
       expect(result.estimatedCost).toBe(0);
     });
   });
+
+  describe('getEventStats', () => {
+    it('should return event statistics', async () => {
+      const mockEvents = [
+        { eventName: 'FILE_UPLOAD', _count: { eventName: 100 } },
+        { eventName: 'CHAT_MESSAGE', _count: { eventName: 50 } },
+      ];
+
+      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockEvents);
+
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-07');
+      const result = await service.getEventStats(startDate, endDate);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        eventName: 'FILE_UPLOAD',
+        count: 100,
+      });
+      expect(prisma.analyticsEvent.groupBy).toHaveBeenCalledWith({
+        by: ['eventName'],
+        where: {
+          timestamp: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        _count: { eventName: true },
+      });
+    });
+  });
+
+  describe('getTopFeatures', () => {
+    it('should return top features by usage', async () => {
+      const mockFeatures = [
+        { eventName: 'CHAT_MESSAGE', _count: { eventName: 500 } },
+        { eventName: 'FILE_UPLOAD', _count: { eventName: 300 } },
+        { eventName: 'OCR_REQUEST', _count: { eventName: 200 } },
+      ];
+
+      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockFeatures);
+
+      const result = await service.getTopFeatures(3);
+
+      expect(result).toHaveLength(3);
+      expect(result[0].feature).toBe('CHAT_MESSAGE');
+      expect(result[0].count).toBe(500);
+      expect(prisma.analyticsEvent.groupBy).toHaveBeenCalledWith({
+        by: ['eventName'],
+        where: expect.anything(),
+        _count: { eventName: true },
+        orderBy: { _count: { eventName: 'desc' } },
+        take: 3,
+      });
+    });
+  });
+
+  describe('getUserRetention', () => {
+    it('should calculate user retention rate', async () => {
+      const mockInitialUsers = [{ userId: 'user-1' }, { userId: 'user-2' }, { userId: 'user-3' }];
+      const mockReturnedUsers = [{ userId: 'user-1' }, { userId: 'user-2' }];
+
+      (prisma.analyticsEvent.groupBy as jest.Mock)
+        .mockResolvedValueOnce(mockInitialUsers)
+        .mockResolvedValueOnce(mockReturnedUsers);
+
+      const result = await service.getUserRetention(7);
+
+      expect(result).toBeCloseTo(66.67, 1); // 2/3 * 100 = 66.67%
+    });
+
+    it('should return 0 when no initial users', async () => {
+      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.getUserRetention(7);
+
+      expect(result).toBe(0);
+    });
+  });
+
+  describe('getEventsByCategory', () => {
+    it('should return events grouped by category', async () => {
+      const mockEvents = [
+        { eventCategory: 'DOCUMENT', _count: { eventCategory: 150 } },
+        { eventCategory: 'CHAT', _count: { eventCategory: 200 } },
+      ];
+
+      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockEvents);
+
+      const result = await service.getEventsByCategory();
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({
+        category: 'DOCUMENT',
+        count: 150,
+      });
+    });
+  });
+
+  describe('getUserActivityTimeline', () => {
+    it('should return user activity timeline', async () => {
+      const mockEvents = [
+        {
+          id: 'event-1',
+          userId: 'user-123',
+          eventName: 'FILE_UPLOAD',
+          timestamp: new Date(),
+        },
+        {
+          id: 'event-2',
+          userId: 'user-123',
+          eventName: 'CHAT_MESSAGE',
+          timestamp: new Date(),
+        },
+      ];
+
+      (prisma.analyticsEvent.findMany as jest.Mock).mockResolvedValue(mockEvents);
+
+      const result = await service.getUserActivityTimeline('user-123', 10);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].eventName).toBe('FILE_UPLOAD');
+      expect(prisma.analyticsEvent.findMany).toHaveBeenCalledWith({
+        where: { userId: 'user-123' },
+        orderBy: { timestamp: 'desc' },
+        take: 10,
+      });
+    });
+  });
+
+  describe('getSessionStats', () => {
+    it('should return session statistics', async () => {
+      const mockSessions = [
+        { sessionId: 'session-1' },
+        { sessionId: 'session-2' },
+      ];
+
+      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockSessions);
+      (prisma.analyticsEvent.aggregate as jest.Mock).mockResolvedValue({
+        _avg: { id: null },
+      });
+
+      const result = await service.getSessionStats(24);
+
+      expect(result.totalSessions).toBe(2);
+      expect(prisma.analyticsEvent.groupBy).toHaveBeenCalled();
+    });
+  });
 });
