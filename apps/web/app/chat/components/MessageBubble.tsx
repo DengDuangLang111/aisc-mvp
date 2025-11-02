@@ -46,11 +46,6 @@ export function MessageBubble({ message, isLoading = false, isStreaming = false 
               {formatTime(message.timestamp)}
             </span>
           )}
-          {isStreaming && !isUser && (
-            <span className="text-xs text-blue-500 font-medium">
-              🔄 流式响应中...
-            </span>
-          )}
         </div>
 
         {/* Message bubble */}
