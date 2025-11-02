@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { MessageList } from './components/MessageList'
 import { MessageInput } from './components/MessageInput'
 import { Message } from './components/MessageBubble'
 import { DocumentViewer } from './components/DocumentViewer'
 import { ApiClient, ApiError } from '../../lib/api-client'
+import { ChatStorage } from '../../lib/storage'
 
 export default function ChatPage() {
   const searchParams = useSearchParams()
@@ -14,6 +15,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showDocument, setShowDocument] = useState(true)
+  const [sessionLoaded, setSessionLoaded] = useState(false)
   
   // 从 URL 获取文件信息
   const fileId = searchParams.get('fileId')
@@ -21,6 +23,49 @@ export default function ChatPage() {
   const fileUrl = fileId && filename
     ? ApiClient.buildFileUrl(fileId, filename.split('.').pop() || 'txt')
     : undefined
+
+  // 加载历史会话
+  useEffect(() => {
+    if (sessionLoaded) return
+
+    try {
+      let session = null
+      
+      if (fileId) {
+        // 如果有 fileId，尝试加载对应的会话
+        session = ChatStorage.getSessionByFileId(fileId)
+      } else {
+        // 否则加载最近的通用会话
+        const allSessions = ChatStorage.getAllSessions()
+        session = allSessions.find(s => !s.fileId) || null
+      }
+
+      if (session && session.messages.length > 0) {
+        setMessages(session.messages)
+        console.log(`已加载 ${session.messages.length} 条历史消息`)
+      }
+    } catch (e) {
+      console.error('加载会话失败:', e)
+    } finally {
+      setSessionLoaded(true)
+    }
+  }, [fileId, sessionLoaded])
+
+  // 保存会话到 localStorage
+  useEffect(() => {
+    if (!sessionLoaded) return // 等待会话加载完成
+    if (messages.length === 0) return // 空会话不保存
+
+    try {
+      ChatStorage.saveSession({
+        fileId: fileId || undefined,
+        filename: filename || undefined,
+        messages,
+      })
+    } catch (e) {
+      console.error('保存会话失败:', e)
+    }
+  }, [messages, fileId, filename, sessionLoaded])
 
   const handleSend = async (content: string) => {
     // Add user message
@@ -67,6 +112,20 @@ export default function ChatPage() {
     }
   }
 
+  // 清空当前会话
+  const handleClearChat = () => {
+    if (confirm('确定要清空当前对话吗？此操作不可恢复。')) {
+      setMessages([])
+      // 删除 localStorage 中的会话
+      if (fileId) {
+        const session = ChatStorage.getSessionByFileId(fileId)
+        if (session) {
+          ChatStorage.deleteSession(session.id)
+        }
+      }
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
@@ -76,15 +135,45 @@ export default function ChatPage() {
             <h1 className="text-xl font-semibold text-gray-900">AI 学习助手</h1>
             <p className="text-sm text-gray-600 mt-1">
               智能渐进式提示系统 - 帮助你独立思考
+              {messages.length > 0 && (
+                <span className="ml-2 text-xs text-gray-500">
+                  ({messages.length} 条消息)
+                </span>
+              )}
             </p>
           </div>
           
-          {/* Toggle Document Button */}
-          {fileUrl && (
-            <button
-              onClick={() => setShowDocument(!showDocument)}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {/* Clear Chat Button */}
+            {messages.length > 0 && (
+              <button
+                onClick={handleClearChat}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                title="清空对话"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
+            )}
+            
+            {/* Toggle Document Button */}
+            {fileUrl && (
+              <button
+                onClick={() => setShowDocument(!showDocument)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
               <svg
                 className="-ml-1 mr-2 h-5 w-5"
                 fill="none"
@@ -108,8 +197,9 @@ export default function ChatPage() {
                 )}
               </svg>
               {showDocument ? '隐藏文档' : '显示文档'}
-            </button>
-          )}
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

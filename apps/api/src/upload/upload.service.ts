@@ -262,6 +262,36 @@ export class UploadService {
   }
 
   /**
+   * 获取文件信息
+   * @param fileId 文件ID（不含扩展名）
+   * @returns 文件信息
+   */
+  async getFileInfo(fileId: string): Promise<{ diskFilename: string; uploadDir: string } | null> {
+    const uploadDir = this.configService.get<string>('upload.destination') || './uploads';
+    
+    try {
+      const files = await fs.readdir(uploadDir);
+      const targetFile = files.find((file: string) => file.startsWith(fileId));
+      
+      if (!targetFile) {
+        return null;
+      }
+
+      return {
+        diskFilename: targetFile,
+        uploadDir,
+      };
+    } catch (error) {
+      this.logger.error('Failed to get file info', {
+        context: 'UploadService',
+        fileId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      return null;
+    }
+  }
+
+  /**
    * 读取上传文件的内容
    * @param fileId 文件ID（不含扩展名）
    * @returns 文件内容字符串
