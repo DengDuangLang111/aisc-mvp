@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
+import * as path from 'path';
+import * as fs from 'fs';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -59,7 +61,27 @@ export class VisionService {
     // 否则使用文件路径
     const credentialsPath = this.configService.get<string>('GOOGLE_APPLICATION_CREDENTIALS');
     if (credentialsPath) {
-      return require(credentialsPath);
+      try {
+        // 尝试多个可能的路径
+        const pathsToTry = [
+          credentialsPath, // 直接使用提供的路径
+          path.join(process.cwd(), credentialsPath), // 相对于当前工作目录
+          path.join(__dirname, '../../..', credentialsPath), // 相对于源文件
+          path.join(process.cwd(), 'apps/api', credentialsPath), // 相对于根目录的 apps/api
+        ];
+
+        for (const tryPath of pathsToTry) {
+          if (fs.existsSync(tryPath)) {
+            this.logger.debug(`Loading credentials from ${tryPath}`);
+            const fileContent = fs.readFileSync(tryPath, 'utf-8');
+            return JSON.parse(fileContent);
+          }
+        }
+        
+        this.logger.warn(`Credentials file not found in any of the paths: ${pathsToTry.join(', ')}`);
+      } catch (error) {
+        this.logger.error('Failed to load credentials from file', error);
+      }
     }
 
     // 如果都没有，使用默认应用凭据
