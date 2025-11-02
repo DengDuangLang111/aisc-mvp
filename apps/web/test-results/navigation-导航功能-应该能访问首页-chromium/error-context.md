@@ -1,0 +1,54 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - heading "Study Oasis 学习绿洲" [level=1] [ref=e6]
+        - link "设置" [ref=e7] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e8]
+      - paragraph [ref=e11]: AI 驱动的智能学习助手 - 渐进式提示，帮助你独立思考
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - heading "💬 AI 对话" [level=3] [ref=e15]
+        - generic [ref=e17]:
+          - paragraph [ref=e18]: 与 AI 助手对话，获得智能渐进式提示
+          - list [ref=e19]:
+            - listitem [ref=e20]: "🤔 Level 1: 轻微提示 - 引导思考方向"
+            - listitem [ref=e21]: "💡 Level 2: 中等提示 - 提供思路步骤"
+            - listitem [ref=e22]: "✨ Level 3: 详细提示 - 接近完整答案"
+          - link "开始对话" [ref=e23] [cursor=pointer]:
+            - /url: /chat
+            - button "开始对话" [ref=e24]
+      - generic [ref=e25]:
+        - heading "📁 文件上传" [level=3] [ref=e27]
+        - generic [ref=e29]:
+          - paragraph [ref=e30]: 上传学习资料，让 AI 帮助你理解内容
+          - list [ref=e31]:
+            - listitem [ref=e32]: 📄 支持多种文件格式
+            - listitem [ref=e33]: 🔍 智能内容分析
+            - listitem [ref=e34]: 💾 安全存储
+          - link "上传文件" [ref=e35] [cursor=pointer]:
+            - /url: /upload
+            - button "上传文件" [ref=e36]
+    - generic [ref=e37]:
+      - heading "为什么选择 Study Oasis？" [level=2] [ref=e38]
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - generic [ref=e41]: 🧠
+          - heading "独立思考" [level=3] [ref=e42]
+          - paragraph [ref=e43]: 渐进式提示系统帮助你自己找到答案
+        - generic [ref=e44]:
+          - generic [ref=e45]: ⚡
+          - heading "实时反馈" [level=3] [ref=e46]
+          - paragraph [ref=e47]: 即时获得 AI 助手的智能回复
+        - generic [ref=e48]:
+          - generic [ref=e49]: 🎯
+          - heading "个性化学习" [level=3] [ref=e50]
+          - paragraph [ref=e51]: 根据你的进度调整提示等级
+  - button "Open Next.js Dev Tools" [ref=e57] [cursor=pointer]:
+    - img [ref=e58]
+  - alert [ref=e61]
+```

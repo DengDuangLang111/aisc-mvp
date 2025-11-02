@@ -1,0 +1,41 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "设置" [level=1] [ref=e6]
+      - paragraph [ref=e7]: 管理你的数据和偏好设置
+    - generic [ref=e9]:
+      - heading "📊 数据统计" [level=3] [ref=e10]
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - generic [ref=e13]: "0"
+          - generic [ref=e14]: 聊天会话
+        - generic [ref=e15]:
+          - generic [ref=e16]: "0"
+          - generic [ref=e17]: 对话消息
+        - generic [ref=e18]:
+          - generic [ref=e19]: "0"
+          - generic [ref=e20]: 上传文件
+        - generic [ref=e21]:
+          - generic [ref=e22]: 0 B
+          - generic [ref=e23]: 存储空间
+    - generic [ref=e25]:
+      - heading "💾 数据管理" [level=3] [ref=e26]
+      - generic [ref=e27]:
+        - button "📥 导出数据备份" [ref=e28]
+        - button "📤 从备份导入数据" [ref=e29]
+        - button "🗑️ 清空所有数据" [ref=e30]
+    - generic [ref=e32]:
+      - heading "ℹ️ 关于数据存储" [level=3] [ref=e33]
+      - list [ref=e34]:
+        - listitem [ref=e35]: 所有数据存储在浏览器本地 (localStorage)
+        - listitem [ref=e36]: 数据不会上传到服务器，完全保护您的隐私
+        - listitem [ref=e37]: 清除浏览器数据会导致历史记录丢失
+        - listitem [ref=e38]: 建议定期导出数据备份
+        - listitem [ref=e39]: 最多保存 20 个聊天会话和 50 条上传记录
+  - button "Open Next.js Dev Tools" [ref=e45] [cursor=pointer]:
+    - img [ref=e46]
+  - alert [ref=e49]
+```
