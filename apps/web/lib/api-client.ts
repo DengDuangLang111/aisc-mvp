@@ -76,6 +76,73 @@ export class ApiClient {
   }
 
   /**
+   * 发送聊天消息（流式响应）
+   * 返回 AsyncIterable，可用于逐个处理响应 chunks
+   */
+  static async *chatStream(request: ChatRequest): AsyncIterable<{ token: string; complete: boolean }> {
+    const params = new URLSearchParams({
+      message: request.message,
+      conversationId: request.conversationId || '',
+      uploadId: request.uploadId || '',
+    });
+
+    try {
+      const response = await fetch(`${API_URL}/chat/stream?${params}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/event-stream',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new ApiError(
+          error.message || `请求失败: ${response.statusText}`,
+          response.status,
+          error
+        );
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('无法读取响应');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              yield {
+                token: data.token || '',
+                complete: data.complete || false,
+              };
+            } catch (e) {
+              console.error('Failed to parse SSE data:', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        error instanceof Error ? error.message : '流式请求失败',
+        0
+      );
+    }
+  }
+
+  /**
    * 上传文件
    */
   static async uploadFile(file: File): Promise<UploadResponse> {
@@ -104,6 +171,39 @@ export class ApiClient {
       }
       throw new ApiError(
         error instanceof Error ? error.message : '文件上传失败',
+        0
+      );
+    }
+  }
+
+  /**
+   * 获取 OCR 结果
+   */
+  static async getOcrResult(uploadId: string): Promise<any> {
+    try {
+      const response = await fetch(`${API_URL}/upload/documents/${uploadId}/ocr`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new ApiError(
+          error.message || `获取 OCR 结果失败: ${response.statusText}`,
+          response.status,
+          error
+        );
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        error instanceof Error ? error.message : '获取 OCR 结果失败',
         0
       );
     }

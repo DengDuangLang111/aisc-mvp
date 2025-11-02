@@ -604,4 +604,196 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
 
 如果你继续遇到困难，请稍后再试，我的 AI 功能应该会恢复。💪`;
   }
+
+  /**
+   * 流式聊天（SSE）
+   * 逐个 token 流式发送响应
+   */
+  async chatStream(request: ChatRequestDto, res: any): Promise<void> {
+    const { message, conversationId, documentId, userId } = request;
+    const sessionId = this.generateSessionId();
+
+    try {
+      // 1. 获取或创建对话
+      let conversation;
+      if (conversationId) {
+        conversation = await this.prisma.conversation.findUnique({
+          where: { id: conversationId },
+          include: { messages: { orderBy: { createdAt: 'asc' }, take: 10 } },
+        });
+        if (!conversation) {
+          res.write(
+            `data: ${JSON.stringify({
+              token: '',
+              error: `Conversation ${conversationId} not found`,
+              complete: true,
+            })}\n\n`,
+          );
+          res.end();
+          return;
+        }
+      } else {
+        conversation = await this.prisma.conversation.create({
+          data: {
+            userId,
+            documentId,
+            title: this.generateConversationTitle(message),
+          },
+          include: { messages: true },
+        });
+      }
+
+      // 2. 加载文档上下文
+      let documentContext = '';
+      if (documentId || conversation.documentId) {
+        const docId = documentId || conversation.documentId;
+        const ocrResult = await this.visionService.getOcrResult(docId!);
+        if (ocrResult) {
+          documentContext = ocrResult.fullText;
+        }
+      }
+
+      // 3. 计算提示等级
+      const userMessageCount = conversation.messages.filter(
+        (msg: any) => msg.role === 'user',
+      ).length;
+      const hintLevel = this.calculateHintLevel(userMessageCount);
+
+      // 4. 构建消息历史
+      const messageHistory: DeepSeekMessage[] = this.buildMessageHistory(
+        conversation.messages,
+        documentContext,
+        hintLevel,
+      );
+      messageHistory.push({ role: 'user', content: message });
+
+      // 5. 调用 DeepSeek API（支持流式）
+      const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
+      if (!apiKey) {
+        // Fallback
+        const fallbackReply = this.generateFallbackResponse(message);
+        for (const char of fallbackReply) {
+          res.write(
+            `data: ${JSON.stringify({
+              token: char,
+              complete: false,
+            })}\n\n`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 10)); // 模拟流式延迟
+        }
+        res.write(`data: ${JSON.stringify({ token: '', complete: true })}\n\n`);
+        res.end();
+        return;
+      }
+
+      try {
+        // 调用 DeepSeek streaming API
+        const axiosResponse = await axios.post(
+          this.DEEPSEEK_API_URL,
+          {
+            model: this.DEEPSEEK_MODEL,
+            messages: messageHistory,
+            temperature: 0.7,
+            max_tokens: 2000,
+            stream: true, // 启用流式输出
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`,
+            },
+            timeout: 60000,
+            responseType: 'stream',
+          },
+        );
+
+        let fullReply = '';
+        let tokensUsed = 0;
+
+        // 处理流式响应
+        await new Promise<void>((resolve, reject) => {
+          axiosResponse.data.on('data', (chunk: Buffer) => {
+            const lines = chunk.toString().split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
+
+                try {
+                  const parsed = JSON.parse(data);
+                  const token = parsed.choices?.[0]?.delta?.content || '';
+                  if (token) {
+                    fullReply += token;
+                    res.write(
+                      `data: ${JSON.stringify({
+                        token,
+                        complete: false,
+                      })}\n\n`,
+                    );
+                  }
+
+                  // 从最后一个 chunk 获取 token 使用情况
+                  if (parsed.usage) {
+                    tokensUsed = parsed.usage.total_tokens || 0;
+                  }
+                } catch (e) {
+                  console.error('Failed to parse stream data:', e);
+                }
+              }
+            }
+          });
+
+          axiosResponse.data.on('end', () => {
+            // 保存消息和完成信号
+            this.prisma.message
+              .create({
+                data: {
+                  conversationId: conversation.id,
+                  role: 'user',
+                  content: message,
+                },
+              })
+              .catch((err) => console.error('Failed to save user message:', err));
+
+            this.prisma.message
+              .create({
+                data: {
+                  conversationId: conversation.id,
+                  role: 'assistant',
+                  content: fullReply,
+                  tokensUsed,
+                },
+              })
+              .catch((err) => console.error('Failed to save assistant message:', err));
+
+            res.write(
+              `data: ${JSON.stringify({
+                token: '',
+                complete: true,
+                conversationId: conversation.id,
+              })}\n\n`,
+            );
+            res.end();
+            resolve();
+          });
+
+          axiosResponse.data.on('error', (error: Error) => {
+            reject(error);
+          });
+        });
+      } catch (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error('Stream error:', error);
+      res.write(
+        `data: ${JSON.stringify({
+          token: '',
+          error: error.message,
+          complete: true,
+        })}\n\n`,
+      );
+      res.end();
+    }
+  }
 }

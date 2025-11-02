@@ -1,8 +1,9 @@
 export interface HintLevelBadgeProps {
   level: 1 | 2 | 3
+  compact?: boolean
 }
 
-export function HintLevelBadge({ level }: HintLevelBadgeProps) {
+export function HintLevelBadge({ level, compact = false }: HintLevelBadgeProps) {
   const config = {
     1: {
       emoji: '🤔',
@@ -21,13 +22,22 @@ export function HintLevelBadge({ level }: HintLevelBadgeProps) {
     3: {
       emoji: '✨',
       text: 'Level 3 - 详细提示',
-      bgColor: 'bg-red-100',
-      textColor: 'text-red-800',
-      borderColor: 'border-red-300',
+      bgColor: 'bg-purple-100',
+      textColor: 'text-purple-800',
+      borderColor: 'border-purple-300',
     },
   }
 
   const { emoji, text, bgColor, textColor, borderColor } = config[level]
+
+  if (compact) {
+    return (
+      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs ${bgColor} ${borderColor}`}>
+        <span>{emoji}</span>
+        <span className={`font-medium ${textColor}`}>{text.split(' ')[1]}</span>
+      </div>
+    )
+  }
 
   return (
     <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${bgColor} ${borderColor}`}>

@@ -58,6 +58,7 @@ export interface ChatSession {
   id: string
   fileId?: string
   filename?: string
+  conversationId?: string // Backend conversation ID for context persistence
   messages: Message[]
   createdAt: number
   updatedAt: number
@@ -335,7 +336,11 @@ export class ChatStorage {
   /**
    * 保存聊天会话
    */
-  static saveSession(session: Omit<ChatSession, 'id' | 'createdAt' | 'updatedAt'>, expiryMs?: number): string {
+  static saveSession(
+    session: Omit<ChatSession, 'id' | 'createdAt' | 'updatedAt'>,
+    expiryMs?: number,
+    conversationId?: string
+  ): string {
     if (!isLocalStorageAvailable()) return ''
 
     try {
@@ -359,6 +364,11 @@ export class ChatStorage {
         existingSession.messages = session.messages
         existingSession.updatedAt = Date.now()
         
+        // 更新 conversationId（如果提供）
+        if (conversationId) {
+          existingSession.conversationId = conversationId
+        }
+        
         // 更新过期时间（如果指定）
         if (expiryMs) {
           existingSession.expiresAt = Date.now() + expiryMs
@@ -373,6 +383,7 @@ export class ChatStorage {
         const newSession: ChatSession = {
           ...session,
           id: sessionId,
+          conversationId,
           createdAt: Date.now(),
           updatedAt: Date.now(),
           expiresAt: expiryMs ? Date.now() + expiryMs : Date.now() + config.defaultExpiry,

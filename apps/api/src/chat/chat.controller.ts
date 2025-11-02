@@ -1,4 +1,5 @@
-import { Body, Controller, Post, Get, Delete, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Get, Delete, Param, Query, UseGuards, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { 
   ApiTags, 
@@ -50,6 +51,47 @@ export class ChatController {
   })
   async chat(@Body() request: ChatRequestDto): Promise<ChatResponse> {
     return this.chatService.chat(request);
+  }
+
+  /**
+   * GET /chat/stream
+   * 流式聊天（SSE）
+   */
+  @Get('stream')
+  async chatStream(
+    @Query('message') message: string,
+    @Query('conversationId') conversationId: string,
+    @Query('uploadId') uploadId: string,
+    @Res() res: Response,
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    try {
+      // 构建请求
+      const request: ChatRequestDto = {
+        message,
+        conversationId: conversationId || undefined,
+        uploadId: uploadId || undefined,
+        conversationHistory: [],
+      };
+
+      // 调用流式处理
+      await this.chatService.chatStream(request, res);
+    } catch (error) {
+      console.error('Stream error:', error);
+      res.write(
+        `data: ${JSON.stringify({
+          token: '',
+          error: error.message,
+          complete: true,
+        })}\n\n`,
+      );
+      res.end();
+    }
   }
 
   /**

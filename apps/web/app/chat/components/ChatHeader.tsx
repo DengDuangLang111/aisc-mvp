@@ -1,9 +1,15 @@
+'use client'
+
+import { ConversationList } from './ConversationList'
+
 interface ChatHeaderProps {
   messageCount: number;
   hasDocument: boolean;
   showDocument: boolean;
   onClearChat: () => void;
   onToggleDocument: () => void;
+  onSelectConversation?: (sessionId: string) => void;
+  onClearAllConversations?: () => void;
 }
 
 export function ChatHeader({
@@ -12,6 +18,8 @@ export function ChatHeader({
   showDocument,
   onClearChat,
   onToggleDocument,
+  onSelectConversation,
+  onClearAllConversations,
 }: ChatHeaderProps) {
   return (
     <header className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm flex-shrink-0">
@@ -30,6 +38,20 @@ export function ChatHeader({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          {/* Conversation History - Integrated Component */}
+          <ConversationList
+            onSelectSession={(session) => {
+              if (onSelectConversation) {
+                onSelectConversation(session.id)
+              }
+            }}
+            onClearSession={() => {
+              if (onClearAllConversations) {
+                onClearAllConversations()
+              }
+            }}
+          />
+
           {/* Clear Chat Button */}
           {messageCount > 0 && (
             <button

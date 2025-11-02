@@ -14,13 +14,18 @@ function ChatPageContent() {
     showDocument,
     fileUrl,
     filename,
+    conversationId,
+    uploadId,
     handleSend,
+    handleFileSelect,
     handleClearChat,
     handleToggleDocument,
+    handleSelectConversation,
+    handleClearAllConversations,
   } = useChatLogic();
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-screen bg-white">
       {/* Header */}
       <ChatHeader
         messageCount={messages.length}
@@ -28,6 +33,8 @@ function ChatPageContent() {
         showDocument={showDocument}
         onClearChat={handleClearChat}
         onToggleDocument={handleToggleDocument}
+        onSelectConversation={handleSelectConversation}
+        onClearAllConversations={handleClearAllConversations}
       />
 
       {/* Error message */}
@@ -40,7 +47,9 @@ function ChatPageContent() {
         showDocument={showDocument}
         fileUrl={fileUrl}
         filename={filename || undefined}
+        conversationId={conversationId || undefined}
         onSend={handleSend}
+        onFileSelect={handleFileSelect}
       />
     </div>
   );
@@ -48,7 +57,7 @@ function ChatPageContent() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen">加载中...</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-screen">💬 加载聊天界面...</div>}>
       <ChatPageContent />
     </Suspense>
   );

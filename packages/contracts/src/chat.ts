@@ -9,16 +9,6 @@ export const MessageRoleSchema = z.enum(['user', 'assistant']);
 export type MessageRole = z.infer<typeof MessageRoleSchema>;
 
 /**
- * 单条消息的结构
- */
-export const MessageSchema = z.object({
-  role: MessageRoleSchema,
-  content: z.string().min(1, '消息内容不能为空'),
-  timestamp: z.number().optional(), // Unix timestamp
-});
-export type Message = z.infer<typeof MessageSchema>;
-
-/**
  * 提示等级：1 (轻微) → 2 (中等) → 3 (详细)
  * 根据用户提问次数递增，但永远不给直接答案
  */
@@ -30,10 +20,23 @@ export const HintLevelSchema = z.union([
 export type HintLevel = z.infer<typeof HintLevelSchema>;
 
 /**
+ * 单条消息的结构
+ */
+export const MessageSchema = z.object({
+  role: MessageRoleSchema,
+  content: z.string().min(1, '消息内容不能为空'),
+  timestamp: z.number().optional(), // Unix timestamp
+  conversationId: z.string().optional(), // 对话 ID
+  hintLevel: HintLevelSchema.optional(), // 提示等级
+});
+export type Message = z.infer<typeof MessageSchema>;
+
+/**
  * 聊天请求 (前端 → 后端)
  */
 export const ChatRequestSchema = z.object({
-  uploadId: z.string().uuid('uploadId 必须是有效的 UUID').optional(),
+  uploadId: z.string().optional(), // 文件 ID
+  conversationId: z.string().optional(), // 对话 ID
   message: z.string().min(1, '消息不能为空').max(1000, '消息长度不能超过 1000 字符'),
   conversationHistory: z.array(MessageSchema).default([]),
 });
