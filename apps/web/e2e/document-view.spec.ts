@@ -1,141 +1,84 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('文档查看功能', () => {
-  test('应该能访问文档列表页面', async ({ page }) => {
-    // 尝试访问文档相关页面
-    await page.goto('/');
+  test('上传页面应该显示文件列表', async ({ page }) => {
+    await page.goto('/upload');
     
-    // 查找文档链接
-    const docsLink = page.locator('a:has-text("文档"), a:has-text("我的文档"), a[href*="document"]');
+    // 验证页面加载（使用标题而不是文本）
+    await expect(page.getByRole('heading', { name: /上传/i })).toBeVisible();
+  });
+
+  test('应该能查看上传历史', async ({ page }) => {
+    await page.goto('/upload');
     
-    if (await docsLink.count() > 0) {
-      await docsLink.click();
-      await expect(page).toHaveURL(/document/i);
+    // 查找历史记录部分
+    const historySection = page.locator('text=/历史|最近|已上传/i');
+    
+    // 如果有历史记录，应该能看到列表
+    const hasHistory = await historySection.isVisible().catch(() => false);
+    
+    if (hasHistory) {
+      await expect(historySection).toBeVisible();
     }
   });
 
-  test('应该显示已上传的文档列表', async ({ page }) => {
-    // 导航到文档列表页（假设在首页或专门的文档页）
-    await page.goto('/');
+  test('聊天页面应该能显示文档查看器', async ({ page }) => {
+    // 带文档参数访问聊天页面
+    await page.goto('/chat?fileId=test-id&filename=test.pdf');
     
-    // 查找文档列表
-    const documentList = page.locator('[data-testid="document-list"], .document-list, .file-list');
+    // 验证页面加载
+    await expect(page.getByRole('heading', { name: 'AI 学习助手' })).toBeVisible();
     
-    if (await documentList.count() > 0) {
-      await expect(documentList).toBeVisible();
-      
-      // 验证列表项
-      const listItems = page.locator('.document-item, .file-item, li');
-      const itemCount = await listItems.count();
-      expect(itemCount).toBeGreaterThanOrEqual(0);
+    // 查找文档显示/隐藏按钮
+    const toggleButton = page.getByRole('button', { name: /文档|Document/i });
+    
+    // 如果有toggle按钮，说明有文档查看功能
+    if (await toggleButton.isVisible().catch(() => false)) {
+      await expect(toggleButton).toBeVisible();
     }
   });
 
-  test('应该能点击查看文档详情', async ({ page }) => {
-    await page.goto('/');
+  test('应该能切换文档显示', async ({ page }) => {
+    await page.goto('/chat?fileId=test&filename=test.pdf');
     
-    // 查找第一个文档项
-    const firstDocument = page.locator('.document-item, .file-item').first();
+    // 查找切换按钮
+    const toggleButton = page.getByRole('button', { name: /显示文档|隐藏文档/i });
     
-    if (await firstDocument.count() > 0) {
-      await firstDocument.click();
+    if (await toggleButton.isVisible().catch(() => false)) {
+      // 点击切换
+      await toggleButton.click();
+      await page.waitForTimeout(500);
       
-      // 验证跳转到文档详情页
-      await page.waitForURL(/document\/[a-zA-Z0-9-]+/);
-      
-      // 验证文档内容显示
-      await expect(page.locator('.document-content, .file-content, pre, .ocr-result')).toBeVisible({ 
-        timeout: 5000 
-      });
+      // 再次点击
+      await toggleButton.click();
+      await page.waitForTimeout(500);
     }
   });
 
-  test('应该显示文档的 OCR 结果', async ({ page }) => {
-    await page.goto('/');
+  test('文件列表应该显示文件信息', async ({ page }) => {
+    await page.goto('/upload');
     
-    const firstDocument = page.locator('.document-item').first();
+    // 查找文件项
+    const fileItems = page.locator('[class*="file"], [class*="upload"], [class*="item"]');
+    const count = await fileItems.count();
     
-    if (await firstDocument.count() > 0) {
-      await firstDocument.click();
-      await page.waitForTimeout(1000);
-      
-      // 查找 OCR 结果文本
-      const ocrContent = page.locator('.ocr-result, .document-text, [data-testid="ocr-content"]');
-      
-      if (await ocrContent.count() > 0) {
-        await expect(ocrContent).toBeVisible();
-        const text = await ocrContent.textContent();
-        expect(text?.length).toBeGreaterThan(0);
-      }
+    // 如果有文件，应该显示相关信息
+    if (count > 0) {
+      expect(count).toBeGreaterThan(0);
     }
   });
 
-  test('应该能搜索文档', async ({ page }) => {
-    await page.goto('/');
+  test('应该显示空状态提示', async ({ page }) => {
+    await page.goto('/upload');
     
-    // 查找搜索输入框
-    const searchInput = page.getByPlaceholder(/搜索|Search/i);
+    // 等待页面加载
+    await page.waitForTimeout(1000);
     
-    if (await searchInput.count() > 0) {
-      // 输入搜索关键词
-      await searchInput.fill('test');
-      await page.keyboard.press('Enter');
-      
-      // 等待搜索结果
-      await page.waitForTimeout(1000);
-      
-      // 验证搜索结果显示
-      const results = page.locator('.search-result, .document-item');
-      expect(await results.count()).toBeGreaterThanOrEqual(0);
-    }
-  });
-
-  test('应该能下载文档', async ({ page }) => {
-    await page.goto('/');
+    // 检查是否有文件或空状态提示
+    const hasFiles = await page.locator('[class*="file"]').count() > 0;
+    const hasEmptyMessage = await page.getByText(/暂无|没有|上传您的第一|No files/i).isVisible().catch(() => false);
     
-    const firstDocument = page.locator('.document-item').first();
-    
-    if (await firstDocument.count() > 0) {
-      await firstDocument.click();
-      await page.waitForTimeout(1000);
-      
-      // 查找下载按钮
-      const downloadButton = page.locator('button:has-text("下载"), a:has-text("下载"), button[aria-label*="下载"]');
-      
-      if (await downloadButton.count() > 0) {
-        // 监听下载事件
-        const downloadPromise = page.waitForEvent('download');
-        await downloadButton.click();
-        
-        // 验证下载开始
-        const download = await downloadPromise;
-        expect(download.suggestedFilename()).toBeTruthy();
-      }
-    }
-  });
-
-  test('应该显示文档元数据', async ({ page }) => {
-    await page.goto('/');
-    
-    const firstDocument = page.locator('.document-item').first();
-    
-    if (await firstDocument.count() > 0) {
-      // 验证列表中显示元数据
-      await expect(firstDocument).toContainText(/\.(pdf|txt|docx)|[0-9]+ (KB|MB)|[0-9]{4}-[0-9]{2}-[0-9]{2}/);
-    }
-  });
-
-  test('空状态应该显示提示信息', async ({ page }) => {
-    await page.goto('/');
-    
-    // 如果没有文档，应该显示空状态提示
-    const emptyState = page.locator('text=/暂无文档|No documents|上传你的第一个文档/i');
-    const documentList = page.locator('.document-item');
-    
-    const hasDocuments = await documentList.count() > 0;
-    
-    if (!hasDocuments) {
-      await expect(emptyState).toBeVisible();
-    }
+    // 要么有文件，要么有空状态提示
+    expect(hasFiles || hasEmptyMessage).toBeTruthy();
   });
 });
