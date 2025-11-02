@@ -8,6 +8,10 @@ import { AppService } from './app.service';
 import { UploadModule } from './upload/upload.module';
 import { ChatModule } from './chat/chat.module';
 import { HealthModule } from './health/health.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { StorageModule } from './storage/storage.module';
+import { OcrModule } from './ocr/ocr.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { LoggerModule } from './common/logger/logger.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { HttpCacheInterceptor } from './common/interceptors/cache.interceptor';
@@ -39,6 +43,10 @@ import { validate } from './config/validation';
       }),
     }),
     LoggerModule,
+    PrismaModule,
+    StorageModule,
+    OcrModule,
+    AnalyticsModule,
     UploadModule,
     ChatModule,
     HealthModule,

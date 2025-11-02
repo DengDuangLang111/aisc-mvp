@@ -6,6 +6,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import compression from 'compression';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -48,6 +49,31 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
   
+  // Swagger API Documentation
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Study Oasis API')
+    .setDescription('AI 学习助手 API 文档 - 支持文件上传和智能对话功能')
+    .setVersion('1.0.0')
+    .addTag('chat', '聊天相关接口 - 与 AI 助手进行对话')
+    .addTag('upload', '文件上传接口 - 上传学习资料')
+    .addTag('health', '健康检查接口 - 系统状态监控')
+    .addServer('http://localhost:4000', '本地开发环境')
+    .addServer('http://localhost:3001', '备用端口')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api-docs', app, document, {
+    customSiteTitle: 'Study Oasis API Documentation',
+    customfavIcon: 'https://nestjs.com/img/logo-small.svg',
+    customCss: '.swagger-ui .topbar { display: none }',
+    swaggerOptions: {
+      persistAuthorization: true,
+      docExpansion: 'list',
+      filter: true,
+      showRequestDuration: true,
+    },
+  });
+  
   await app.listen(port);
   
   // 使用 Winston 记录启动信息
@@ -56,7 +82,9 @@ async function bootstrap() {
     uploadDir,
     corsOrigin,
     environment: configService.get('nodeEnv'),
+    swaggerDocs: `http://localhost:${port}/api-docs`,
     timestamp: new Date().toISOString(),
   });
 }
+bootstrap();
 bootstrap();

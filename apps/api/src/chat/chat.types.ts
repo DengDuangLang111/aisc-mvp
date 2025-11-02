@@ -44,5 +44,7 @@ export const ChatResponseSchema = z.object({
   hintLevel: HintLevelSchema,
   sources: z.array(z.string()).optional(),
   timestamp: z.number(),
+  conversationId: z.string().optional(),
+  tokensUsed: z.number().optional(),
 });
 export type ChatResponse = z.infer<typeof ChatResponseSchema>;

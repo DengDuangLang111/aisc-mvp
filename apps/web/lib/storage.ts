@@ -1,6 +1,11 @@
 /**
  * Local Storage Management
  * 管理聊天历史和上传记录的本地持久化
+ * 
+ * 新增功能：
+ * - 数据过期机制
+ * - 容量管理
+ * - 可配置限制
  */
 
 import { Message } from '../app/chat/components/MessageBubble'
@@ -10,7 +15,33 @@ const STORAGE_KEYS = {
   CHAT_HISTORY: 'study_oasis_chat_history',
   UPLOAD_HISTORY: 'study_oasis_upload_history',
   CHAT_SESSIONS: 'study_oasis_chat_sessions',
+  CONFIG: 'study_oasis_config',
 } as const
+
+// Storage Configuration (可通过环境变量或配置覆盖)
+export interface StorageConfig {
+  maxUploadRecords: number
+  maxChatSessions: number
+  defaultExpiry: number // 毫秒，默认 7 天
+  maxStorageSize: number // bytes，默认 5MB (localStorage 通常限制)
+  enableAutoCleanup: boolean
+}
+
+// Default configuration
+const DEFAULT_CONFIG: StorageConfig = {
+  maxUploadRecords: 50,
+  maxChatSessions: 20,
+  defaultExpiry: 7 * 24 * 60 * 60 * 1000, // 7 days
+  maxStorageSize: 5 * 1024 * 1024, // 5MB
+  enableAutoCleanup: true,
+}
+
+// Storage item with expiration
+interface StorageItem<T> {
+  data: T
+  timestamp: number
+  expiresAt?: number
+}
 
 // Types
 export interface UploadRecord {
@@ -20,6 +51,7 @@ export interface UploadRecord {
   uploadedAt: number
   fileSize?: number
   fileType?: string
+  expiresAt?: number // 可选的过期时间
 }
 
 export interface ChatSession {
@@ -29,6 +61,58 @@ export interface ChatSession {
   messages: Message[]
   createdAt: number
   updatedAt: number
+  expiresAt?: number // 可选的过期时间
+}
+
+/**
+ * Configuration Management
+ */
+export class ConfigStorage {
+  /**
+   * 获取存储配置
+   */
+  static getConfig(): StorageConfig {
+    if (!isLocalStorageAvailable()) return DEFAULT_CONFIG
+
+    try {
+      const configStr = localStorage.getItem(STORAGE_KEYS.CONFIG)
+      if (!configStr) return DEFAULT_CONFIG
+
+      const savedConfig = JSON.parse(configStr) as Partial<StorageConfig>
+      return { ...DEFAULT_CONFIG, ...savedConfig }
+    } catch (e) {
+      console.error('Failed to load config:', e)
+      return DEFAULT_CONFIG
+    }
+  }
+
+  /**
+   * 更新存储配置
+   */
+  static updateConfig(config: Partial<StorageConfig>): void {
+    if (!isLocalStorageAvailable()) return
+
+    try {
+      const currentConfig = this.getConfig()
+      const newConfig = { ...currentConfig, ...config }
+      localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(newConfig))
+    } catch (e) {
+      console.error('Failed to update config:', e)
+    }
+  }
+
+  /**
+   * 重置配置为默认值
+   */
+  static resetConfig(): void {
+    if (!isLocalStorageAvailable()) return
+
+    try {
+      localStorage.removeItem(STORAGE_KEYS.CONFIG)
+    } catch (e) {
+      console.error('Failed to reset config:', e)
+    }
+  }
 }
 
 // Helper: Check if localStorage is available
@@ -54,6 +138,56 @@ function safeParse<T>(value: string | null, defaultValue: T): T {
   }
 }
 
+// Helper: Check if item is expired
+function isExpired(expiresAt?: number): boolean {
+  if (!expiresAt) return false
+  return Date.now() > expiresAt
+}
+
+// Helper: Clean expired items from array
+function cleanExpired<T extends { expiresAt?: number }>(items: T[]): T[] {
+  return items.filter(item => !isExpired(item.expiresAt))
+}
+
+// Helper: Set item with expiration wrapper
+function setItemWithExpiry<T>(key: string, data: T, expiryMs?: number): void {
+  if (!isLocalStorageAvailable()) return
+
+  try {
+    const item: StorageItem<T> = {
+      data,
+      timestamp: Date.now(),
+      expiresAt: expiryMs ? Date.now() + expiryMs : undefined,
+    }
+    localStorage.setItem(key, JSON.stringify(item))
+  } catch (e) {
+    console.error(`Failed to set item ${key}:`, e)
+  }
+}
+
+// Helper: Get item with expiration check
+function getItemWithExpiry<T>(key: string, defaultValue: T): T {
+  if (!isLocalStorageAvailable()) return defaultValue
+
+  try {
+    const itemStr = localStorage.getItem(key)
+    if (!itemStr) return defaultValue
+
+    const item = JSON.parse(itemStr) as StorageItem<T>
+    
+    // Check if expired
+    if (item.expiresAt && isExpired(item.expiresAt)) {
+      localStorage.removeItem(key)
+      return defaultValue
+    }
+
+    return item.data
+  } catch (e) {
+    console.error(`Failed to get item ${key}:`, e)
+    return defaultValue
+  }
+}
+
 /**
  * Upload History Management
  */
@@ -61,11 +195,24 @@ export class UploadStorage {
   /**
    * 保存上传记录
    */
-  static saveUpload(record: UploadRecord): void {
+  static saveUpload(record: UploadRecord, expiryMs?: number): void {
     if (!isLocalStorageAvailable()) return
 
     try {
-      const history = this.getUploadHistory()
+      const config = ConfigStorage.getConfig()
+      let history = this.getUploadHistory()
+      
+      // 自动清理过期数据
+      if (config.enableAutoCleanup) {
+        history = cleanExpired(history)
+      }
+      
+      // 设置默认过期时间（如果未指定）
+      if (!record.expiresAt && !expiryMs) {
+        record.expiresAt = Date.now() + config.defaultExpiry
+      } else if (expiryMs) {
+        record.expiresAt = Date.now() + expiryMs
+      }
       
       // 避免重复，如果已存在相同 ID 则更新
       const existingIndex = history.findIndex(r => r.id === record.id)
@@ -76,8 +223,8 @@ export class UploadStorage {
         history.unshift(record)
       }
 
-      // 限制历史记录数量（最多保存 50 条）
-      const limitedHistory = history.slice(0, 50)
+      // 使用配置的限制
+      const limitedHistory = history.slice(0, config.maxUploadRecords)
       
       localStorage.setItem(
         STORAGE_KEYS.UPLOAD_HISTORY,
@@ -89,13 +236,21 @@ export class UploadStorage {
   }
 
   /**
-   * 获取上传历史
+   * 获取上传历史（自动过滤过期数据）
    */
   static getUploadHistory(): UploadRecord[] {
     if (!isLocalStorageAvailable()) return []
 
     const data = localStorage.getItem(STORAGE_KEYS.UPLOAD_HISTORY)
-    return safeParse(data, [])
+    const history = safeParse(data, [])
+    
+    // 过滤过期数据
+    const config = ConfigStorage.getConfig()
+    if (config.enableAutoCleanup) {
+      return cleanExpired(history)
+    }
+    
+    return history
   }
 
   /**
@@ -136,6 +291,32 @@ export class UploadStorage {
       console.error('Failed to clear upload history:', e)
     }
   }
+
+  /**
+   * 手动清理过期的上传记录
+   */
+  static cleanExpiredUploads(): number {
+    if (!isLocalStorageAvailable()) return 0
+
+    try {
+      const history = this.getUploadHistory()
+      const beforeCount = history.length
+      const cleaned = cleanExpired(history)
+      const afterCount = cleaned.length
+
+      if (beforeCount !== afterCount) {
+        localStorage.setItem(
+          STORAGE_KEYS.UPLOAD_HISTORY,
+          JSON.stringify(cleaned)
+        )
+      }
+
+      return beforeCount - afterCount
+    } catch (e) {
+      console.error('Failed to clean expired uploads:', e)
+      return 0
+    }
+  }
 }
 
 /**
@@ -154,11 +335,17 @@ export class ChatStorage {
   /**
    * 保存聊天会话
    */
-  static saveSession(session: Omit<ChatSession, 'id' | 'createdAt' | 'updatedAt'>): string {
+  static saveSession(session: Omit<ChatSession, 'id' | 'createdAt' | 'updatedAt'>, expiryMs?: number): string {
     if (!isLocalStorageAvailable()) return ''
 
     try {
-      const sessions = this.getAllSessions()
+      const config = ConfigStorage.getConfig()
+      let sessions = this.getAllSessions()
+      
+      // 自动清理过期数据
+      if (config.enableAutoCleanup) {
+        sessions = cleanExpired(sessions)
+      }
       
       // 查找是否存在相同 fileId 的会话
       let existingSession = sessions.find(
@@ -171,6 +358,14 @@ export class ChatStorage {
         // 更新现有会话
         existingSession.messages = session.messages
         existingSession.updatedAt = Date.now()
+        
+        // 更新过期时间（如果指定）
+        if (expiryMs) {
+          existingSession.expiresAt = Date.now() + expiryMs
+        } else if (!existingSession.expiresAt) {
+          existingSession.expiresAt = Date.now() + config.defaultExpiry
+        }
+        
         sessionId = existingSession.id
       } else {
         // 创建新会话
@@ -180,12 +375,13 @@ export class ChatStorage {
           id: sessionId,
           createdAt: Date.now(),
           updatedAt: Date.now(),
+          expiresAt: expiryMs ? Date.now() + expiryMs : Date.now() + config.defaultExpiry,
         }
         sessions.unshift(newSession)
       }
 
-      // 限制会话数量（最多保存 20 个会话）
-      const limitedSessions = sessions.slice(0, 20)
+      // 使用配置的限制
+      const limitedSessions = sessions.slice(0, config.maxChatSessions)
       
       localStorage.setItem(
         STORAGE_KEYS.CHAT_SESSIONS,
@@ -200,13 +396,21 @@ export class ChatStorage {
   }
 
   /**
-   * 获取所有聊天会话
+   * 获取所有聊天会话（自动过滤过期数据）
    */
   static getAllSessions(): ChatSession[] {
     if (!isLocalStorageAvailable()) return []
 
     const data = localStorage.getItem(STORAGE_KEYS.CHAT_SESSIONS)
-    return safeParse(data, [])
+    const sessions = safeParse(data, [])
+    
+    // 过滤过期数据
+    const config = ConfigStorage.getConfig()
+    if (config.enableAutoCleanup) {
+      return cleanExpired(sessions)
+    }
+    
+    return sessions
   }
 
   /**
@@ -262,6 +466,32 @@ export class ChatStorage {
   }
 
   /**
+   * 手动清理过期的会话
+   */
+  static cleanExpiredSessions(): number {
+    if (!isLocalStorageAvailable()) return 0
+
+    try {
+      const sessions = this.getAllSessions()
+      const beforeCount = sessions.length
+      const cleaned = cleanExpired(sessions)
+      const afterCount = cleaned.length
+
+      if (beforeCount !== afterCount) {
+        localStorage.setItem(
+          STORAGE_KEYS.CHAT_SESSIONS,
+          JSON.stringify(cleaned)
+        )
+      }
+
+      return beforeCount - afterCount
+    } catch (e) {
+      console.error('Failed to clean expired sessions:', e)
+      return 0
+    }
+  }
+
+  /**
    * 获取会话统计信息
    */
   static getSessionStats() {
@@ -280,7 +510,7 @@ export class ChatStorage {
  */
 export class StorageUtils {
   /**
-   * 获取所有存储数据的大小（估算）
+   * 获取所有存储数据的大小（估算，单位：bytes）
    */
   static getStorageSize(): number {
     if (!isLocalStorageAvailable()) return 0
@@ -292,11 +522,41 @@ export class StorageUtils {
           total += localStorage.getItem(key)?.length || 0
         }
       }
-      return total
+      // 每个字符约占 2 bytes (UTF-16)
+      return total * 2
     } catch (e) {
       console.error('Failed to calculate storage size:', e)
       return 0
     }
+  }
+
+  /**
+   * 检查存储容量
+   */
+  static checkCapacity(): { used: number; available: number; percentage: number; isNearLimit: boolean } {
+    const config = ConfigStorage.getConfig()
+    const used = this.getStorageSize()
+    const max = config.maxStorageSize
+    const available = Math.max(0, max - used)
+    const percentage = (used / max) * 100
+    const isNearLimit = percentage > 80 // 超过 80% 视为接近限制
+
+    return {
+      used,
+      available,
+      percentage: Math.round(percentage * 100) / 100,
+      isNearLimit,
+    }
+  }
+
+  /**
+   * 清理所有过期数据
+   */
+  static cleanAllExpired(): { uploads: number; sessions: number } {
+    const uploads = UploadStorage.cleanExpiredUploads()
+    const sessions = ChatStorage.cleanExpiredSessions()
+
+    return { uploads, sessions }
   }
 
   /**
@@ -324,7 +584,9 @@ export class StorageUtils {
       const data = {
         uploadHistory: UploadStorage.getUploadHistory(),
         chatSessions: ChatStorage.getAllSessions(),
+        config: ConfigStorage.getConfig(),
         exportedAt: Date.now(),
+        version: '1.1.0', // 版本号用于未来兼容性
       }
       return JSON.stringify(data, null, 2)
     } catch (e) {
@@ -342,6 +604,11 @@ export class StorageUtils {
     try {
       const data = JSON.parse(jsonData)
       
+      // 验证数据格式
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid data format')
+      }
+
       if (data.uploadHistory) {
         localStorage.setItem(
           STORAGE_KEYS.UPLOAD_HISTORY,
@@ -356,10 +623,37 @@ export class StorageUtils {
         )
       }
 
+      if (data.config) {
+        localStorage.setItem(
+          STORAGE_KEYS.CONFIG,
+          JSON.stringify(data.config)
+        )
+      }
+
       return true
     } catch (e) {
       console.error('Failed to import data:', e)
       return false
+    }
+  }
+
+  /**
+   * 获取完整的存储统计信息
+   */
+  static getStorageStats() {
+    const capacity = this.checkCapacity()
+    const sessionStats = ChatStorage.getSessionStats()
+    const uploadCount = UploadStorage.getUploadHistory().length
+    const config = ConfigStorage.getConfig()
+
+    return {
+      capacity,
+      sessions: sessionStats,
+      uploads: {
+        total: uploadCount,
+        limit: config.maxUploadRecords,
+      },
+      config,
     }
   }
 }

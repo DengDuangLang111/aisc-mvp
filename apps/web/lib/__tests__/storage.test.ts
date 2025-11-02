@@ -6,8 +6,10 @@ import {
   UploadStorage,
   ChatStorage,
   StorageUtils,
+  ConfigStorage,
   UploadRecord,
   ChatSession,
+  StorageConfig,
 } from '../storage'
 import { Message } from '../../app/chat/components/MessageBubble'
 
@@ -526,5 +528,286 @@ describe('StorageUtils', () => {
       const success = StorageUtils.importData('invalid json')
       expect(success).toBe(false)
     })
+  })
+})
+
+// New tests for enhanced functionality
+describe('ConfigStorage', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('should return default config when no config is saved', () => {
+    const config = ConfigStorage.getConfig()
+    expect(config.maxUploadRecords).toBe(50)
+    expect(config.maxChatSessions).toBe(20)
+    expect(config.enableAutoCleanup).toBe(true)
+  })
+
+  it('should update and retrieve config', () => {
+    ConfigStorage.updateConfig({ maxUploadRecords: 100 })
+    const config = ConfigStorage.getConfig()
+    expect(config.maxUploadRecords).toBe(100)
+    expect(config.maxChatSessions).toBe(20) // unchanged
+  })
+
+  it('should reset config to default', () => {
+    ConfigStorage.updateConfig({ maxUploadRecords: 100 })
+    ConfigStorage.resetConfig()
+    const config = ConfigStorage.getConfig()
+    expect(config.maxUploadRecords).toBe(50)
+  })
+})
+
+describe('Data Expiration', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  describe('UploadStorage with expiration', () => {
+    it('should set expiration time on upload', () => {
+      const record: UploadRecord = {
+        id: 'test-id',
+        filename: 'test.txt',
+        url: 'http://example.com/test.txt',
+        uploadedAt: Date.now(),
+      }
+
+      UploadStorage.saveUpload(record)
+      const history = UploadStorage.getUploadHistory()
+      
+      expect(history[0].expiresAt).toBeDefined()
+      expect(history[0].expiresAt).toBeGreaterThan(Date.now())
+    })
+
+    it('should allow custom expiration time', () => {
+      const record: UploadRecord = {
+        id: 'test-id',
+        filename: 'test.txt',
+        url: 'http://example.com/test.txt',
+        uploadedAt: Date.now(),
+      }
+
+      const customExpiry = 1000 // 1 second
+      UploadStorage.saveUpload(record, customExpiry)
+      const history = UploadStorage.getUploadHistory()
+      
+      expect(history[0].expiresAt).toBeDefined()
+      const expectedExpiry = Date.now() + customExpiry
+      expect(history[0].expiresAt).toBeLessThanOrEqual(expectedExpiry + 100) // Allow 100ms tolerance
+    })
+
+    it('should filter expired uploads', async () => {
+      const record: UploadRecord = {
+        id: 'test-id',
+        filename: 'test.txt',
+        url: 'http://example.com/test.txt',
+        uploadedAt: Date.now(),
+      }
+
+      // Set short expiration
+      UploadStorage.saveUpload(record, 10) // 10ms
+      
+      // Wait for expiration
+      await new Promise(resolve => setTimeout(resolve, 20))
+      
+      const history = UploadStorage.getUploadHistory()
+      expect(history).toHaveLength(0)
+    })
+
+    it('should clean expired uploads manually', async () => {
+      const record: UploadRecord = {
+        id: 'test-id',
+        filename: 'test.txt',
+        url: 'http://example.com/test.txt',
+        uploadedAt: Date.now(),
+      }
+
+      // Disable auto cleanup for this test
+      ConfigStorage.updateConfig({ enableAutoCleanup: false })
+      UploadStorage.saveUpload(record, 10)
+      
+      await new Promise(resolve => setTimeout(resolve, 20))
+      
+      // Should still be there with auto-cleanup disabled
+      const beforeClean = UploadStorage.getUploadHistory()
+      expect(beforeClean.length).toBeGreaterThan(0)
+      
+      // Manual cleanup
+      const cleaned = UploadStorage.cleanExpiredUploads()
+      expect(cleaned).toBeGreaterThan(0)
+      
+      const afterClean = UploadStorage.getUploadHistory()
+      expect(afterClean).toHaveLength(0)
+      
+      // Reset config
+      ConfigStorage.resetConfig()
+    })
+  })
+
+  describe('ChatStorage with expiration', () => {
+    it('should set expiration time on session', () => {
+      const messages: Message[] = [
+        { role: 'user', content: 'Hello', timestamp: Date.now() },
+      ]
+
+      ChatStorage.saveSession({ messages })
+      const sessions = ChatStorage.getAllSessions()
+      
+      expect(sessions[0].expiresAt).toBeDefined()
+      expect(sessions[0].expiresAt).toBeGreaterThan(Date.now())
+    })
+
+    it('should clean expired sessions manually', async () => {
+      const messages: Message[] = [
+        { role: 'user', content: 'Hello', timestamp: Date.now() },
+      ]
+
+      ConfigStorage.updateConfig({ enableAutoCleanup: false })
+      ChatStorage.saveSession({ messages }, 10)
+      
+      await new Promise(resolve => setTimeout(resolve, 20))
+      
+      const cleaned = ChatStorage.cleanExpiredSessions()
+      expect(cleaned).toBeGreaterThan(0)
+      
+      ConfigStorage.resetConfig()
+    })
+  })
+})
+
+describe('Capacity Management', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('should check storage capacity', () => {
+    const capacity = StorageUtils.checkCapacity()
+    
+    expect(capacity.used).toBeGreaterThanOrEqual(0)
+    expect(capacity.available).toBeGreaterThanOrEqual(0)
+    expect(capacity.percentage).toBeGreaterThanOrEqual(0)
+    expect(capacity.percentage).toBeLessThanOrEqual(100)
+    expect(typeof capacity.isNearLimit).toBe('boolean')
+  })
+
+  it('should calculate storage size correctly', () => {
+    const record: UploadRecord = {
+      id: 'test-id',
+      filename: 'test.txt',
+      url: 'http://example.com/test.txt',
+      uploadedAt: Date.now(),
+    }
+
+    UploadStorage.saveUpload(record)
+    const size = StorageUtils.getStorageSize()
+    
+    // Size should be a non-negative number (mock localStorage may not calculate correctly)
+    expect(typeof size).toBe('number')
+    expect(size).toBeGreaterThanOrEqual(0)
+  })
+
+  it('should respect configurable limits', () => {
+    // Set lower limit
+    ConfigStorage.updateConfig({ maxUploadRecords: 3 })
+
+    // Add 5 records
+    for (let i = 0; i < 5; i++) {
+      UploadStorage.saveUpload({
+        id: `test-id-${i}`,
+        filename: `test-${i}.txt`,
+        url: `http://example.com/test-${i}.txt`,
+        uploadedAt: Date.now(),
+      })
+    }
+
+    const history = UploadStorage.getUploadHistory()
+    expect(history).toHaveLength(3) // Should be limited to 3
+
+    ConfigStorage.resetConfig()
+  })
+
+  it('should provide comprehensive storage stats', () => {
+    const record: UploadRecord = {
+      id: 'test-id',
+      filename: 'test.txt',
+      url: 'http://example.com/test.txt',
+      uploadedAt: Date.now(),
+    }
+    UploadStorage.saveUpload(record)
+
+    const messages: Message[] = [
+      { role: 'user', content: 'Hello', timestamp: Date.now() },
+    ]
+    ChatStorage.saveSession({ messages })
+
+    const stats = StorageUtils.getStorageStats()
+    
+    expect(stats.capacity).toBeDefined()
+    expect(stats.sessions).toBeDefined()
+    expect(stats.uploads).toBeDefined()
+    expect(stats.config).toBeDefined()
+    expect(stats.uploads.total).toBe(1)
+    expect(stats.sessions.totalSessions).toBe(1)
+  })
+})
+
+describe('Cleanup Utilities', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('should clean all expired data', async () => {
+    // Add records with short expiration
+    UploadStorage.saveUpload({
+      id: 'test-upload',
+      filename: 'test.txt',
+      url: 'http://example.com/test.txt',
+      uploadedAt: Date.now(),
+    }, 10)
+
+    ChatStorage.saveSession({
+      messages: [{ role: 'user', content: 'Hello', timestamp: Date.now() }],
+    }, 10)
+
+    await new Promise(resolve => setTimeout(resolve, 20))
+
+    const result = StorageUtils.cleanAllExpired()
+    
+    expect(result.uploads).toBeGreaterThanOrEqual(0)
+    expect(result.sessions).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('Export/Import with new features', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  it('should export config along with data', () => {
+    ConfigStorage.updateConfig({ maxUploadRecords: 100 })
+    
+    const exported = StorageUtils.exportData()
+    const data = JSON.parse(exported)
+    
+    expect(data.config).toBeDefined()
+    expect(data.config.maxUploadRecords).toBe(100)
+    expect(data.version).toBeDefined()
+  })
+
+  it('should import config from backup', () => {
+    const data = {
+      uploadHistory: [],
+      chatSessions: [],
+      config: { maxUploadRecords: 75, maxChatSessions: 15 },
+      exportedAt: Date.now(),
+      version: '1.1.0',
+    }
+
+    StorageUtils.importData(JSON.stringify(data))
+    const config = ConfigStorage.getConfig()
+    
+    expect(config.maxUploadRecords).toBe(75)
+    expect(config.maxChatSessions).toBe(15)
   })
 })

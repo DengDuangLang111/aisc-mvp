@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 用户表
+// ============================================
+model User {
+  id        String   @id @default(uuid())
+  email     String?  @unique
+  createdAt DateTime @default(now())
+  
+  documents     Document[]
+  conversations Conversation[]
+  
+  @@map("users")
+}
+
+// ============================================
+// 文档表
+// ============================================
+model Document {
+  id          String   @id @default(uuid())
+  userId      String?
+  filename    String
+  s3Key       String?   // AWS S3 路径
+  gcsPath     String?   // Google Cloud Storage 路径
+  mimeType    String
+  size        Int
+  uploadedAt  DateTime @default(now())
+  
+  user          User?         @relation(fields: [userId], references: [id])
+  ocrResult     OcrResult?
+  conversations Conversation[]
+  
+  @@index([userId])
+  @@map("documents")
+}
+
+// ============================================
+// OCR 结果表
+// ============================================
+model OcrResult {
+  id             String   @id @default(uuid())
+  documentId     String   @unique
+  fullText       String   @db.Text
+  structuredData Json
+  language       String
+  confidence     Float
+  pageCount      Int?
+  extractedAt    DateTime @default(now())
+  
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@map("ocr_results")
+}
+
+// ============================================
+// 对话表
+// ============================================
+model Conversation {
+  id         String   @id @default(uuid())
+  userId     String?
+  documentId String?
+  title      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  user     User?     @relation(fields: [userId], references: [id])
+  document Document? @relation(fields: [documentId], references: [id])
+  messages Message[]
+  
+  @@index([userId])
+  @@index([documentId])
+  @@map("conversations")
+}
+
+// ============================================
+// 消息表
+// ============================================
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  role           String   // 'user' | 'assistant' | 'system'
+  content        String   @db.Text
+  hintLevel      Int?
+  modelUsed      String?  // 'deepseek-chat'
+  tokensUsed     Int?
+  timestamp      DateTime @default(now())
+  
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// ============================================
+// 数据埋点 - 事件表
+// ============================================
+model AnalyticsEvent {
+  id              String   @id @default(uuid())
+  userId          String?
+  sessionId       String
+  eventName       String
+  eventCategory   String
+  eventProperties Json     @default("{}")
+  pageUrl         String?
+  referrer        String?
+  userAgent       String?
+  deviceType      String?
+  browser         String?
+  os              String?
+  createdAt       DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([eventName, createdAt])
+  @@index([sessionId, createdAt])
+  @@map("analytics_events")
+}
+
+// ============================================
+// 数据埋点 - API 使用日志表
+// ============================================
+model ApiUsageLog {
+  id                  String   @id @default(uuid())
+  userId              String?
+  endpoint            String
+  method              String
+  statusCode          Int
+  responseTimeMs      Int?
+  requestSizeBytes    Int?
+  responseSizeBytes   Int?
+  externalApiCalls    Json     @default("{}")
+  errorMessage        String?
+  errorStack          String?  @db.Text
+  createdAt           DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([endpoint, createdAt])
+  @@map("api_usage_logs")
+}
+
+// ============================================
+// 数据埋点 - 用户每日统计表
+// ============================================
+model UserDailyStat {
+  id                    String   @id @default(uuid())
+  userId                String?
+  date                  DateTime @db.Date
+  filesUploaded         Int      @default(0)
+  ocrPagesProcessed     Int      @default(0)
+  chatMessagesSent      Int      @default(0)
+  chatSessions          Int      @default(0)
+  apiRequestsTotal      Int      @default(0)
+  apiRequestsSuccess    Int      @default(0)
+  apiRequestsFailed     Int      @default(0)
+  googleVisionCost      Decimal  @default(0) @db.Decimal(10, 4)
+  deepseekCost          Decimal  @default(0) @db.Decimal(10, 4)
+  storageCost           Decimal  @default(0) @db.Decimal(10, 4)
+  totalCost             Decimal  @default(0) @db.Decimal(10, 4)
+  activeTimeMinutes     Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("user_daily_stats")
+}

@@ -4,6 +4,11 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { extname, join } from 'path';
 import { promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
+import { GcsService } from '../storage/gcs.service';
+import { VisionService } from '../ocr/vision.service';
+import { AnalyticsService, AnalyticsEventData } from '../analytics/analytics.service';
+import { EventName, EventCategory } from '../analytics/analytics.types';
+import { PrismaService } from '../prisma/prisma.service';
 const fileTypeImport = require('file-type');
 
 export interface UploadResult {
@@ -12,6 +17,8 @@ export interface UploadResult {
   url: string;
   size: number;
   mimetype: string;
+  documentId?: string;
+  ocrStatus?: 'pending' | 'processing' | 'completed' | 'failed';
 }
 
 @Injectable()
@@ -25,8 +32,20 @@ export class UploadService {
 
   constructor(
     private configService: ConfigService,
+    private gcsService: GcsService,
+    private visionService: VisionService,
+    private analyticsService: AnalyticsService,
+    private prisma: PrismaService,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
-  ) {}
+  ) {
+    // 检查是否启用云存储
+    const useCloudStorage = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
+    if (useCloudStorage) {
+      this.logger.log('Cloud storage enabled (GCS)', { context: 'UploadService' });
+    } else {
+      this.logger.log('Using local storage', { context: 'UploadService' });
+    }
+  }
 
   /**
    * 验证文件类型
@@ -149,116 +168,209 @@ export class UploadService {
   /**
    * 处理文件上传
    */
-  async saveFile(file: Express.Multer.File): Promise<UploadResult> {
+  async saveFile(file: Express.Multer.File, userId?: string): Promise<UploadResult> {
     const originalFilename = file.originalname;
+    const sessionId = this.generateSessionId();
     
     this.logger.log('info', 'Processing file upload', {
       context: 'UploadService',
       filename: originalFilename,
       mimetype: file.mimetype,
       size: file.size,
+      userId,
     });
 
-    // 1. 检查危险文件类型
-    if (this.isDangerousFile(originalFilename)) {
-      this.logger.warn('Dangerous file type detected', {
-        context: 'UploadService',
+    // 记录上传开始事件
+    await this.trackEvent({
+      userId,
+      sessionId,
+      eventName: EventName.FILE_UPLOAD_START,
+      eventCategory: EventCategory.DOCUMENT,
+      eventProperties: {
         filename: originalFilename,
-      });
-      throw new BadRequestException(
-        `不允许上传可执行文件类型: ${extname(originalFilename)}`
-      );
-    }
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      },
+    });
 
-    // 2. 清理文件名
-    const sanitizedFilename = this.sanitizeFilename(originalFilename);
-    if (sanitizedFilename !== originalFilename) {
-      this.logger.log('info', 'Filename sanitized', {
-        context: 'UploadService',
-        original: originalFilename,
-        sanitized: sanitizedFilename,
-      });
-    }
-
-    // 3. 验证文件真实类型（魔数检查）
-    await this.validateFileType(file.buffer, file.mimetype);
-
-    // 4. 验证声明的文件类型
-    if (!this.isAllowedMimeType(file.mimetype)) {
-      this.logger.warn('File type not allowed', {
-        context: 'UploadService',
-        filename: originalFilename,
-        mimetype: file.mimetype,
-      });
-
-      throw new BadRequestException(
-        `不支持的文件类型: ${file.mimetype}。允许的类型: PDF, 文本, 图片`
-      );
-    }
-
-    // 5. 验证文件大小
-    if (!this.isAllowedSize(file.size)) {
-      const maxSizeMB = (this.configService.get<number>('upload.maxSize') || 10485760) / 1024 / 1024;
-      
-      this.logger.warn('File size exceeds limit', {
-        context: 'UploadService',
-        filename: originalFilename,
-        size: file.size,
-        maxSize: maxSizeMB,
-      });
-
-      throw new BadRequestException(
-        `文件大小超过限制。最大允许: ${maxSizeMB}MB`
-      );
-    }
-
-    // 6. 生成唯一文件名并保存文件到磁盘
-    const uniqueId = randomUUID();
-    const ext = extname(sanitizedFilename);
-    const diskFilename = `${uniqueId}${ext}`;
-    
-    // 确保上传目录存在
-    const uploadDir = './uploads';
-    const uploadPath = join(uploadDir, diskFilename);
-    
     try {
-      // 创建上传目录（如果不存在）
-      await fs.mkdir(uploadDir, { recursive: true });
+      // 1. 检查危险文件类型
+      if (this.isDangerousFile(originalFilename)) {
+        this.logger.warn('Dangerous file type detected', {
+          context: 'UploadService',
+          filename: originalFilename,
+        });
+        throw new BadRequestException(
+          `不允许上传可执行文件类型: ${extname(originalFilename)}`
+        );
+      }
+
+      // 2. 清理文件名
+      const sanitizedFilename = this.sanitizeFilename(originalFilename);
+      if (sanitizedFilename !== originalFilename) {
+        this.logger.log('info', 'Filename sanitized', {
+          context: 'UploadService',
+          original: originalFilename,
+          sanitized: sanitizedFilename,
+        });
+      }
+
+      // 3. 验证文件真实类型（魔数检查）
+      await this.validateFileType(file.buffer, file.mimetype);
+
+      // 4. 验证声明的文件类型
+      if (!this.isAllowedMimeType(file.mimetype)) {
+        this.logger.warn('File type not allowed', {
+          context: 'UploadService',
+          filename: originalFilename,
+          mimetype: file.mimetype,
+        });
+
+        throw new BadRequestException(
+          `不支持的文件类型: ${file.mimetype}。允许的类型: PDF, 文本, 图片`
+        );
+      }
+
+      // 5. 验证文件大小
+      if (!this.isAllowedSize(file.size)) {
+        const maxSizeMB = (this.configService.get<number>('upload.maxSize') || 10485760) / 1024 / 1024;
+        
+        this.logger.warn('File size exceeds limit', {
+          context: 'UploadService',
+          filename: originalFilename,
+          size: file.size,
+          maxSize: maxSizeMB,
+        });
+
+        throw new BadRequestException(
+          `文件大小超过限制。最大允许: ${maxSizeMB}MB`
+        );
+      }
+
+      // 6. 上传文件（云存储或本地）
+      const uniqueId = randomUUID();
+      let fileUrl: string;
+      let gcsPath: string | null = null;
+      let localPath: string | null = null;
+
+      const useCloudStorage = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
       
-      // 将文件从内存写入磁盘
-      await fs.writeFile(uploadPath, file.buffer);
-      
-      this.logger.log('info', 'File saved to disk', {
-        context: 'UploadService',
-        diskFilename,
-        path: uploadPath,
+      if (useCloudStorage) {
+        // 上传到 Google Cloud Storage
+        this.logger.log('info', 'Uploading to Google Cloud Storage', {
+          context: 'UploadService',
+          filename: sanitizedFilename,
+        });
+
+        const gcsResult = await this.gcsService.uploadFile(
+          file.buffer,
+          sanitizedFilename,
+          'uploads',
+        );
+
+        gcsPath = gcsResult.gcsPath;
+        fileUrl = gcsResult.publicUrl;
+
+        this.logger.log('info', 'File uploaded to GCS', {
+          context: 'UploadService',
+          gcsPath,
+          publicUrl: fileUrl,
+        });
+      } else {
+        // 本地存储（开发环境）
+        const ext = extname(sanitizedFilename);
+        const diskFilename = `${uniqueId}${ext}`;
+        const uploadDir = './uploads';
+        const uploadPath = join(uploadDir, diskFilename);
+
+        await fs.mkdir(uploadDir, { recursive: true });
+        await fs.writeFile(uploadPath, file.buffer);
+
+        localPath = uploadPath;
+        fileUrl = this.buildFileUrl(diskFilename);
+
+        this.logger.log('info', 'File saved to local disk', {
+          context: 'UploadService',
+          diskFilename,
+          path: uploadPath,
+        });
+      }
+
+      // 7. 保存文档元信息到数据库
+      const document = await this.prisma.document.create({
+        data: {
+          userId,
+          filename: sanitizedFilename,
+          gcsPath,
+          mimeType: file.mimetype,
+          size: file.size,
+        },
       });
+
+      this.logger.log('info', 'Document metadata saved to database', {
+        context: 'UploadService',
+        documentId: document.id,
+      });
+
+      // 8. 记录上传成功事件
+      await this.trackEvent({
+        userId,
+        sessionId,
+        eventName: EventName.FILE_UPLOAD_SUCCESS,
+        eventCategory: EventCategory.DOCUMENT,
+        eventProperties: {
+          documentId: document.id,
+          filename: sanitizedFilename,
+          fileSize: file.size,
+          mimeType: file.mimetype,
+          storageType: useCloudStorage ? 'gcs' : 'local',
+        },
+      });
+
+      // 9. 异步触发 OCR（不阻塞响应）
+      this.triggerOCR(document.id, gcsPath || localPath, file.buffer, userId, sessionId)
+        .catch((error) => {
+          this.logger.error('OCR processing failed', {
+            context: 'UploadService',
+            documentId: document.id,
+            error: error.message,
+          });
+        });
+
+      const result: UploadResult = {
+        id: uniqueId,
+        filename: sanitizedFilename,
+        url: fileUrl,
+        size: file.size,
+        mimetype: file.mimetype,
+        documentId: document.id,
+        ocrStatus: 'pending',
+      };
+
+      this.logger.log('info', 'File upload successful', {
+        context: 'UploadService',
+        fileId: result.id,
+        documentId: document.id,
+        filename: result.filename,
+        size: result.size,
+      });
+
+      return result;
     } catch (error) {
-      this.logger.error('Failed to save file to disk', {
-        context: 'UploadService',
-        error: error.message,
-        diskFilename,
+      // 记录上传失败事件
+      await this.trackEvent({
+        userId,
+        sessionId,
+        eventName: EventName.FILE_UPLOAD_FAILED,
+        eventCategory: EventCategory.DOCUMENT,
+        eventProperties: {
+          filename: originalFilename,
+          error: error.message,
+        },
       });
-      throw new BadRequestException('文件保存失败');
+
+      throw error;
     }
-
-    const result = {
-      id: uniqueId,
-      filename: sanitizedFilename, // 使用清理后的文件名
-      url: this.buildFileUrl(diskFilename),
-      size: file.size,
-      mimetype: file.mimetype,
-    };
-
-    this.logger.log('info', 'File upload successful', {
-      context: 'UploadService',
-      fileId: result.id,
-      filename: result.filename,
-      size: result.size,
-    });
-
-    // 7. 返回文件信息
-    return result;
   }
 
   /**
@@ -342,6 +454,121 @@ export class UploadService {
       });
       
       throw new BadRequestException('无法读取文件内容');
+    }
+  }
+
+  /**
+   * 生成 Session ID（简化版）
+   */
+  private generateSessionId(): string {
+    return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * 记录事件的辅助方法
+   */
+  private async trackEvent(data: Partial<AnalyticsEventData>): Promise<void> {
+    try {
+      await this.analyticsService.trackEvent({
+        sessionId: data.sessionId || this.generateSessionId(),
+        eventName: data.eventName as any,
+        eventCategory: data.eventCategory as any,
+        userId: data.userId,
+        eventProperties: data.eventProperties,
+      });
+    } catch (error) {
+      // 埋点失败不应该影响主流程
+      this.logger.error('Failed to track event', {
+        context: 'UploadService',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  /**
+   * 异步触发 OCR 处理
+   */
+  private async triggerOCR(
+    documentId: string,
+    filePath: string | null,
+    fileBuffer: Buffer,
+    userId?: string,
+    sessionId?: string,
+  ): Promise<void> {
+    const sid = sessionId || this.generateSessionId();
+
+    // 记录 OCR 开始
+    await this.trackEvent({
+      userId,
+      sessionId: sid,
+      eventName: EventName.OCR_START,
+      eventCategory: EventCategory.DOCUMENT,
+      eventProperties: { documentId },
+    });
+
+    try {
+      let ocrResult;
+
+      // 如果有 GCS 路径，使用 GCS OCR
+      if (filePath && filePath.startsWith('gs://')) {
+        this.logger.log('info', 'Starting OCR from GCS', {
+          context: 'UploadService',
+          documentId,
+          gcsPath: filePath,
+        });
+
+        ocrResult = await this.visionService.extractTextFromGcs(filePath, documentId);
+      } else {
+        // 使用 Buffer OCR
+        this.logger.log('info', 'Starting OCR from buffer', {
+          context: 'UploadService',
+          documentId,
+        });
+
+        ocrResult = await this.visionService.extractTextFromBuffer(fileBuffer, documentId);
+      }
+
+      // 记录 OCR 成功
+      await this.trackEvent({
+        userId,
+        sessionId: sid,
+        eventName: EventName.OCR_SUCCESS,
+        eventCategory: EventCategory.DOCUMENT,
+        eventProperties: {
+          documentId,
+          pageCount: ocrResult.pageCount,
+          confidence: ocrResult.confidence,
+          textLength: ocrResult.fullText.length,
+        },
+      });
+
+      this.logger.log('info', 'OCR completed successfully', {
+        context: 'UploadService',
+        documentId,
+        pageCount: ocrResult.pageCount,
+        confidence: ocrResult.confidence,
+      });
+    } catch (error: any) {
+      // 记录 OCR 失败
+      await this.trackEvent({
+        userId,
+        sessionId: sid,
+        eventName: EventName.OCR_FAILED,
+        eventCategory: EventCategory.DOCUMENT,
+        eventProperties: {
+          documentId,
+          error: error.message,
+        },
+      });
+
+      this.logger.error('OCR processing failed', {
+        context: 'UploadService',
+        documentId,
+        error: error.message,
+        stack: error.stack,
+      });
+
+      throw error;
     }
   }
 }
