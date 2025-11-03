@@ -35,7 +35,8 @@ export type Message = z.infer<typeof MessageSchema>;
  * 聊天请求 (前端 → 后端)
  */
 export const ChatRequestSchema = z.object({
-  uploadId: z.string().optional(), // 文件 ID
+  uploadId: z.string().optional(), // 文件 ID（已废弃，使用 documentId）
+  documentId: z.string().optional(), // 文档 ID（推荐）
   conversationId: z.string().optional(), // 对话 ID
   message: z.string().min(1, '消息不能为空').max(1000, '消息长度不能超过 1000 字符'),
   conversationHistory: z.array(MessageSchema).default([]),

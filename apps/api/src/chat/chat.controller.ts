@@ -62,6 +62,7 @@ export class ChatController {
     @Query('message') message: string,
     @Query('conversationId') conversationId: string,
     @Query('uploadId') uploadId: string,
+    @Query('documentId') documentId: string,
     @Res() res: Response,
   ) {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -72,10 +73,13 @@ export class ChatController {
 
     try {
       // 构建请求
+      const effectiveDocumentId = documentId || uploadId || undefined;
+
       const request: ChatRequestDto = {
         message,
         conversationId: conversationId || undefined,
         uploadId: uploadId || undefined,
+        documentId: effectiveDocumentId,
         conversationHistory: [],
       };
 

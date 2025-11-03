@@ -11,6 +11,7 @@ interface Document {
   size: number
   ocrStatus: 'pending' | 'processing' | 'completed' | 'failed'
   ocrResult?: string
+  url?: string
 }
 
 export default function DocumentsPage() {
@@ -53,10 +54,12 @@ export default function DocumentsPage() {
 
   const handleStartChat = (document: Document) => {
     // Navigate to chat with this document
-    const params = new URLSearchParams({
-      fileId: document.id,
-      filename: document.filename,
-    })
+    const params = new URLSearchParams()
+    params.set('documentId', document.id)
+    params.set('filename', document.filename)
+    if (document.url) {
+      params.set('fileUrl', document.url)
+    }
     window.location.href = `/chat?${params.toString()}`
   }
 

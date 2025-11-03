@@ -46,6 +46,7 @@ interface StorageItem<T> {
 // Types
 export interface UploadRecord {
   id: string
+  documentId?: string
   filename: string
   url: string
   uploadedAt: number
@@ -215,8 +216,17 @@ export class UploadStorage {
         record.expiresAt = Date.now() + expiryMs
       }
       
-      // 避免重复，如果已存在相同 ID 则更新
-      const existingIndex = history.findIndex(r => r.id === record.id)
+      if (!record.documentId) {
+        record.documentId = record.id
+      }
+
+      const recordKey = record.documentId || record.id
+
+      // 避免重复，如果已存在相同文档或上传 ID 则更新
+      const existingIndex = history.findIndex(r => {
+        const existingKey = r.documentId || r.id
+        return existingKey === recordKey
+      })
       if (existingIndex >= 0) {
         history[existingIndex] = record
       } else {
@@ -259,7 +269,7 @@ export class UploadStorage {
    */
   static getUploadById(id: string): UploadRecord | null {
     const history = this.getUploadHistory()
-    return history.find(r => r.id === id) || null
+    return history.find(r => r.id === id || r.documentId === id) || null
   }
 
   /**
@@ -270,7 +280,7 @@ export class UploadStorage {
 
     try {
       const history = this.getUploadHistory()
-      const filtered = history.filter(r => r.id !== id)
+      const filtered = history.filter(r => r.id !== id && r.documentId !== id)
       localStorage.setItem(
         STORAGE_KEYS.UPLOAD_HISTORY,
         JSON.stringify(filtered)

@@ -111,6 +111,32 @@ describe('UploadStorage', () => {
       expect(history[0].filename).toBe('test2.txt')
     })
 
+    it('should update existing record when documentId matches', () => {
+      const record1: UploadRecord = {
+        id: 'upload-1',
+        documentId: 'doc-1',
+        filename: 'first.pdf',
+        url: 'http://example.com/first.pdf',
+        uploadedAt: Date.now(),
+      }
+
+      const record2: UploadRecord = {
+        id: 'upload-2',
+        documentId: 'doc-1',
+        filename: 'second.pdf',
+        url: 'http://example.com/second.pdf',
+        uploadedAt: Date.now(),
+      }
+
+      UploadStorage.saveUpload(record1)
+      UploadStorage.saveUpload(record2)
+
+      const history = UploadStorage.getUploadHistory()
+      expect(history).toHaveLength(1)
+      expect(history[0].id).toBe('upload-2')
+      expect(history[0].documentId).toBe('doc-1')
+    })
+
     it('should limit history to 50 records', () => {
       for (let i = 0; i < 60; i++) {
         UploadStorage.saveUpload({
@@ -141,6 +167,21 @@ describe('UploadStorage', () => {
       expect(found).toEqual(record)
     })
 
+    it('should return upload record by documentId', () => {
+      const record: UploadRecord = {
+        id: 'upload-1',
+        documentId: 'doc-123',
+        filename: 'doc.pdf',
+        url: 'http://example.com/doc.pdf',
+        uploadedAt: Date.now(),
+      }
+
+      UploadStorage.saveUpload(record)
+      const found = UploadStorage.getUploadById('doc-123')
+
+      expect(found).toEqual(record)
+    })
+
     it('should return null if not found', () => {
       const found = UploadStorage.getUploadById('non-existent')
       expect(found).toBeNull()
@@ -158,6 +199,22 @@ describe('UploadStorage', () => {
 
       UploadStorage.saveUpload(record)
       UploadStorage.deleteUpload('test-id-1')
+
+      const history = UploadStorage.getUploadHistory()
+      expect(history).toHaveLength(0)
+    })
+
+    it('should delete upload record by documentId', () => {
+      const record: UploadRecord = {
+        id: 'upload-1',
+        documentId: 'doc-456',
+        filename: 'doc.pdf',
+        url: 'http://example.com/doc.pdf',
+        uploadedAt: Date.now(),
+      }
+
+      UploadStorage.saveUpload(record)
+      UploadStorage.deleteUpload('doc-456')
 
       const history = UploadStorage.getUploadHistory()
       expect(history).toHaveLength(0)

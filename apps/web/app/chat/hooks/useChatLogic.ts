@@ -17,6 +17,7 @@ export function useChatLogic() {
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [uploadId, setUploadId] = useState<string | null>(null);
+  const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null); // 当前文档 ID
   const abortControllerRef = useRef<AbortController | null>(null);
   
   // 方案7: 分离流式状态 - 用单独的 state 存储流式内容
@@ -26,8 +27,45 @@ export function useChatLogic() {
 
   // 从 URL 获取文件信息
   const fileId = searchParams.get('fileId');
-  const filename = searchParams.get('filename');
-  const fileUrl = searchParams.get('fileUrl') || undefined;
+  const documentId = searchParams.get('documentId'); // 新增：支持 documentId
+  const filenameParam = searchParams.get('filename') || undefined;
+  const fileUrlParam = searchParams.get('fileUrl') || undefined;
+  const initialMessageParam = searchParams.get('initialMessage');
+  const [documentFilename, setDocumentFilename] = useState<string | undefined>(filenameParam);
+  const [documentUrl, setDocumentUrl] = useState<string | undefined>(fileUrlParam);
+  const initialPromptRef = useRef<{ value: string | null; sent: boolean }>({ value: null, sent: false });
+
+  const urlDocumentId = documentId || fileId;
+  // 优先使用当前会话中的 documentId，其次回退到 URL 参数，最后兼容旧的 fileId
+  const effectiveDocumentId = currentDocumentId || urlDocumentId;
+
+  // 记录初始消息参数，用于自动触发首条消息
+  useEffect(() => {
+    initialPromptRef.current = {
+      value: initialMessageParam,
+      sent: false,
+    };
+  }, [initialMessageParam]);
+
+  // 同步 URL 参数中的文件元信息
+  useEffect(() => {
+    if (filenameParam && filenameParam !== documentFilename) {
+      setDocumentFilename(filenameParam);
+    }
+  }, [filenameParam, documentFilename]);
+
+  useEffect(() => {
+    if (fileUrlParam && fileUrlParam !== documentUrl) {
+      setDocumentUrl(fileUrlParam);
+    }
+  }, [fileUrlParam, documentUrl]);
+
+  // 初始化 documentId state
+  useEffect(() => {
+    if (urlDocumentId && !currentDocumentId) {
+      setCurrentDocumentId(urlDocumentId);
+    }
+  }, [urlDocumentId, currentDocumentId]);
 
   // 加载历史会话
   useEffect(() => {
@@ -36,8 +74,8 @@ export function useChatLogic() {
     try {
       let session = null;
 
-      if (fileId) {
-        session = ChatStorage.getSessionByFileId(fileId);
+      if (effectiveDocumentId) {
+        session = ChatStorage.getSessionByFileId(effectiveDocumentId);
       } else {
         const allSessions = ChatStorage.getAllSessions();
         session = allSessions.find(s => !s.fileId) || null;
@@ -57,7 +95,7 @@ export function useChatLogic() {
     } finally {
       setSessionLoaded(true);
     }
-  }, [fileId, sessionLoaded]);
+  }, [effectiveDocumentId, sessionLoaded]);
 
   // 保存会话到 localStorage
   useEffect(() => {
@@ -67,8 +105,8 @@ export function useChatLogic() {
     try {
       ChatStorage.saveSession(
         {
-          fileId: fileId || undefined,
-          filename: filename || undefined,
+          fileId: effectiveDocumentId || undefined,
+          filename: documentFilename,
           messages,
         },
         undefined,
@@ -77,7 +115,7 @@ export function useChatLogic() {
     } catch (e) {
       console.error('保存会话失败:', e);
     }
-  }, [messages, fileId, filename, sessionLoaded, conversationId]);
+  }, [messages, effectiveDocumentId, documentFilename, sessionLoaded, conversationId]);
 
   // 重试逻辑
   const retryWithBackoff = async <T,>(
@@ -135,15 +173,13 @@ export function useChatLogic() {
           const stream = ApiClient.chatStream({
             message: content,
             conversationHistory,
-            uploadId: uploadId || undefined,
+            documentId: currentDocumentId || undefined, // 使用 documentId
             conversationId: conversationId || undefined,
           });
           console.log('[Streaming] Stream created, starting to read chunks...');
 
           // 方案10: 使用 requestAnimationFrame 确保每次更新都在新的渲染帧
           // FORCE RELOAD - 强制浏览器加载新代码
-          let lastUpdateTime = 0;
-          const MIN_UPDATE_INTERVAL = 30; // 最小更新间隔 30ms，更流畅
           let chunkCount = 0;
           
           for await (const chunk of stream) {
@@ -209,7 +245,7 @@ export function useChatLogic() {
           ApiClient.chat({
             message: content,
             conversationHistory,
-            uploadId: uploadId || undefined,
+            documentId: currentDocumentId || undefined, // 使用 documentId
             conversationId: conversationId || undefined,
           })
         );
@@ -253,6 +289,18 @@ export function useChatLogic() {
     }
   };
 
+  // 自动发送初始消息（仅当无历史消息时）
+  useEffect(() => {
+    if (!sessionLoaded) return;
+    const initial = initialPromptRef.current;
+    if (!initial.value || initial.sent) return;
+    if (messages.length > 0) return;
+
+    initial.sent = true;
+    handleSend(initial.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, sessionLoaded]);
+
   const handleFileSelect = async (file: File) => {
     setError(null);
     setIsLoading(true);
@@ -282,8 +330,32 @@ export function useChatLogic() {
       // 2. 上传文件
       console.log('开始上传文件:', file.name);
       const uploadResponse = await ApiClient.uploadFile(file);
-      const newUploadId = uploadResponse.id;
-      setUploadId(newUploadId);
+      // 后端返回 { id, filename, url, documentId? }
+      // documentId 是数据库中的文档 id，用于查询 OCR 结果；如果不存在则回退到 upload id
+      const newDocumentId = (uploadResponse as any).documentId || uploadResponse.id;
+      setUploadId(newDocumentId);
+      setCurrentDocumentId(newDocumentId);
+      setDocumentFilename(uploadResponse.filename);
+      setDocumentUrl(uploadResponse.url);
+
+      // 更新浏览器地址栏，便于刷新后保留上下文
+      try {
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('documentId', newDocumentId);
+          if (uploadResponse.filename) {
+            url.searchParams.set('filename', uploadResponse.filename);
+          }
+          if (uploadResponse.url) {
+            url.searchParams.set('fileUrl', uploadResponse.url);
+          } else {
+            url.searchParams.delete('fileUrl');
+          }
+          window.history.replaceState(null, '', url.toString());
+        }
+      } catch (historyError) {
+        console.warn('更新聊天地址栏失败', historyError);
+      }
 
       // 3. 添加"已上传文件"消息
       const systemMessage: Message = {
@@ -294,20 +366,19 @@ export function useChatLogic() {
       setMessages((prev) => [...prev, systemMessage]);
 
       // 4. 轮询 OCR 完成状态
-      let ocrResult = null;
+      let ocrResult: any = null;
       let attempts = 0;
       const maxAttempts = 60; // 最多 5 分钟（每 5 秒查询一次）
       const pollInterval = 5000; // 5 秒
 
-      console.log('开始轮询 OCR 结果...');
+      console.log('开始轮询 OCR 结果... 使用 documentId:', newDocumentId);
       while (attempts < maxAttempts) {
         try {
-          ocrResult = await ApiClient.getOcrResult(newUploadId);
-          if (ocrResult.status === 'completed') {
-            console.log('OCR 处理完成:', ocrResult);
+          const result = await ApiClient.getOcrResult(newDocumentId);
+          if (result && result.fullText) {
+            ocrResult = result;
+            console.log('OCR 处理完成:', result);
             break;
-          } else if (ocrResult.status === 'failed') {
-            throw new Error(`OCR 处理失败: ${ocrResult.error || '未知错误'}`);
           }
         } catch (err) {
           // 如果是 404，表示还在处理中，继续轮询
@@ -327,13 +398,28 @@ export function useChatLogic() {
       }
 
       // 5. 显示 OCR 结果
-      const ocrSummary = ocrResult.text
-        ? `${ocrResult.text.slice(0, 200)}${ocrResult.text.length > 200 ? '...' : ''}`
+      if (!ocrResult) {
+        throw new Error('未能获取 OCR 结果，请稍后重试');
+      }
+
+      const fullText: string = ocrResult.fullText || '';
+      const ocrSummary = fullText
+        ? `${fullText.slice(0, 200)}${fullText.length > 200 ? '...' : ''}`
         : '无法识别文本';
+
+      const confidenceValue = typeof ocrResult.confidence === 'number'
+        ? (ocrResult.confidence > 1 ? ocrResult.confidence : ocrResult.confidence * 100)
+        : null;
+      const confidenceText = confidenceValue !== null
+        ? `${Math.min(100, Math.max(0, confidenceValue)).toFixed(1)}%`
+        : '未提供';
+      const pageCount = typeof ocrResult.pageCount === 'number' && ocrResult.pageCount > 0
+        ? ocrResult.pageCount
+        : 1;
 
       const ocrMessage: Message = {
         role: 'assistant',
-        content: `✅ 文档已识别完成\n\n**识别信息**\n- 页数: ${ocrResult.pageCount || 1}\n- 语言: ${ocrResult.language || '未识别'}\n- 置信度: ${((ocrResult.confidence || 0) * 100).toFixed(1)}%\n\n**文本预览**\n${ocrSummary}`,
+        content: `✅ 文档已识别完成\n\n**识别信息**\n- 页数: ${pageCount}\n- 语言: ${ocrResult.language || '未识别'}\n- 置信度: ${confidenceText}\n\n**文本预览**\n${ocrSummary}`,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, ocrMessage]);
@@ -359,8 +445,9 @@ export function useChatLogic() {
     if (confirm('确定要清空当前对话吗？此操作不可恢复。')) {
       setMessages([]);
       setError(null);
-      if (fileId) {
-        const session = ChatStorage.getSessionByFileId(fileId);
+      const targetId = currentDocumentId || effectiveDocumentId;
+      if (targetId) {
+        const session = ChatStorage.getSessionByFileId(targetId);
         if (session) {
           ChatStorage.deleteSession(session.id);
         }
@@ -378,6 +465,10 @@ export function useChatLogic() {
       if (session) {
         setMessages(session.messages);
         setConversationId(session.conversationId || null);
+        setCurrentDocumentId(session.fileId || null);
+        setUploadId(session.fileId || null);
+        setDocumentFilename(session.filename || undefined);
+        setDocumentUrl(undefined);
         setError(null);
         console.log(`已加载对话: ${session.filename || '普通对话'}`);
       }
@@ -391,6 +482,7 @@ export function useChatLogic() {
     setMessages([]);
     setConversationId(null);
     setUploadId(null);
+    setCurrentDocumentId(null);
     setError(null);
     setShowDocument(true);
     console.log('已清空当前对话');
@@ -410,8 +502,8 @@ export function useChatLogic() {
     isLoading,
     error,
     showDocument,
-    fileUrl,
-    filename,
+  fileUrl: documentUrl,
+  filename: documentFilename,
     conversationId,
     uploadId,
     streamingContent, // 方案7: 导出流式内容

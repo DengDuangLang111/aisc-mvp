@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 
@@ -24,6 +24,7 @@ export function UploadForm({
   onFileChange,
 }: UploadFormProps) {
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const inputId = useId();
 
   const handleUpload = async () => {
     const file = fileRef.current?.files?.[0];
@@ -36,12 +37,16 @@ export function UploadForm({
     <Card>
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            className="block text-sm font-medium text-gray-700 mb-2"
+            htmlFor={inputId}
+          >
             选择文件
           </label>
           <input
             ref={fileRef}
             type="file"
+            id={inputId}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
             disabled={uploading}
             onChange={onFileChange}
@@ -67,7 +72,7 @@ export function UploadForm({
                   : "bg-blue-50 text-blue-800 border border-blue-200"
             }`}
           >
-            {status}
+            <span>{status}</span>
           </div>
         )}
 

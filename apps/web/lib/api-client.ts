@@ -18,6 +18,9 @@ export interface UploadResponse {
   url: string;
   size: number;
   mimetype: string;
+  // 后端返回的数据库文档 ID（用于查询 OCR 结果等）。在旧实现中只有 upload id（id）可用，
+  // 新实现会同时返回 documentId，用于访问 /upload/documents/:documentId 接口。
+  documentId?: string;
 }
 
 // Re-export types for convenience
@@ -87,7 +90,7 @@ export class ApiClient {
     const params = new URLSearchParams({
       message: request.message,
       conversationId: request.conversationId || '',
-      uploadId: request.uploadId || '',
+      uploadId: request.documentId || request.uploadId || '', // 支持 documentId（推荐）和 uploadId（兼容）
     });
 
     try {
@@ -184,9 +187,10 @@ export class ApiClient {
   /**
    * 获取 OCR 结果
    */
-  static async getOcrResult(uploadId: string): Promise<any> {
+  static async getOcrResult(documentId: string): Promise<any> {
     try {
-      const response = await fetch(`${API_URL}/upload/documents/${uploadId}/ocr`, {
+      // documentId is the DB document id returned in UploadResponse.documentId
+      const response = await fetch(`${API_URL}/upload/documents/${documentId}/ocr`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

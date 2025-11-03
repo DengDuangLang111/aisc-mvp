@@ -508,24 +508,75 @@ export class UploadService {
 
     try {
       let ocrResult;
+      let lastError: Error | null = null;
 
-      // 如果有 GCS 路径，使用 GCS OCR
-      if (filePath && filePath.startsWith('gs://')) {
-        this.logger.log('info', 'Starting OCR from GCS', {
-          context: 'UploadService',
-          documentId,
-          gcsPath: filePath,
-        });
+      // 优先尝试使用原始文件 Buffer，避免 GCS PDF 同步识别失败
+      if (fileBuffer && fileBuffer.length > 0) {
+        try {
+          this.logger.log('info', 'Starting OCR from buffer', {
+            context: 'UploadService',
+            documentId,
+            bufferSize: fileBuffer.length,
+          });
 
-        ocrResult = await this.visionService.extractTextFromGcs(filePath, documentId);
-      } else {
-        // 使用 Buffer OCR
-        this.logger.log('info', 'Starting OCR from buffer', {
-          context: 'UploadService',
-          documentId,
-        });
+          ocrResult = await this.visionService.extractTextFromBuffer(fileBuffer, documentId);
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          this.logger.warn('Buffer OCR attempt failed, will retry with storage path if available', {
+            context: 'UploadService',
+            documentId,
+            error: lastError.message,
+          });
+        }
+      }
 
-        ocrResult = await this.visionService.extractTextFromBuffer(fileBuffer, documentId);
+      // 如果 Buffer 识别失败且存在存储路径，则尝试使用 GCS 路径
+      if (!ocrResult && filePath && filePath.startsWith('gs://')) {
+        try {
+          this.logger.log('info', 'Starting OCR from GCS', {
+            context: 'UploadService',
+            documentId,
+            gcsPath: filePath,
+          });
+
+          ocrResult = await this.visionService.extractTextFromGcs(filePath, documentId);
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          this.logger.error('GCS OCR attempt failed', {
+            context: 'UploadService',
+            documentId,
+            gcsPath: filePath,
+            error: lastError.message,
+          });
+        }
+      }
+
+      if (!ocrResult && filePath && !filePath.startsWith('gs://')) {
+        try {
+          this.logger.log('info', 'Starting OCR from local file path', {
+            context: 'UploadService',
+            documentId,
+            filePath,
+          });
+
+          const buffer = await fs.readFile(filePath);
+          ocrResult = await this.visionService.extractTextFromBuffer(buffer, documentId);
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          this.logger.error('Local file OCR attempt failed', {
+            context: 'UploadService',
+            documentId,
+            filePath,
+            error: lastError.message,
+          });
+        }
+      }
+
+      if (!ocrResult) {
+        if (lastError) {
+          throw lastError;
+        }
+        throw new Error('OCR failed: Unable to extract text from document');
       }
 
       // 记录 OCR 成功

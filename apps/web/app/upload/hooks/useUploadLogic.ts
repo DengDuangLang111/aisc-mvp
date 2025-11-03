@@ -10,6 +10,8 @@ export function useUploadLogic() {
     id: string;
     filename: string;
     url: string;
+    // 后端返回的数据库文档 ID（用于查询 OCR /document 接口）
+    documentId?: string;
   } | null>(null);
   const [uploadHistory, setUploadHistory] = useState<UploadRecord[]>([]);
   const router = useRouter();
@@ -31,7 +33,9 @@ export function useUploadLogic() {
 
       // 保存到 localStorage
       const uploadRecord: UploadRecord = {
+        // 保持本地历史使用上传 id（result.id），不影响 documentId 的存储
         id: result.id,
+        documentId: (result as any).documentId || result.id,
         filename: result.filename,
         url: result.url,
         uploadedAt: Date.now(),
@@ -41,7 +45,13 @@ export function useUploadLogic() {
       UploadStorage.saveUpload(uploadRecord);
 
       // 更新状态
-      setUploadedFile(result);
+      // 保留返回的 documentId（如果有）以便后续访问 OCR/文档接口
+      setUploadedFile({
+        id: result.id,
+        filename: result.filename,
+        url: result.url,
+        documentId: (result as any).documentId,
+      });
       setUploadHistory(UploadStorage.getUploadHistory());
       setStatus(`✅ 上传成功！文件：${result.filename}`);
     } catch (err) {
@@ -58,14 +68,30 @@ export function useUploadLogic() {
 
   function handleStartChat() {
     if (uploadedFile) {
-      router.push(`/chat?fileId=${uploadedFile.id}&filename=${encodeURIComponent(uploadedFile.filename)}&fileUrl=${encodeURIComponent(uploadedFile.url)}`);
+      // 使用 documentId 优先（若后端返回了 documentId），否则回退到上传 id（兼容旧实现）
+      const docId = uploadedFile.documentId || uploadedFile.id;
+      const params = new URLSearchParams();
+      params.set('documentId', docId);
+      params.set('filename', uploadedFile.filename);
+      if (uploadedFile.url) {
+        params.set('fileUrl', uploadedFile.url);
+      }
+      router.push(`/chat?${params.toString()}`);
     } else {
       router.push('/chat');
     }
   }
 
   function handleContinueWithFile(record: UploadRecord) {
-    router.push(`/chat?fileId=${record.id}&filename=${encodeURIComponent(record.filename)}&fileUrl=${encodeURIComponent(record.url)}`);
+    // 使用 documentId 参数，后端会自动加载 OCR 结果作为上下文
+    const docId = record.documentId || record.id;
+    const params = new URLSearchParams();
+    params.set('documentId', docId);
+    params.set('filename', record.filename);
+    if (record.url) {
+      params.set('fileUrl', record.url);
+    }
+    router.push(`/chat?${params.toString()}`);
   }
 
   function handleDeleteRecord(id: string) {

@@ -27,8 +27,11 @@ echo -e "${GREEN}✅ 端口已清理${NC}\n"
 # 启动后端服务器
 echo -e "${YELLOW}🔧 启动后端服务器 (端口 4001)...${NC}"
 cd /Users/knight/study_oasis_simple/apps/api
-node dist/apps/api/src/main.js > /tmp/api.log 2>&1 &
+
+# 使用 nohup 确保进程不会被终止
+nohup ./start.sh > /tmp/api.log 2>&1 &
 API_PID=$!
+disown $API_PID
 echo -e "${GREEN}✅ 后端进程 ID: $API_PID${NC}"
 
 # 等待后端启动
@@ -49,8 +52,9 @@ done
 # 启动前端服务器
 echo -e "${YELLOW}🎨 启动前端服务器 (端口 3000)...${NC}"
 cd /Users/knight/study_oasis_simple/apps/web
-pnpm dev > /tmp/web.log 2>&1 &
+nohup pnpm dev > /tmp/web.log 2>&1 &
 WEB_PID=$!
+disown $WEB_PID
 echo -e "${GREEN}✅ 前端进程 ID: $WEB_PID${NC}"
 
 # 等待前端启动
