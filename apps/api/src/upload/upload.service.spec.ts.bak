@@ -30,6 +30,14 @@ describe('UploadService', () => {
   beforeEach(async () => {
     const mockPrismaService = createMockPrismaService();
     
+    // 确保 upload 表的 mock 正确配置
+    mockPrismaService.upload = {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    } as any;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

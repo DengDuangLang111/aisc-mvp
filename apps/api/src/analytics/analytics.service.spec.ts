@@ -359,7 +359,7 @@ describe('AnalyticsService', () => {
         method: 'POST',
         endpoint: '/api/upload',
         statusCode: 200,
-        responseTime: 150,
+        responseTimeMs: 150,
       };
 
       (prisma.apiUsageLog.create as jest.Mock).mockResolvedValue({
@@ -383,7 +383,7 @@ describe('AnalyticsService', () => {
           method: 'GET',
           endpoint: '/test',
           statusCode: 200,
-          responseTime: 100,
+          responseTimeMs: 100,
         }),
       ).resolves.not.toThrow();
     });

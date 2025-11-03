@@ -15,6 +15,74 @@ jest.mock('@google-cloud/vision', () => {
   };
 });
 
+// Mock @google-cloud/storage
+jest.mock('@google-cloud/storage', () => {
+  const mockGetFiles = jest.fn().mockResolvedValue([
+    [
+      {
+        name: 'ocr-output/doc-123/output-1.json',
+        download: jest.fn().mockResolvedValue([Buffer.from(JSON.stringify({
+          responses: [{
+            fullTextAnnotation: {
+              text: 'This is extracted text from PDF',
+              pages: [{ confidence: 0.95 }]
+            },
+            textAnnotations: [
+              { locale: 'en', description: 'This is extracted text' }
+            ]
+          }]
+        }))]),
+      }
+    ]
+  ]);
+  
+  return {
+    Storage: jest.fn().mockImplementation(() => ({
+      bucket: jest.fn().mockReturnValue({
+        getFiles: mockGetFiles,
+        file: jest.fn().mockReturnValue({
+          delete: jest.fn().mockResolvedValue([]),
+        }),
+      }),
+    })),
+  };
+});
+
+
+// Mock @google-cloud/storage
+jest.mock('@google-cloud/storage', () => {
+  const mockGetFiles = jest.fn().mockResolvedValue([
+    [
+      {
+        name: 'ocr-output/doc-123/output-1.json',
+        download: jest.fn().mockResolvedValue([Buffer.from(JSON.stringify({
+          responses: [{
+            fullTextAnnotation: {
+              text: 'This is extracted text from PDF',
+              pages: [{ confidence: 0.95 }]
+            },
+            textAnnotations: [
+              { locale: 'en', description: 'This is extracted text' }
+            ]
+          }]
+        }))]),
+      }
+    ]
+  ]);
+  
+  return {
+    Storage: jest.fn().mockImplementation(() => ({
+      bucket: jest.fn().mockReturnValue({
+        getFiles: mockGetFiles,
+        file: jest.fn().mockReturnValue({
+          delete: jest.fn().mockResolvedValue([]),
+        }),
+      }),
+    })),
+  };
+});
+
+
 describe('VisionService', () => {
   let service: VisionService;
   let prisma: any;
