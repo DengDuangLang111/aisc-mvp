@@ -5,6 +5,7 @@ import { LoggerModule } from '../common/logger/logger.module';
 import { StorageModule } from '../storage/storage.module';
 import { OcrModule } from '../ocr/ocr.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { DocumentRepository } from './repositories/document.repository';
 
 @Module({
   imports: [
@@ -14,7 +15,10 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     AnalyticsModule,
   ],
   controllers: [UploadController],
-  providers: [UploadService],
-  exports: [UploadService],
+  providers: [
+    UploadService,
+    DocumentRepository,
+  ],
+  exports: [UploadService, DocumentRepository],
 })
 export class UploadModule {}

@@ -8,7 +8,7 @@ import { GcsService } from '../storage/gcs.service';
 import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService, AnalyticsEventData } from '../analytics/analytics.service';
 import { EventName, EventCategory } from '../analytics/analytics.types';
-import { PrismaService } from '../prisma/prisma.service';
+import { DocumentRepository } from './repositories/document.repository';
 const fileTypeImport = require('file-type');
 
 export interface UploadResult {
@@ -35,7 +35,7 @@ export class UploadService {
     private gcsService: GcsService,
     private visionService: VisionService,
     private analyticsService: AnalyticsService,
-    private prisma: PrismaService,
+    private documentRepository: DocumentRepository,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {
     // 检查是否启用云存储
@@ -297,14 +297,12 @@ export class UploadService {
       }
 
       // 7. 保存文档元信息到数据库
-      const document = await this.prisma.document.create({
-        data: {
-          userId,
-          filename: sanitizedFilename,
-          s3Key: gcsPath, // 使用 s3Key 字段存储 GCS 路径
-          size: file.size,
-          // 不传 mimeType，让数据库使用默认值 NULL
-        },
+      const document = await this.documentRepository.create({
+        userId,
+        filename: sanitizedFilename,
+        s3Key: gcsPath || undefined, // 使用 s3Key 字段存储 GCS 路径
+        size: file.size,
+        ocrStatus: 'pending',
       });
 
       this.logger.log('info', 'Document metadata saved to database', {

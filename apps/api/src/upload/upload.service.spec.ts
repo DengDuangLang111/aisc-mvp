@@ -4,6 +4,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { UploadService } from './upload.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DocumentRepository } from './repositories/document.repository';
 import { GcsService } from '../storage/gcs.service';
 import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService } from '../analytics/analytics.service';
@@ -22,19 +23,25 @@ const fileTypeMock = require('file-type');
 
 describe('UploadService', () => {
   let service: UploadService;
-  let prisma: any;
+  // let prisma: any; // 不再需要
+  let documentRepository: any;
   let gcsService: any;
   let analyticsService: any;
   let configService: any;
 
   beforeEach(async () => {
-    const mockPrismaService = createMockPrismaService();
+    // const mockPrismaService = createMockPrismaService(); // 不再需要，使用 DocumentRepository
     
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UploadService,
-        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: DocumentRepository, useValue: { 
+          create: jest.fn().mockResolvedValue(createMockDocument()),
+          findById: jest.fn(),
+          findMany: jest.fn(),
+          updateOcrStatus: jest.fn(),
+        } },
         { provide: GcsService, useValue: { uploadFile: jest.fn() } },
         { provide: VisionService, useValue: { extractTextFromGcs: jest.fn() } },
         { provide: AnalyticsService, useValue: { trackEvent: jest.fn().mockResolvedValue(undefined) } },
@@ -59,7 +66,8 @@ describe('UploadService', () => {
     }).compile();
 
     service = module.get<UploadService>(UploadService);
-    prisma = module.get<PrismaService>(PrismaService);
+    documentRepository = module.get<DocumentRepository>(DocumentRepository);
+    // prisma = module.get<PrismaService>(PrismaService); // 不再需要
     gcsService = module.get<GcsService>(GcsService);
     analyticsService = module.get<AnalyticsService>(AnalyticsService);
     configService = module.get<ConfigService>(ConfigService);
@@ -89,7 +97,7 @@ describe('UploadService', () => {
 
     it('should upload file to GCS', async () => {
       gcsService.uploadFile.mockResolvedValue({ gcsPath: 'gs://bucket/test.pdf', publicUrl: 'https://example.com/test.pdf' });
-      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-123' }));
+      (documentRepository.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-123' }));
 
       const result = await service.saveFile(mockFile, 'user-123');
 
@@ -104,7 +112,7 @@ describe('UploadService', () => {
 
     it('should handle files without userId', async () => {
       gcsService.uploadFile.mockResolvedValue({ gcsPath: 'gs://bucket/test.pdf', publicUrl: 'https://example.com/test.pdf' });
-      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-456' }));
+      (documentRepository.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-456' }));
 
       const result = await service.saveFile(mockFile);
 
@@ -163,7 +171,7 @@ describe('UploadService', () => {
         gcsPath: 'uploads/test.pdf',
         publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/test.pdf',
       });
-      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-valid' }));
+      (documentRepository.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-valid' }));
 
       const result = await service.saveFile(validFile);
 
@@ -185,7 +193,7 @@ describe('UploadService', () => {
         gcsPath: 'uploads/image.jpg',
         publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/image.jpg',
       });
-      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-img' }));
+      (documentRepository.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-img' }));
 
       const result = await service.saveFile(imageFile);
 
@@ -209,7 +217,7 @@ describe('UploadService', () => {
         gcsPath: 'uploads/test.txt',
         publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/test.txt',
       });
-      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-text' }));
+      (documentRepository.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-text' }));
 
       const result = await service.saveFile(textFile);
 
@@ -240,7 +248,7 @@ describe('UploadService', () => {
         gcsPath: 'uploads/test.pdf',
         publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/test.pdf',
       });
-      (prisma.document.create as jest.Mock).mockRejectedValue(new Error('Database error'));
+      (documentRepository.create as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await expect(service.saveFile(validFile)).rejects.toThrow();
     });
@@ -257,7 +265,7 @@ describe('UploadService', () => {
         gcsPath: 'uploads/test.txt',
         publicUrl: 'https://storage.googleapis.com/test-bucket/uploads/test.txt',
       });
-      (prisma.document.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-sanitized' }));
+      (documentRepository.create as jest.Mock).mockResolvedValue(createMockDocument({ id: 'doc-sanitized' }));
 
       const result = await service.saveFile(dangerousNameFile);
 
