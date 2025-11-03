@@ -7,11 +7,14 @@ import { createMockPrismaService, createMockOcrResult } from '../../test/helpers
 
 // Mock @google-cloud/vision
 const mockDocumentTextDetection = jest.fn();
+const mockAsyncBatchAnnotateFiles = jest.fn();
+
 jest.mock('@google-cloud/vision', () => {
   return {
     ImageAnnotatorClient: jest.fn().mockImplementation(() => ({
       textDetection: jest.fn(),
       documentTextDetection: mockDocumentTextDetection,
+      asyncBatchAnnotateFiles: mockAsyncBatchAnnotateFiles,
     })),
   };
 });
@@ -25,7 +28,7 @@ jest.mock('@google-cloud/storage', () => {
         download: jest.fn().mockResolvedValue([Buffer.from(JSON.stringify({
           responses: [{
             fullTextAnnotation: {
-              text: 'This is extracted text from PDF',
+              text: 'This is extracted text from image',
               pages: [{ confidence: 0.95 }]
             },
             textAnnotations: [
@@ -59,7 +62,7 @@ jest.mock('@google-cloud/storage', () => {
         download: jest.fn().mockResolvedValue([Buffer.from(JSON.stringify({
           responses: [{
             fullTextAnnotation: {
-              text: 'This is extracted text from PDF',
+              text: 'This is extracted text from image',
               pages: [{ confidence: 0.95 }]
             },
             textAnnotations: [
@@ -127,6 +130,24 @@ describe('VisionService', () => {
     service = module.get<VisionService>(VisionService);
     prisma = module.get<PrismaService>(PrismaService);
     configService = module.get<ConfigService>(ConfigService);
+
+    // Setup default mock for asyncBatchAnnotateFiles (for PDF tests)
+    const mockOperation = {
+      promise: jest.fn().mockResolvedValue([
+        {
+          responses: [{
+            fullTextAnnotation: {
+              text: 'This is extracted text from PDF',
+              pages: [{ confidence: 0.95 }]
+            },
+            textAnnotations: [
+              { locale: 'en', description: 'This is extracted text' }
+            ]
+          }]
+        }
+      ])
+    };
+    mockAsyncBatchAnnotateFiles.mockResolvedValue([mockOperation]);
   });
 
   it('should be defined', () => {
@@ -135,7 +156,7 @@ describe('VisionService', () => {
 
   describe('extractTextFromGcs', () => {
     it('should extract text from GCS file and save to database', async () => {
-      const gcsPath = 'gs://bucket/uploads/test.pdf';
+      const gcsPath = 'gs://bucket/uploads/test.jpg';
       const documentId = 'doc-123';
 
       // Mock Vision API response
@@ -198,7 +219,7 @@ describe('VisionService', () => {
     });
 
     it('should handle Vision API errors', async () => {
-      const gcsPath = 'gs://bucket/uploads/test.pdf';
+      const gcsPath = 'gs://bucket/uploads/test.jpg';
       const documentId = 'doc-123';
 
       mockDocumentTextDetection.mockRejectedValue(
@@ -298,7 +319,7 @@ describe('VisionService', () => {
 
   describe('error handling', () => {
     it('should handle empty fullTextAnnotation', async () => {
-      const gcsPath = 'gs://bucket/empty.pdf';
+      const gcsPath = 'gs://bucket/empty.jpg';
       const documentId = 'doc-empty';
 
       mockDocumentTextDetection.mockResolvedValue([
@@ -393,7 +414,7 @@ describe('VisionService', () => {
 
   describe('error handling', () => {
     it('should handle empty Vision API response', async () => {
-      const gcsPath = 'gs://bucket/empty.pdf';
+      const gcsPath = 'gs://bucket/empty.jpg';
       const documentId = 'doc-empty';
 
       mockDocumentTextDetection.mockResolvedValue([{}]); // Empty response
@@ -404,7 +425,7 @@ describe('VisionService', () => {
     });
 
     it('should handle Vision API response without text annotations', async () => {
-      const gcsPath = 'gs://bucket/notext.pdf';
+      const gcsPath = 'gs://bucket/notext.jpg';
       const documentId = 'doc-notext';
 
       mockDocumentTextDetection.mockResolvedValue([
@@ -513,7 +534,7 @@ describe('VisionService', () => {
 
   describe('language detection', () => {
     it('should detect Chinese language', async () => {
-      const gcsPath = 'gs://bucket/chinese.pdf';
+      const gcsPath = 'gs://bucket/chinese.jpg';
       const documentId = 'doc-chinese';
 
       mockDocumentTextDetection.mockResolvedValue([
@@ -549,7 +570,7 @@ describe('VisionService', () => {
     });
 
     it('should detect English language', async () => {
-      const gcsPath = 'gs://bucket/english.pdf';
+      const gcsPath = 'gs://bucket/english.jpg';
       const documentId = 'doc-english';
 
       mockDocumentTextDetection.mockResolvedValue([
