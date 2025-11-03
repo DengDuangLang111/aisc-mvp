@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { GcsService } from './gcs.service';
+import { GoogleCredentialsProvider } from '../common/providers/google-credentials.provider';
 
 describe('GcsService', () => {
   let service: GcsService;
@@ -18,6 +19,12 @@ describe('GcsService', () => {
     }),
   };
 
+  const mockGoogleCredentialsProvider = {
+    getCredentials: jest.fn(() => undefined),
+    getProjectId: jest.fn(() => 'test-project'),
+    getClientEmail: jest.fn(() => 'test@example.com'),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -25,6 +32,10 @@ describe('GcsService', () => {
         {
           provide: ConfigService,
           useValue: mockConfigService,
+        },
+        {
+          provide: GoogleCredentialsProvider,
+          useValue: mockGoogleCredentialsProvider,
         },
       ],
     }).compile();

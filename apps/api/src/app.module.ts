@@ -13,6 +13,7 @@ import { StorageModule } from './storage/storage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { LoggerModule } from './common/logger/logger.module';
+import { CommonModule } from './common/common.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { HttpCacheInterceptor } from './common/interceptors/cache.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -43,6 +44,7 @@ import { validate } from './config/validation';
       }),
     }),
     LoggerModule,
+    CommonModule,
     PrismaModule,
     StorageModule,
     OcrModule,
