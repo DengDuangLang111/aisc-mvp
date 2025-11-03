@@ -19,7 +19,7 @@
     "strictBindCallApply": true,
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
-    "types": [],
+    "types": ["jest", "node"],
     "paths": {
       "@study-oasis/contracts": ["../../packages/contracts/src"]
     }

@@ -211,23 +211,47 @@ NEXT_PUBLIC_GA_MEASUREMENT_ID="G-XXXXXXXXXX" # Google Analytics (可选)
 
 ### 6. 启动开发服务器
 
+#### 方式一：一键启动（推荐）⚡
+
 ```bash
-# 启动后端（端口 4000）
+# 从项目根目录，一个命令启动所有服务
+./start-servers.sh
+```
+
+脚本会自动：
+- ✅ 清理占用的端口
+- ✅ 启动后端 API (NestJS, 端口 4001)
+- ✅ 启动前端 Web (Next.js, 端口 3000)
+- ✅ 验证服务就绪
+- ✅ 持续监控服务状态
+
+查看详细说明：[📖 服务器启动完整指南](./docs/SERVER_STARTUP_GUIDE.md)
+
+#### 方式二：分别启动（用于调试）
+
+```bash
+# 启动后端（端口 4001）
 cd apps/api
-pnpm run start:dev
+PORT=4001 pnpm start:dev
 
 # 新终端，启动前端（端口 3000）
 cd apps/web
-pnpm run dev
+PORT=3000 pnpm dev
+```
+
+#### 停止服务
+
+```bash
+./stop-servers.sh
 ```
 
 ### 7. 访问应用
 
 - **前端**: http://localhost:3000
-- **后端 API**: http://localhost:4000
-- **API 文档**: http://localhost:4000/api-docs
-- **Health Check**: http://localhost:4000/health
-- **Analytics 概览**: http://localhost:4000/analytics/overview
+- **后端 API**: http://localhost:4001
+- **API 文档**: http://localhost:4001/api-docs
+- **Health Check**: http://localhost:4001/health
+- **Analytics 概览**: http://localhost:4001/analytics/overview
 
 ---
 
@@ -426,18 +450,21 @@ vercel env add NEXT_PUBLIC_GA_MEASUREMENT_ID production
 
 ## 📖 文档
 
-### 快速入门
+### ⚡ 快速启动
+- [📖 服务器启动完整指南](./docs/SERVER_STARTUP_GUIDE.md) - 一键启动、日志查看、故障排除 **[新增]**
 - [QUICK_START_GUIDE.md](./QUICK_START_GUIDE.md) - 5 步 30 分钟部署指南
+- [QUICK_START_SERVERS.md](./QUICK_START_SERVERS.md) - 服务器启动速查表
 
 ### 技术架构
 - [GOOGLE_CLOUD_ARCHITECTURE.md](./GOOGLE_CLOUD_ARCHITECTURE.md) - Google Cloud 架构设计
 - [CLOUD_SERVICES_COMPARISON.md](./CLOUD_SERVICES_COMPARISON.md) - 5 种云方案对比
-- [FRONTEND_REFACTORING.md](./docs/FRONTEND_REFACTORING.md) - 前端组件重构文档 🆕
-- [TESTING_GUIDE.md](./docs/TESTING_GUIDE.md) - 测试运行和编写指南 🆕
+- [FRONTEND_REFACTORING.md](./docs/FRONTEND_REFACTORING.md) - 前端组件重构文档
+- [TESTING_GUIDE.md](./docs/TESTING_GUIDE.md) - 测试运行和编写指南
 
 ### 功能指南
 - [ANALYTICS_AND_TRACKING_GUIDE.md](./ANALYTICS_AND_TRACKING_GUIDE.md) - 数据埋点完整实现
 - [UI_DEVELOPMENT_PLAN.md](./UI_DEVELOPMENT_PLAN.md) - 前端功能规划
+- [Phase 2 SSE 流式输出完成报告](./docs/implementation/PHASE_2_SSE_STREAMING_COMPLETE.md) - 实时流式输出实现 **[新增]**
 
 ### 实施报告
 - [PHASE_3_IMPLEMENTATION_REPORT.md](./PHASE_3_IMPLEMENTATION_REPORT.md) - Phase 3 实施详情
