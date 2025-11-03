@@ -55,11 +55,10 @@ model OcrResult {
   id             String   @id @default(uuid())
   documentId     String   @unique @map("document_id")
   fullText       String   @map("full_text") @db.Text
-  structuredData Json     @map("structured_data")
   language       String
   confidence     Float
   pageCount      Int?     @map("page_count")
-  extractedAt    DateTime @map("extracted_at") @default(now())
+  processedAt    DateTime @map("processed_at") @default(now())
   
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   

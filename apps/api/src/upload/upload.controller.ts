@@ -187,7 +187,7 @@ export class UploadController {
             confidence: true,
             language: true,
             pageCount: true,
-            extractedAt: true,
+            processedAt: true,
           },
         },
       },
@@ -209,7 +209,7 @@ export class UploadController {
             confidence: document.ocrResult.confidence,
             language: document.ocrResult.language,
             pageCount: document.ocrResult.pageCount,
-            extractedAt: document.ocrResult.extractedAt,
+            processedAt: document.ocrResult.processedAt,
           }
         : null,
     };

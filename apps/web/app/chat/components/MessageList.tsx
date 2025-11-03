@@ -28,7 +28,7 @@ export function MessageList({
 
   if (messages.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center min-h-full text-gray-500">
         <div className="text-center space-y-4">
           <div className="text-4xl">💬</div>
           <div>
@@ -49,7 +49,7 @@ export function MessageList({
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+    <div ref={containerRef} className="px-4 py-6 space-y-4 min-h-full">{/* 改为 min-h-full，让内容可以滚动 */}
       {messages.map((message, index) => {
         const isLastMessage = index === messages.length - 1
         const isStreamingLastMessage = isLoading && isLastMessage && message.role === 'assistant'

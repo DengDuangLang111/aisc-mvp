@@ -13,7 +13,6 @@ export interface OcrResult {
   confidence: number;
   language: string;
   pageCount: number;
-  structuredData: any;
 }
 
 /**
@@ -99,7 +98,15 @@ export class VisionService {
     try {
       this.logger.log(`Starting OCR for document ${documentId}: ${gcsPath}`);
 
-      // 调用 Vision API
+      // 检查是否是 PDF 文件
+      const isPdf = gcsPath.toLowerCase().endsWith('.pdf');
+
+      if (isPdf) {
+        // PDF 需要使用异步批处理 API
+        return await this.extractPdfFromGcs(gcsPath, documentId);
+      }
+
+      // 图片文件使用同步 API
       const [result] = await this.client.documentTextDetection(gcsPath);
       const fullTextAnnotation = result.fullTextAnnotation;
 
@@ -109,16 +116,10 @@ export class VisionService {
 
       const fullText = fullTextAnnotation.text;
       const pages = fullTextAnnotation.pages || [];
-      const pageCount = pages.length;
+      const pageCount = pages.length || 1;
 
-      // 计算平均置信度
       const confidence = this.calculateConfidence(pages);
-
-      // 检测语言
       const language = this.detectLanguage(pages);
-
-      // 结构化数据（段落、行、词）
-      const structuredData = this.extractStructuredData(pages);
 
       // 保存到数据库
       await this.saveOcrResult(documentId, {
@@ -126,7 +127,6 @@ export class VisionService {
         confidence,
         language,
         pageCount,
-        structuredData,
       });
 
       this.logger.log(`OCR completed for document ${documentId}: ${fullText.length} chars, ${pageCount} pages`);
@@ -136,11 +136,132 @@ export class VisionService {
         confidence,
         language,
         pageCount,
-        structuredData,
       };
     } catch (error) {
       this.logger.error(`OCR failed for document ${documentId}:`, error);
       throw new Error(`OCR failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * 从 GCS 的 PDF 文件提取文本（使用异步 API）
+   */
+  private async extractPdfFromGcs(gcsPath: string, documentId: string): Promise<OcrResult> {
+    try {
+      this.logger.log(`Starting async PDF OCR for document ${documentId}: ${gcsPath}`);
+
+      // 提取 bucket 和路径
+      const gcsMatch = gcsPath.match(/gs:\/\/([^\/]+)\/(.+)/);
+      if (!gcsMatch) {
+        throw new Error('Invalid GCS path format');
+      }
+
+      const bucketName = gcsMatch[1];
+      const fileName = gcsMatch[2];
+      const outputPrefix = `ocr-output/${documentId}/`;
+
+      // 使用异步批处理 API
+      const [operation] = await this.client.asyncBatchAnnotateFiles({
+        requests: [
+          {
+            inputConfig: {
+              gcsSource: {
+                uri: gcsPath,
+              },
+              mimeType: 'application/pdf',
+            },
+            features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+            outputConfig: {
+              gcsDestination: {
+                uri: `gs://${bucketName}/${outputPrefix}`,
+              },
+              batchSize: 1,
+            },
+          },
+        ],
+      });
+
+      this.logger.log(`Waiting for PDF OCR operation to complete for document ${documentId}`);
+
+      // 等待操作完成（最多等待 5 分钟）
+      const [result] = await operation.promise();
+
+      this.logger.log(`PDF OCR operation completed for document ${documentId}`);
+
+      // 从 GCS 读取结果
+      const { Storage } = require('@google-cloud/storage');
+      const storage = new Storage({
+        keyFilename: this.configService.get<string>('GOOGLE_APPLICATION_CREDENTIALS') || './google-cloud-key.json',
+      });
+
+      const bucket = storage.bucket(bucketName);
+      const [files] = await bucket.getFiles({ prefix: outputPrefix });
+
+      if (!files || files.length === 0) {
+        throw new Error('No OCR output files found');
+      }
+
+      // 读取第一个输出文件
+      const [content] = await files[0].download();
+      const outputJson = JSON.parse(content.toString());
+
+      // 提取文本
+      let fullText = '';
+      let totalPages = 0;
+      let totalConfidence = 0;
+      let confidenceCount = 0;
+
+      for (const response of outputJson.responses) {
+        if (response.fullTextAnnotation) {
+          fullText += response.fullTextAnnotation.text + '\n';
+          const pages = response.fullTextAnnotation.pages || [];
+          totalPages += pages.length;
+
+          // 计算置信度
+          for (const page of pages) {
+            if (page.confidence) {
+              totalConfidence += page.confidence;
+              confidenceCount++;
+            }
+          }
+        }
+      }
+
+      if (!fullText || fullText.trim().length === 0) {
+        throw new Error('No text found in PDF');
+      }
+
+      const confidence = confidenceCount > 0 ? totalConfidence / confidenceCount : 0.9;
+      const language = this.detectLanguageFromText(fullText);
+      const pageCount = totalPages || 1;
+
+      // 保存到数据库
+      await this.saveOcrResult(documentId, {
+        fullText: fullText.trim(),
+        confidence,
+        language,
+        pageCount,
+      });
+
+      // 清理临时文件
+      try {
+        await Promise.all(files.map((file: any) => file.delete()));
+        this.logger.log(`Cleaned up OCR output files for document ${documentId}`);
+      } catch (cleanupError) {
+        this.logger.warn(`Failed to cleanup OCR output files: ${cleanupError.message}`);
+      }
+
+      this.logger.log(`PDF OCR completed for document ${documentId}: ${fullText.length} chars, ${pageCount} pages`);
+
+      return {
+        fullText: fullText.trim(),
+        confidence,
+        language,
+        pageCount,
+      };
+    } catch (error) {
+      this.logger.error(`PDF OCR failed for document ${documentId}:`, error);
+      throw new Error(`PDF OCR failed: ${error.message}`);
     }
   }
 
@@ -172,7 +293,6 @@ export class VisionService {
 
       const confidence = this.calculateConfidence(pages);
       const language = this.detectLanguage(pages);
-      const structuredData = this.extractStructuredData(pages);
 
       // 保存到数据库
       await this.saveOcrResult(documentId, {
@@ -180,7 +300,6 @@ export class VisionService {
         confidence,
         language,
         pageCount,
-        structuredData,
       });
 
       this.logger.log(`OCR completed for document ${documentId}: ${fullText.length} chars`);
@@ -190,7 +309,6 @@ export class VisionService {
         confidence,
         language,
         pageCount,
-        structuredData,
       };
     } catch (error) {
       this.logger.error(`OCR failed for document ${documentId}:`, error);
@@ -219,7 +337,6 @@ export class VisionService {
         confidence: result.confidence,
         language: result.language,
         pageCount: result.pageCount || 0,
-        structuredData: result.structuredData,
       };
     } catch (error) {
       this.logger.error(`Failed to get OCR result for document ${documentId}:`, error);
@@ -240,14 +357,12 @@ export class VisionService {
           confidence: result.confidence,
           language: result.language,
           pageCount: result.pageCount,
-          structuredData: result.structuredData,
         },
         update: {
           fullText: result.fullText,
           confidence: result.confidence,
           language: result.language,
           pageCount: result.pageCount,
-          structuredData: result.structuredData,
         },
       });
 
@@ -318,6 +433,30 @@ export class VisionService {
 
     languages.sort((a, b) => b[1] - a[1]);
     return languages[0][0];
+  }
+
+  /**
+   * 从文本内容检测语言（简单版本）
+   */
+  private detectLanguageFromText(text: string): string {
+    if (!text || text.trim().length === 0) {
+      return 'unknown';
+    }
+
+    // 简单的语言检测：检查中文字符
+    const chineseChars = text.match(/[\u4e00-\u9fa5]/g);
+    if (chineseChars && chineseChars.length > text.length * 0.3) {
+      return 'zh'; // 中文
+    }
+
+    // 检查日文
+    const japaneseChars = text.match(/[\u3040-\u309f\u30a0-\u30ff]/g);
+    if (japaneseChars && japaneseChars.length > text.length * 0.1) {
+      return 'ja'; // 日文
+    }
+
+    // 默认为英文
+    return 'en';
   }
 
   /**
