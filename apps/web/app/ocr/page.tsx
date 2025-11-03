@@ -23,7 +23,7 @@ export default function OcrPage() {
   } = useOcrLogic();
 
   return (
-    <Layout maxWidth="4xl">
+    <Layout maxWidth="xl">
       <div className="space-y-6">
         {/* Header */}
         <div>
