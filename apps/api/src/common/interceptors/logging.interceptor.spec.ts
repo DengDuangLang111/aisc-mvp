@@ -179,7 +179,7 @@ describe('LoggingInterceptor', () => {
         );
 
         const logCalls = mockLogger.log.mock.calls;
-        const responseLog = logCalls.find((call) => call[1].includes('200'));
+        const responseLog = logCalls.find((call: any) => call[1].includes('200'));
         expect(responseLog[2].responseTime).toBeGreaterThanOrEqual(0);
         expect(responseLog[2].responseTime).toBeLessThan(1000);
 
@@ -218,7 +218,7 @@ describe('LoggingInterceptor', () => {
 
       interceptor.intercept(context, next).subscribe(() => {
         const logCalls = mockLogger.log.mock.calls;
-        const responseLog = logCalls.find((call) => call[1].includes('200'));
+        const responseLog = logCalls.find((call: any) => call[1].includes('200'));
         
         expect(responseLog[2].responseTime).toBeGreaterThanOrEqual(40);
         expect(responseLog[2].responseTime).toBeLessThan(200);

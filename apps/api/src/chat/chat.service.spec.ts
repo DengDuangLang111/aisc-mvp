@@ -416,14 +416,14 @@ describe('ChatService', () => {
         },
       ];
 
-      mockPrismaService.conversation.findMany = jest.fn().mockResolvedValue(mockConversations);
+      (mockPrismaService.conversation as any).findMany = jest.fn().mockResolvedValue(mockConversations);
 
       const result = await service.getConversations();
 
       expect(result).toHaveLength(2);
       expect(result[0].messageCount).toBe(5);
       expect(result[0].lastMessage).toBe('Hello');
-      expect(mockPrismaService.conversation.findMany).toHaveBeenCalledWith({
+      expect((mockPrismaService.conversation as any).findMany).toHaveBeenCalledWith({
         where: undefined,
         include: { 
           _count: { select: { messages: true } },
@@ -458,12 +458,12 @@ describe('ChatService', () => {
         },
       ];
 
-      mockPrismaService.conversation.findMany = jest.fn().mockResolvedValue(mockConversations);
+      (mockPrismaService.conversation as any).findMany = jest.fn().mockResolvedValue(mockConversations);
 
       const result = await service.getConversations('user-123', 10);
 
       expect(result).toHaveLength(1);
-      expect(mockPrismaService.conversation.findMany).toHaveBeenCalledWith({
+      expect((mockPrismaService.conversation as any).findMany).toHaveBeenCalledWith({
         where: { userId: 'user-123' },
         include: { 
           _count: { select: { messages: true } },
@@ -545,11 +545,11 @@ describe('ChatService', () => {
       };
 
       mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
-      mockPrismaService.conversation.delete = jest.fn().mockResolvedValue(mockConversation);
+      (mockPrismaService.conversation as any).delete = jest.fn().mockResolvedValue(mockConversation);
 
       await service.deleteConversation('conv-1');
 
-      expect(mockPrismaService.conversation.delete).toHaveBeenCalledWith({
+      expect((mockPrismaService.conversation as any).delete).toHaveBeenCalledWith({
         where: { id: 'conv-1' },
       });
     });
@@ -583,11 +583,11 @@ describe('ChatService', () => {
       };
 
       mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
-      mockPrismaService.conversation.delete = jest.fn().mockResolvedValue(mockConversation);
+      (mockPrismaService.conversation as any).delete = jest.fn().mockResolvedValue(mockConversation);
 
       await service.deleteConversation('conv-1');
 
-      expect(mockPrismaService.conversation.delete).toHaveBeenCalled();
+      expect((mockPrismaService.conversation as any).delete).toHaveBeenCalled();
     });
   });
 

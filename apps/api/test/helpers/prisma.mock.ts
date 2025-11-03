@@ -24,6 +24,8 @@ export const createMockPrismaService = (): Partial<PrismaService> => {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
     } as any,
     message: {
       create: jest.fn(),

@@ -109,7 +109,7 @@ describe('UploadController', () => {
     });
 
     it('should throw BadRequestException if no file provided', async () => {
-      await expect(controller.uploadFile(undefined)).rejects.toThrow(BadRequestException);
+      await expect(controller.uploadFile(undefined as any)).rejects.toThrow(BadRequestException);
     });
   });
 

@@ -76,7 +76,10 @@ describe('GcsService', () => {
       const mockFilename = 'test.pdf';
       
       const mockSave = jest.fn().mockResolvedValue(undefined);
-      const mockFile = { save: mockSave };
+      const mockFile = { 
+        save: mockSave,
+        getSignedUrl: jest.fn().mockResolvedValue(['https://storage.googleapis.com/signed-url'])
+      };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
       (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
 
@@ -99,7 +102,10 @@ describe('GcsService', () => {
       const mockFilename = 'image.png';
       
       const mockSave = jest.fn().mockResolvedValue(undefined);
-      const mockFile = { save: mockSave };
+      const mockFile = { 
+        save: mockSave,
+        getSignedUrl: jest.fn().mockResolvedValue(['https://storage.googleapis.com/signed-url'])
+      };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
       (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
 
@@ -111,7 +117,10 @@ describe('GcsService', () => {
     it('should throw error when upload fails', async () => {
       const mockBuffer = Buffer.from('test');
       const mockSave = jest.fn().mockRejectedValue(new Error('Upload failed'));
-      const mockFile = { save: mockSave };
+      const mockFile = { 
+        save: mockSave,
+        getSignedUrl: jest.fn().mockResolvedValue(['https://storage.googleapis.com/signed-url'])
+      };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
       (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
 
