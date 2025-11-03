@@ -737,7 +737,11 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
                     tokensUsed = parsed.usage.total_tokens || 0;
                   }
                 } catch (e) {
-                  console.error('Failed to parse stream data:', e);
+                  this.logger.error('Failed to parse stream data', {
+                    context: 'ChatService.chatStream',
+                    error: e instanceof Error ? e.message : String(e),
+                    stack: e instanceof Error ? e.stack : undefined,
+                  });
                 }
               }
             }
@@ -753,7 +757,13 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
                   content: message,
                 },
               })
-              .catch((err) => console.error('Failed to save user message:', err));
+              .catch((err) => {
+                this.logger.error('Failed to save user message', {
+                  context: 'ChatService.chatStream',
+                  error: err instanceof Error ? err.message : String(err),
+                  conversationId: conversation.id,
+                });
+              });
 
             this.prisma.message
               .create({
@@ -764,7 +774,14 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
                   tokensUsed,
                 },
               })
-              .catch((err) => console.error('Failed to save assistant message:', err));
+              .catch((err) => {
+                this.logger.error('Failed to save assistant message', {
+                  context: 'ChatService.chatStream',
+                  error: err instanceof Error ? err.message : String(err),
+                  conversationId: conversation.id,
+                  tokensUsed,
+                });
+              });
 
             res.write(
               `data: ${JSON.stringify({
@@ -785,7 +802,11 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
         throw error;
       }
     } catch (error) {
-      console.error('Stream error:', error);
+      this.logger.error('Stream error occurred', {
+        context: 'ChatService.chatStream',
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       res.write(
         `data: ${JSON.stringify({
           token: '',

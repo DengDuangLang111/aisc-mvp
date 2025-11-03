@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, Delete, Param, Query, UseGuards, Res } from '@nestjs/common';
+import { Body, Controller, Post, Get, Delete, Param, Query, UseGuards, Res, Logger } from '@nestjs/common';
 import { Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { 
@@ -18,6 +18,8 @@ import { ChatRequestDto } from './dto/chat-request.dto';
 @Controller('chat')
 @UseGuards(ThrottlerGuard)
 export class ChatController {
+  private readonly logger = new Logger(ChatController.name);
+
   constructor(private readonly chatService: ChatService) {}
 
   /**
@@ -86,7 +88,11 @@ export class ChatController {
       // 调用流式处理
       await this.chatService.chatStream(request, res);
     } catch (error) {
-      console.error('Stream error:', error);
+      this.logger.error('Stream error in chat controller', {
+        context: 'ChatController.chatStream',
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       res.write(
         `data: ${JSON.stringify({
           token: '',
