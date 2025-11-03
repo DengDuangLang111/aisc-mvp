@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 /**
  * Local Storage Management
  * 管理聊天历史和上传记录的本地持久化
@@ -83,7 +85,7 @@ export class ConfigStorage {
       const savedConfig = JSON.parse(configStr) as Partial<StorageConfig>
       return { ...DEFAULT_CONFIG, ...savedConfig }
     } catch (e) {
-      console.error('Failed to load config:', e)
+      logger.error('Failed to load config:', e)
       return DEFAULT_CONFIG
     }
   }
@@ -99,7 +101,7 @@ export class ConfigStorage {
       const newConfig = { ...currentConfig, ...config }
       localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(newConfig))
     } catch (e) {
-      console.error('Failed to update config:', e)
+      logger.error('Failed to update config:', e)
     }
   }
 
@@ -112,7 +114,7 @@ export class ConfigStorage {
     try {
       localStorage.removeItem(STORAGE_KEYS.CONFIG)
     } catch (e) {
-      console.error('Failed to reset config:', e)
+      logger.error('Failed to reset config:', e)
     }
   }
 }
@@ -135,7 +137,7 @@ function safeParse<T>(value: string | null, defaultValue: T): T {
   try {
     return JSON.parse(value) as T
   } catch (e) {
-    console.error('Failed to parse JSON from localStorage:', e)
+    logger.error('Failed to parse JSON from localStorage:', e)
     return defaultValue
   }
 }
@@ -163,7 +165,7 @@ function setItemWithExpiry<T>(key: string, data: T, expiryMs?: number): void {
     }
     localStorage.setItem(key, JSON.stringify(item))
   } catch (e) {
-    console.error(`Failed to set item ${key}:`, e)
+    logger.error(`Failed to set item ${key}:`, e)
   }
 }
 
@@ -185,7 +187,7 @@ function getItemWithExpiry<T>(key: string, defaultValue: T): T {
 
     return item.data
   } catch (e) {
-    console.error(`Failed to get item ${key}:`, e)
+    logger.error(`Failed to get item ${key}:`, e)
     return defaultValue
   }
 }
@@ -242,7 +244,7 @@ export class UploadStorage {
         JSON.stringify(limitedHistory)
       )
     } catch (e) {
-      console.error('Failed to save upload record:', e)
+      logger.error('Failed to save upload record:', e)
     }
   }
 
@@ -286,7 +288,7 @@ export class UploadStorage {
         JSON.stringify(filtered)
       )
     } catch (e) {
-      console.error('Failed to delete upload record:', e)
+      logger.error('Failed to delete upload record:', e)
     }
   }
 
@@ -299,7 +301,7 @@ export class UploadStorage {
     try {
       localStorage.removeItem(STORAGE_KEYS.UPLOAD_HISTORY)
     } catch (e) {
-      console.error('Failed to clear upload history:', e)
+      logger.error('Failed to clear upload history:', e)
     }
   }
 
@@ -324,7 +326,7 @@ export class UploadStorage {
 
       return beforeCount - afterCount
     } catch (e) {
-      console.error('Failed to clean expired uploads:', e)
+      logger.error('Failed to clean expired uploads:', e)
       return 0
     }
   }
@@ -411,7 +413,7 @@ export class ChatStorage {
 
       return sessionId
     } catch (e) {
-      console.error('Failed to save chat session:', e)
+      logger.error('Failed to save chat session:', e)
       return ''
     }
   }
@@ -469,7 +471,7 @@ export class ChatStorage {
         JSON.stringify(filtered)
       )
     } catch (e) {
-      console.error('Failed to delete chat session:', e)
+      logger.error('Failed to delete chat session:', e)
     }
   }
 
@@ -482,7 +484,7 @@ export class ChatStorage {
     try {
       localStorage.removeItem(STORAGE_KEYS.CHAT_SESSIONS)
     } catch (e) {
-      console.error('Failed to clear chat sessions:', e)
+      logger.error('Failed to clear chat sessions:', e)
     }
   }
 
@@ -507,7 +509,7 @@ export class ChatStorage {
 
       return beforeCount - afterCount
     } catch (e) {
-      console.error('Failed to clean expired sessions:', e)
+      logger.error('Failed to clean expired sessions:', e)
       return 0
     }
   }
@@ -546,7 +548,7 @@ export class StorageUtils {
       // 每个字符约占 2 bytes (UTF-16)
       return total * 2
     } catch (e) {
-      console.error('Failed to calculate storage size:', e)
+      logger.error('Failed to calculate storage size:', e)
       return 0
     }
   }
@@ -591,7 +593,7 @@ export class StorageUtils {
         localStorage.removeItem(key)
       })
     } catch (e) {
-      console.error('Failed to clear app data:', e)
+      logger.error('Failed to clear app data:', e)
     }
   }
 
@@ -611,7 +613,7 @@ export class StorageUtils {
       }
       return JSON.stringify(data, null, 2)
     } catch (e) {
-      console.error('Failed to export data:', e)
+      logger.error('Failed to export data:', e)
       return '{}'
     }
   }
@@ -653,7 +655,7 @@ export class StorageUtils {
 
       return true
     } catch (e) {
-      console.error('Failed to import data:', e)
+      logger.error('Failed to import data:', e)
       return false
     }
   }

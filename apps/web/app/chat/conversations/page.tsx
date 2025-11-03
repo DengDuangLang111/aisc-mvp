@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ChatStorage } from '@/lib/storage'
+import { logger } from '@/lib/logger';
 
 interface Session {
   id: string
@@ -25,7 +26,7 @@ export default function ConversationsPage() {
       const sortedSessions = allSessions.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
       setSessions(sortedSessions)
     } catch (error) {
-      console.error('加载会话失败:', error)
+      logger.error('加载会话失败', error, {})
     } finally {
       setLoading(false)
     }
@@ -37,7 +38,7 @@ export default function ConversationsPage() {
         ChatStorage.deleteSession(id)
         setSessions(prev => prev.filter(s => s.id !== id))
       } catch (error) {
-        console.error('删除会话失败:', error)
+        logger.error('删除会话失败', error, {})
       }
     }
   }

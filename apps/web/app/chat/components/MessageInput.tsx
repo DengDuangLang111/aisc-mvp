@@ -2,6 +2,7 @@
 
 import { useState, KeyboardEvent, useRef, useEffect } from 'react'
 import { Button } from '@/app/components/Button'
+import { logger } from '../../../lib/logger';
 
 export interface MessageInputProps {
   onSend: (message: string, options?: { conversationId?: string; streaming?: boolean }) => void
@@ -58,7 +59,7 @@ export function MessageInput({
       try {
         onFileSelect(file)
       } catch (error) {
-        console.error('File selection error:', error)
+        logger.error('File selection error', error, {})
       } finally {
         setIsUploadingFile(false)
       }

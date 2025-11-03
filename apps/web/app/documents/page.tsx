@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ApiClient } from '@/lib/api-client'
+import { logger } from '@/lib/logger';
 
 interface Document {
   id: string
@@ -33,7 +34,7 @@ export default function DocumentsPage() {
       setDocuments([]) // Placeholder
     } catch (err) {
       setError('加载文档失败')
-      console.error(err)
+      logger.error('Error', err, {})
     } finally {
       setLoading(false)
     }
@@ -47,7 +48,7 @@ export default function DocumentsPage() {
         setDocuments(prev => prev.filter(d => d.id !== id))
       } catch (err) {
         setError('删除文档失败')
-        console.error(err)
+        logger.error('Error', err, {})
       }
     }
   }

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ApiClient, ApiError } from "../../../lib/api-client";
 import { UploadStorage, UploadRecord } from "../../../lib/storage";
+import { logger } from '../../../lib/logger';
 
 export function useUploadLogic() {
   const [status, setStatus] = useState<string>("");
@@ -23,13 +24,13 @@ export function useUploadLogic() {
   }, []);
 
   async function handleUpload(file: File) {
-    console.log("选中文件：", file.name, file.type, file.size, "bytes");
+    logger.debug("选中文件", { name: file.name, type: file.type, size: file.size });
     setStatus(`正在上传：${file.name}...`);
     setUploading(true);
 
     try {
       const result = await ApiClient.uploadFile(file);
-      console.log("上传成功：", result);
+      logger.info("上传成功", { result: result });
 
       // 保存到 localStorage
       const uploadRecord: UploadRecord = {
@@ -55,7 +56,7 @@ export function useUploadLogic() {
       setUploadHistory(UploadStorage.getUploadHistory());
       setStatus(`✅ 上传成功！文件：${result.filename}`);
     } catch (err) {
-      console.error("上传错误：", err);
+      logger.error("上传错误", err, {});
       if (err instanceof ApiError) {
         setStatus(`❌ 上传失败 (${err.statusCode}): ${err.message}`);
       } else {

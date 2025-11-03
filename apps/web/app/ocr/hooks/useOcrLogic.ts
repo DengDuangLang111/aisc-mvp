@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ApiClient, ApiError } from "../../../lib/api-client";
+import { logger } from '../../../lib/logger';
 
 export interface OcrResult {
   fullText: string;
@@ -55,7 +56,7 @@ export function useOcrLogic() {
         );
       }
     } catch (error) {
-      console.error("Failed to load OCR history:", error);
+      logger.error("Failed to load OCR history", error, {});
     }
   }, []);
 
@@ -102,7 +103,7 @@ export function useOcrLogic() {
 
       // Upload file
       const uploadResponse = await ApiClient.uploadFile(file);
-      console.log("Upload successful:", uploadResponse);
+      logger.info("Upload successful", { uploadResponse });
 
       const documentId = (uploadResponse as any).documentId || uploadResponse.id;
 
@@ -118,7 +119,7 @@ export function useOcrLogic() {
       // Start fetching OCR result
       await fetchOcrResult(documentId, image);
     } catch (error) {
-      console.error("Upload failed:", error);
+      logger.error("Upload failed", error, {});
       alert(
         `上传失败: ${error instanceof Error ? error.message : "未知错误"}`
       );
@@ -139,7 +140,7 @@ export function useOcrLogic() {
       for (let i = 0; i < maxRetries; i++) {
         try {
           const result = await ApiClient.getOcrResult(documentId);
-          console.log(`OCR result (attempt ${i + 1}):`, result);
+          logger.info(`OCR result (attempt ${i + 1})`, { result });
 
           if (result && result.fullText) {
             setOcrResult(result);
@@ -150,7 +151,7 @@ export function useOcrLogic() {
         } catch (error) {
           // If 404, OCR is still processing
           if (error instanceof ApiError && error.statusCode === 404) {
-            console.log(`OCR still processing (attempt ${i + 1}/${maxRetries})`);
+            logger.debug(`OCR still processing (attempt ${i + 1}/${maxRetries})`);
           } else {
             throw error;
           }
@@ -162,7 +163,7 @@ export function useOcrLogic() {
 
       throw new Error("OCR 处理超时，请稍后重试");
     } catch (error) {
-      console.error("OCR failed:", error);
+      logger.error("OCR failed", error, {});
       alert(`OCR 识别失败: ${error instanceof Error ? error.message : "未知错误"}`);
       setProcessing(false);
     }
@@ -185,7 +186,7 @@ export function useOcrLogic() {
         alert("✅ 文字已复制到剪贴板");
       })
       .catch((error) => {
-        console.error("Copy failed:", error);
+        logger.error("Copy failed", error, {});
         alert("复制失败，请手动选择文字复制");
       });
   };

@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { Message } from '../components/MessageBubble';
 import { ApiClient, ApiError } from '../../../lib/api-client';
 import { ChatStorage } from '../../../lib/storage';
+import { logger } from '../../../lib/logger';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
@@ -88,10 +89,10 @@ export function useChatLogic() {
         if (lastMsg && 'conversationId' in lastMsg) {
           setConversationId((lastMsg as any).conversationId);
         }
-        console.log(`已加载 ${session.messages.length} 条历史消息`);
+        logger.debug('已加载历史消息', { count: session.messages.length });
       }
     } catch (e) {
-      console.error('加载会话失败:', e);
+      logger.error('加载会话失败', e, {});
     } finally {
       setSessionLoaded(true);
     }
@@ -113,7 +114,7 @@ export function useChatLogic() {
         conversationId || undefined
       );
     } catch (e) {
-      console.error('保存会话失败:', e);
+      logger.error('保存会话失败', e, {});
     }
   }, [messages, effectiveDocumentId, documentFilename, sessionLoaded, conversationId]);
 
@@ -160,7 +161,7 @@ export function useChatLogic() {
 
       if (streaming) {
         // 流式请求
-        console.log('[Streaming] Starting stream request...');
+        logger.debug('[Streaming] Starting stream request');
         let fullResponse = '';
         let lastConversationId = conversationId || undefined;
         
@@ -176,7 +177,7 @@ export function useChatLogic() {
             documentId: currentDocumentId || undefined, // 使用 documentId
             conversationId: conversationId || undefined,
           });
-          console.log('[Streaming] Stream created, starting to read chunks...');
+          logger.debug('[Streaming] Stream created, starting to read chunks');
 
           // 方案10: 使用 requestAnimationFrame 确保每次更新都在新的渲染帧
           // FORCE RELOAD - 强制浏览器加载新代码
@@ -185,7 +186,7 @@ export function useChatLogic() {
           for await (const chunk of stream) {
             fullResponse += chunk.token || '';
             chunkCount++;
-            console.log('[🔥 NEW CODE] Chunk:', chunk.token, '| Length:', fullResponse.length);
+            logger.debug('[Streaming] Chunk received', { token: chunk.token, responseLength: fullResponse.length });
 
             // 收到第一个 chunk，取消思考状态
             if (chunkCount === 1) {
@@ -199,19 +200,19 @@ export function useChatLogic() {
 
             // 🔥 简化版：移除节流，每个 chunk 都立即更新
             const currentContent = fullResponse;
-            console.log('[🔥 RAF] About to update UI with length:', currentContent.length);
+            logger.debug('[RAF] Updating UI', { contentLength: currentContent.length });
             
             await new Promise<void>((resolve) => {
               requestAnimationFrame(() => {
                 setStreamingContent(currentContent);
-                console.log('[✅ RAF] UI updated!');
+                logger.debug('[RAF] UI updated');
                 resolve();
               });
             });
 
             // 检查是否完成
             if (chunk.complete) {
-              console.log('[Streaming] Stream complete!');
+              logger.info('[Streaming] Stream complete');
               break;
             }
           }
@@ -283,7 +284,7 @@ export function useChatLogic() {
       
       // Remove last user message on error
       setMessages((prev) => prev.slice(0, -1));
-      console.error('Chat error:', err);
+      logger.error('Chat error', err, {});
     } finally {
       setIsLoading(false);
     }
@@ -328,7 +329,7 @@ export function useChatLogic() {
       }
 
       // 2. 上传文件
-      console.log('开始上传文件:', file.name);
+      logger.info('开始上传文件', { filename: file.name });
       const uploadResponse = await ApiClient.uploadFile(file);
       // 后端返回 { id, filename, url, documentId? }
       // documentId 是数据库中的文档 id，用于查询 OCR 结果；如果不存在则回退到 upload id
@@ -354,7 +355,7 @@ export function useChatLogic() {
           window.history.replaceState(null, '', url.toString());
         }
       } catch (historyError) {
-        console.warn('更新聊天地址栏失败', historyError);
+        logger.warn('更新聊天地址栏失败', { error: historyError });
       }
 
       // 3. 添加"已上传文件"消息
@@ -371,13 +372,13 @@ export function useChatLogic() {
       const maxAttempts = 60; // 最多 5 分钟（每 5 秒查询一次）
       const pollInterval = 5000; // 5 秒
 
-      console.log('开始轮询 OCR 结果... 使用 documentId:', newDocumentId);
+      logger.info('开始轮询 OCR 结果', { documentId: newDocumentId });
       while (attempts < maxAttempts) {
         try {
           const result = await ApiClient.getOcrResult(newDocumentId);
           if (result && result.fullText) {
             ocrResult = result;
-            console.log('OCR 处理完成:', result);
+            logger.info('OCR 处理完成', { result });
             break;
           }
         } catch (err) {
@@ -424,7 +425,7 @@ export function useChatLogic() {
       };
       setMessages((prev) => [...prev, ocrMessage]);
 
-      console.log('文件上传并 OCR 处理完成');
+      logger.info('文件上传并 OCR 处理完成');
     } catch (err) {
       let errorMessage = '文件处理失败，请重试';
 
@@ -435,7 +436,7 @@ export function useChatLogic() {
       }
 
       setError(errorMessage);
-      console.error('文件处理错误:', err);
+      logger.error('文件处理错误', err, {});
     } finally {
       setIsLoading(false);
     }
@@ -470,10 +471,10 @@ export function useChatLogic() {
         setDocumentFilename(session.filename || undefined);
         setDocumentUrl(undefined);
         setError(null);
-        console.log(`已加载对话: ${session.filename || '普通对话'}`);
+        logger.info('已加载对话', { filename: session.filename || '普通对话' });
       }
     } catch (e) {
-      console.error('加载对话失败:', e);
+      logger.error('加载对话失败', e, {});
       setError('加载对话失败');
     }
   };
@@ -485,7 +486,7 @@ export function useChatLogic() {
     setCurrentDocumentId(null);
     setError(null);
     setShowDocument(true);
-    console.log('已清空当前对话');
+    logger.info('已清空当前对话');
   };
 
   // Cleanup on unmount

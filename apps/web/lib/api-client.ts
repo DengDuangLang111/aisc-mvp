@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 /**
  * 统一的 API 客户端
  * 封装所有与后端的交互
@@ -134,7 +136,7 @@ export class ApiClient {
                 conversationId: data.conversationId,
               };
             } catch (e) {
-              console.error('Failed to parse SSE data:', e);
+              logger.error('Failed to parse SSE data', e, {});
             }
           }
         }

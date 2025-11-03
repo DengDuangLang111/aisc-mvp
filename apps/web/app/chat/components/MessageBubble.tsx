@@ -1,4 +1,5 @@
 import { HintLevelBadge } from './HintLevelBadge'
+import { logger } from '../../../lib/logger';
 
 export interface Message {
   role: 'user' | 'assistant'
@@ -19,7 +20,7 @@ export function MessageBubble({ message, isLoading = false, isStreaming = false 
 
   // 调试：记录内容变化
   if (isStreaming && !isUser) {
-    console.log('[MessageBubble] Rendering with content length:', message.content.length);
+    logger.debug('[MessageBubble] Rendering with content length', { length: message.content.length });
   }
 
   const formatTime = (timestamp?: number) => {
