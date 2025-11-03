@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { VisionService } from './vision.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { GoogleCredentialsProvider } from '../common/providers/google-credentials.provider';
 import { createMockPrismaService, createMockOcrResult } from '../../test/helpers/prisma.mock';
 
 // Mock @google-cloud/vision
@@ -111,6 +112,14 @@ describe('VisionService', () => {
         {
           provide: ConfigService,
           useValue: mockConfig,
+        },
+        {
+          provide: GoogleCredentialsProvider,
+          useValue: {
+            getCredentials: jest.fn(() => ({ type: 'service_account', project_id: 'test' })),
+            getProjectId: jest.fn(() => 'test-project'),
+            getClientEmail: jest.fn(() => 'test@example.com'),
+          },
         },
       ],
     }).compile();
