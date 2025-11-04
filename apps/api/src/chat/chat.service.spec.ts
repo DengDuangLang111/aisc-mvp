@@ -4,7 +4,8 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
-import { PrismaService } from '../prisma/prisma.service';
+import { ConversationRepository } from './repositories/conversation.repository';
+import { MessageRepository } from './repositories/message.repository';
 import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 
@@ -29,38 +30,49 @@ describe('ChatService', () => {
     }),
   };
 
-  const mockPrismaService = {
-    conversation: {
-      create: jest.fn().mockResolvedValue({
-        id: 'test-conversation-id',
-        userId: 'test-user',
-        documentId: null,
-        title: 'Test Conversation',
-        messages: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }),
-      findUnique: jest.fn().mockResolvedValue({
-        id: 'test-conversation-id',
-        messages: [],
-      }),
-      update: jest.fn(),
-    },
-    message: {
-      create: jest.fn().mockResolvedValue({
-        id: 'test-message-id',
-        role: 'assistant',
-        content: 'Test response',
-        createdAt: new Date(),
-      }),
-      findMany: jest.fn().mockResolvedValue([]),
-    },
-    document: {
-      findUnique: jest.fn(),
-    },
-    ocrResult: {
-      findFirst: jest.fn(),
-    },
+  const mockConversationRepo = {
+    create: jest.fn().mockResolvedValue({
+      id: 'test-conversation-id',
+      userId: 'test-user',
+      documentId: null,
+      title: 'Test Conversation',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    findById: jest.fn().mockResolvedValue({
+      id: 'test-conversation-id',
+      userId: 'test-user',
+      documentId: null,
+      title: 'Test Conversation',
+      messages: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }),
+    findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(0),
+    updateTitle: jest.fn(),
+    touch: jest.fn(),
+    delete: jest.fn(),
+    findByDocumentId: jest.fn(),
+    deleteExpired: jest.fn(),
+  };
+
+  const mockMessageRepo = {
+    create: jest.fn().mockResolvedValue({
+      id: 'test-message-id',
+      role: 'assistant',
+      content: 'Test response',
+      createdAt: new Date(),
+    }),
+    createMany: jest.fn(),
+    findByConversationId: jest.fn().mockResolvedValue([]),
+    findById: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    deleteByConversationId: jest.fn(),
+    countByConversationId: jest.fn(),
+    findLastN: jest.fn().mockResolvedValue([]),
+    calculateTotalTokens: jest.fn().mockResolvedValue(0),
   };
 
   const mockVisionService = {
@@ -88,8 +100,12 @@ describe('ChatService', () => {
           useValue: mockConfigService,
         },
         {
-          provide: PrismaService,
-          useValue: mockPrismaService,
+          provide: ConversationRepository,
+          useValue: mockConversationRepo,
+        },
+        {
+          provide: MessageRepository,
+          useValue: mockMessageRepo,
         },
         {
           provide: VisionService,

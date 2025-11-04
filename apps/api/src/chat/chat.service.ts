@@ -2,12 +2,14 @@ import { Injectable, Inject, Logger, NotFoundException, BadRequestException } fr
 import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import axios from 'axios';
-import { PrismaService } from '../prisma/prisma.service';
+
 import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { EventName, EventCategory } from '../analytics/analytics.types';
 import type { ChatResponse, HintLevel } from '@study-oasis/contracts';
 import { ChatRequestDto } from './dto/chat-request.dto';
+import { ConversationRepository } from './repositories/conversation.repository';
+import { MessageRepository } from './repositories/message.repository';
 
 /**
  * DeepSeek API 响应类型
@@ -49,7 +51,8 @@ export class ChatService {
   constructor(
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
     private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
+    private readonly conversationRepo: ConversationRepository,
+    private readonly messageRepo: MessageRepository,
     private readonly visionService: VisionService,
     private readonly analyticsService: AnalyticsService,
   ) {}
@@ -92,26 +95,31 @@ export class ChatService {
       });
 
       // 2. 获取或创建对话
-      let conversation;
+      let conversation: { id: string; title: string | null; userId: string | null; documentId: string | null; messages: any[] };
       if (conversationId) {
-        conversation = await this.prisma.conversation.findUnique({
-          where: { id: conversationId },
-          include: { messages: { orderBy: { createdAt: 'asc' }, take: 10 } },
-        });
-
-        if (!conversation) {
+        const existingConv = await this.conversationRepo.findById(conversationId);
+        
+        if (!existingConv) {
           throw new NotFoundException(`Conversation ${conversationId} not found`);
         }
+        
+        // 只获取最近10条消息
+        conversation = {
+          ...existingConv,
+          messages: await this.messageRepo.findLastN(conversationId, 10),
+        };
       } else {
         // 创建新对话
-        conversation = await this.prisma.conversation.create({
-          data: {
-            userId,
-            documentId,
-            title: this.generateConversationTitle(message),
-          },
-          include: { messages: true },
+        const newConversation = await this.conversationRepo.create({
+          userId,
+          documentId,
+          title: this.generateConversationTitle(message),
         });
+        
+        conversation = {
+          ...newConversation,
+          messages: [],
+        };
 
         this.logger.log('info', 'Created new conversation', {
           context: 'ChatService',
@@ -158,22 +166,18 @@ export class ChatService {
       const aiResponse = await this.callDeepSeekAPI(messageHistory, userId, sessionId);
 
       // 8. 保存用户消息到数据库
-      await this.prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          role: 'user',
-          content: message,
-        },
+      await this.messageRepo.create({
+        conversationId: conversation.id,
+        role: 'user',
+        content: message,
       });
 
       // 9. 保存 AI 回复到数据库
-      await this.prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          role: 'assistant',
-          content: aiResponse.reply,
-          tokensUsed: aiResponse.tokensUsed,
-        },
+      await this.messageRepo.create({
+        conversationId: conversation.id,
+        role: 'assistant',
+        content: aiResponse.reply,
+        tokensUsed: aiResponse.tokensUsed,
       });
 
       // 10. 记录消息发送成功事件
@@ -224,19 +228,11 @@ export class ChatService {
    * 获取对话历史
    */
   async getConversations(userId?: string, limit: number = 20): Promise<any[]> {
-    const conversations = await this.prisma.conversation.findMany({
-      where: userId ? { userId } : undefined,
-      include: {
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1, // 只取最后一条消息用于预览
-        },
-        _count: {
-          select: { messages: true },
-        },
-      },
+    const conversations = await this.conversationRepo.findMany({
+      userId,
+      limit,
+      offset: 0,
       orderBy: { updatedAt: 'desc' },
-      take: limit,
     });
 
     return conversations.map((conv: any) => ({
@@ -255,28 +251,7 @@ export class ChatService {
    * 获取对话详情（包含所有消息）
    */
   async getConversation(conversationId: string): Promise<any> {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' },
-        },
-        document: {
-          select: {
-            id: true,
-            filename: true,
-            mimeType: true,
-            ocrResult: {
-              select: {
-                confidence: true,
-                language: true,
-                pageCount: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const conversation = await this.conversationRepo.findById(conversationId);
 
     if (!conversation) {
       throw new NotFoundException(`Conversation ${conversationId} not found`);
@@ -287,7 +262,6 @@ export class ChatService {
       title: conversation.title,
       userId: conversation.userId,
       documentId: conversation.documentId,
-      document: conversation.document,
       messages: conversation.messages.map((msg: any) => ({
         id: msg.id,
         role: msg.role,
@@ -304,9 +278,7 @@ export class ChatService {
    * 删除对话
    */
   async deleteConversation(conversationId: string, userId?: string): Promise<void> {
-    const conversation = await this.prisma.conversation.findUnique({
-      where: { id: conversationId },
-    });
+    const conversation = await this.conversationRepo.findById(conversationId);
 
     if (!conversation) {
       throw new NotFoundException(`Conversation ${conversationId} not found`);
@@ -317,10 +289,8 @@ export class ChatService {
       throw new BadRequestException('Unauthorized to delete this conversation');
     }
 
-    // 删除对话（会级联删除关联的 messages）
-    await this.prisma.conversation.delete({
-      where: { id: conversationId },
-    });
+    // 删除对话（Repository 内部会处理级联删除）
+    await this.conversationRepo.delete(conversationId);
 
     this.logger.log('info', 'Conversation deleted', {
       context: 'ChatService',
@@ -615,32 +585,38 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
 
     try {
       // 1. 获取或创建对话
-      let conversation;
+      let conversation: { id: string; title: string | null; userId: string | null; documentId: string | null; messages: any[] };
       if (conversationId) {
-        conversation = await this.prisma.conversation.findUnique({
-          where: { id: conversationId },
-          include: { messages: { orderBy: { createdAt: 'asc' }, take: 10 } },
-        });
-        if (!conversation) {
+        const existingConv = await this.conversationRepo.findById(conversationId);
+        if (!existingConv) {
           res.write(
             `data: ${JSON.stringify({
               token: '',
               error: `Conversation ${conversationId} not found`,
               complete: true,
-            })}\n\n`,
+            })}
+
+`,
           );
           res.end();
           return;
         }
+        
+        conversation = {
+          ...existingConv,
+          messages: await this.messageRepo.findLastN(conversationId, 10),
+        };
       } else {
-        conversation = await this.prisma.conversation.create({
-          data: {
-            userId,
-            documentId,
-            title: this.generateConversationTitle(message),
-          },
-          include: { messages: true },
+        const newConversation = await this.conversationRepo.create({
+          userId,
+          documentId,
+          title: this.generateConversationTitle(message),
         });
+        
+        conversation = {
+          ...newConversation,
+          messages: [],
+        };
       }
 
       // 2. 加载文档上下文
@@ -749,13 +725,11 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
 
           axiosResponse.data.on('end', () => {
             // 保存消息和完成信号
-            this.prisma.message
+            this.messageRepo
               .create({
-                data: {
-                  conversationId: conversation.id,
-                  role: 'user',
-                  content: message,
-                },
+                conversationId: conversation.id,
+                role: 'user',
+                content: message,
               })
               .catch((err) => {
                 this.logger.error('Failed to save user message', {
@@ -765,14 +739,12 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
                 });
               });
 
-            this.prisma.message
+            this.messageRepo
               .create({
-                data: {
-                  conversationId: conversation.id,
-                  role: 'assistant',
-                  content: fullReply,
-                  tokensUsed,
-                },
+                conversationId: conversation.id,
+                role: 'assistant',
+                content: fullReply,
+                tokensUsed,
               })
               .catch((err) => {
                 this.logger.error('Failed to save assistant message', {
