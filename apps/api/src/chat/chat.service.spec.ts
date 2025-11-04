@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { ConversationRepository } from './repositories/conversation.repository';
 import { MessageRepository } from './repositories/message.repository';
@@ -476,7 +477,8 @@ describe('ChatService', () => {
 
       mockConversationRepo.findMany = jest.fn().mockResolvedValue(mockConversations);
 
-      const result = await service.getConversations('user-123', 10);
+      const paginationDto: PaginationDto = { limit: 10, offset: 0 };
+      const result = await service.getConversations('user-123', paginationDto);
 
       expect(result.data).toHaveLength(1);
       expect(mockConversationRepo.findMany).toHaveBeenCalledWith({
