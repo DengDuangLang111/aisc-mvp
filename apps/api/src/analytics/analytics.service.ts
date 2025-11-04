@@ -35,7 +35,6 @@ export interface ApiUsageData {
   errorStack?: string;
 }
 
-
 /**
  * Prisma groupBy 结果类型 - 事件名称统计
  */
@@ -55,7 +54,7 @@ interface UserIdGroupResult {
 
 /**
  * 数据分析服务
- * 
+ *
  * 功能:
  * - 记录用户行为事件
  * - 记录 API 使用情况
@@ -89,7 +88,9 @@ export class AnalyticsService {
         },
       });
 
-      this.logger.debug(`Event tracked: ${data.eventName} for user ${data.userId || 'anonymous'}`);
+      this.logger.debug(
+        `Event tracked: ${data.eventName} for user ${data.userId || 'anonymous'}`,
+      );
     } catch (error) {
       this.logger.error('Failed to track event', error);
       // 不抛出错误，避免影响主业务流程
@@ -116,7 +117,9 @@ export class AnalyticsService {
         },
       });
 
-      this.logger.debug(`API usage logged: ${data.method} ${data.endpoint} - ${data.statusCode}`);
+      this.logger.debug(
+        `API usage logged: ${data.method} ${data.endpoint} - ${data.statusCode}`,
+      );
     } catch (error) {
       this.logger.error('Failed to log API usage', error);
     }
@@ -210,7 +213,11 @@ export class AnalyticsService {
    * 获取 OCR 成本估算（本月）
    */
   async getOcrCost(): Promise<{ count: number; estimatedCost: number }> {
-    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const startOfMonth = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth(),
+      1,
+    );
 
     const count = await this.prisma.analyticsEvent.count({
       where: {
@@ -229,7 +236,11 @@ export class AnalyticsService {
    * 获取 DeepSeek 成本估算（本月）
    */
   async getDeepseekCost(): Promise<{ tokens: number; estimatedCost: number }> {
-    const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const startOfMonth = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth(),
+      1,
+    );
 
     const result = await this.prisma.message.aggregate({
       _sum: {
@@ -300,7 +311,9 @@ export class AnalyticsService {
         update: updates,
       });
 
-      this.logger.debug(`User daily stats updated for ${userId} on ${date.toISOString()}`);
+      this.logger.debug(
+        `User daily stats updated for ${userId} on ${date.toISOString()}`,
+      );
     } catch (error) {
       this.logger.error('Failed to update user daily stats', error);
     }

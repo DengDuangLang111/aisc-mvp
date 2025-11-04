@@ -14,8 +14,11 @@ import { OcrModule } from './ocr/ocr.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { LoggerModule } from './common/logger/logger.module';
 import { CommonModule } from './common/common.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { AlertModule } from './alerts/alert.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { HttpCacheInterceptor } from './common/interceptors/cache.interceptor';
+import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import configuration from './config/configuration';
 import { validate } from './config/validation';
@@ -30,10 +33,12 @@ import { validate } from './config/validation';
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => [{
-        ttl: configService.get<number>('rateLimit.ttl') || 60000,
-        limit: configService.get<number>('rateLimit.limit') || 20,
-      }],
+      useFactory: (configService: ConfigService) => [
+        {
+          ttl: configService.get<number>('rateLimit.ttl') || 60000,
+          limit: configService.get<number>('rateLimit.limit') || 20,
+        },
+      ],
     }),
     CacheModule.registerAsync({
       inject: [ConfigService],
@@ -49,6 +54,8 @@ import { validate } from './config/validation';
     StorageModule,
     OcrModule,
     AnalyticsModule,
+    MetricsModule,
+    AlertModule,
     UploadModule,
     ChatModule,
     HealthModule,
@@ -67,6 +74,10 @@ import { validate } from './config/validation';
     {
       provide: APP_INTERCEPTOR,
       useClass: HttpCacheInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MetricsInterceptor,
     },
   ],
 })

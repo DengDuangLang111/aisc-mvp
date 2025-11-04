@@ -56,7 +56,7 @@ describe('AnalyticsMiddleware', () => {
             // Simulate response finish
             setTimeout(() => callback(), 0);
           }
-        return mockResponse;
+          return mockResponse;
         }),
         get: jest.fn((header: string) => {
           if (header === 'content-length') return '500';
@@ -83,7 +83,10 @@ describe('AnalyticsMiddleware', () => {
         nextFunction,
       );
 
-      expect(mockResponse.on).toHaveBeenCalledWith('finish', expect.any(Function));
+      expect(mockResponse.on).toHaveBeenCalledWith(
+        'finish',
+        expect.any(Function),
+      );
     });
 
     it('should track API usage on response finish', async () => {
@@ -93,7 +96,7 @@ describe('AnalyticsMiddleware', () => {
             callback();
             resolve();
           }
-        return mockResponse;
+          return mockResponse;
         });
 
         middleware.use(
@@ -123,7 +126,7 @@ describe('AnalyticsMiddleware', () => {
             callback();
             resolve();
           }
-        return mockResponse;
+          return mockResponse;
         });
 
         middleware.use(
@@ -149,7 +152,7 @@ describe('AnalyticsMiddleware', () => {
             callback();
             resolve();
           }
-        return mockResponse;
+          return mockResponse;
         });
 
         middleware.use(
@@ -175,7 +178,7 @@ describe('AnalyticsMiddleware', () => {
             callback();
             resolve();
           }
-        return mockResponse;
+          return mockResponse;
         });
 
         middleware.use(

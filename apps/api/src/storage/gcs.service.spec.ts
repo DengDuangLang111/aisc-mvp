@@ -85,14 +85,18 @@ describe('GcsService', () => {
     it('should upload file successfully and return GCS result', async () => {
       const mockBuffer = Buffer.from('test file content');
       const mockFilename = 'test.pdf';
-      
+
       const mockSave = jest.fn().mockResolvedValue(undefined);
-      const mockFile = { 
+      const mockFile = {
         save: mockSave,
-        getSignedUrl: jest.fn().mockResolvedValue(['https://storage.googleapis.com/signed-url'])
+        getSignedUrl: jest
+          .fn()
+          .mockResolvedValue(['https://storage.googleapis.com/signed-url']),
       };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
       const result = await service.uploadFile(mockBuffer, mockFilename);
 
@@ -101,26 +105,37 @@ describe('GcsService', () => {
       expect(result).toHaveProperty('filename');
       expect(result.bucket).toBe('test-bucket');
       expect(result.gcsPath).toContain('gs://test-bucket/uploads/');
-      expect(mockSave).toHaveBeenCalledWith(mockBuffer, expect.objectContaining({
-        metadata: expect.objectContaining({
-          contentType: 'application/pdf',
+      expect(mockSave).toHaveBeenCalledWith(
+        mockBuffer,
+        expect.objectContaining({
+          metadata: expect.objectContaining({
+            contentType: 'application/pdf',
+          }),
         }),
-      }));
+      );
     });
 
     it('should use custom folder when provided', async () => {
       const mockBuffer = Buffer.from('test');
       const mockFilename = 'image.png';
-      
+
       const mockSave = jest.fn().mockResolvedValue(undefined);
-      const mockFile = { 
+      const mockFile = {
         save: mockSave,
-        getSignedUrl: jest.fn().mockResolvedValue(['https://storage.googleapis.com/signed-url'])
+        getSignedUrl: jest
+          .fn()
+          .mockResolvedValue(['https://storage.googleapis.com/signed-url']),
       };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
-      const result = await service.uploadFile(mockBuffer, mockFilename, 'images');
+      const result = await service.uploadFile(
+        mockBuffer,
+        mockFilename,
+        'images',
+      );
 
       expect(result.gcsPath).toContain('gs://test-bucket/images/');
     });
@@ -128,14 +143,20 @@ describe('GcsService', () => {
     it('should throw error when upload fails', async () => {
       const mockBuffer = Buffer.from('test');
       const mockSave = jest.fn().mockRejectedValue(new Error('Upload failed'));
-      const mockFile = { 
+      const mockFile = {
         save: mockSave,
-        getSignedUrl: jest.fn().mockResolvedValue(['https://storage.googleapis.com/signed-url'])
+        getSignedUrl: jest
+          .fn()
+          .mockResolvedValue(['https://storage.googleapis.com/signed-url']),
       };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
-      await expect(service.uploadFile(mockBuffer, 'test.pdf')).rejects.toThrow('GCS upload failed');
+      await expect(service.uploadFile(mockBuffer, 'test.pdf')).rejects.toThrow(
+        'GCS upload failed',
+      );
     });
   });
 
@@ -143,11 +164,13 @@ describe('GcsService', () => {
     it('should generate signed URL successfully', async () => {
       const mockGcsPath = 'gs://test-bucket/uploads/test.pdf';
       const mockSignedUrl = 'https://storage.googleapis.com/signed-url';
-      
+
       const mockGetSignedUrl = jest.fn().mockResolvedValue([mockSignedUrl]);
       const mockFile = { getSignedUrl: mockGetSignedUrl };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
       const result = await service.getSignedUrl(mockGcsPath);
 
@@ -164,7 +187,9 @@ describe('GcsService', () => {
       const mockGetSignedUrl = jest.fn().mockResolvedValue(['url']);
       const mockFile = { getSignedUrl: mockGetSignedUrl };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
       await service.getSignedUrl(mockGcsPath, 14);
 
@@ -172,23 +197,31 @@ describe('GcsService', () => {
     });
 
     it('should throw error when signed URL generation fails', async () => {
-      const mockGetSignedUrl = jest.fn().mockRejectedValue(new Error('Auth failed'));
+      const mockGetSignedUrl = jest
+        .fn()
+        .mockRejectedValue(new Error('Auth failed'));
       const mockFile = { getSignedUrl: mockGetSignedUrl };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
-      await expect(service.getSignedUrl('gs://test-bucket/test.pdf')).rejects.toThrow('Failed to generate signed URL');
+      await expect(
+        service.getSignedUrl('gs://test-bucket/test.pdf'),
+      ).rejects.toThrow('Failed to generate signed URL');
     });
   });
 
   describe('deleteFile', () => {
     it('should delete file successfully', async () => {
       const mockGcsPath = 'gs://test-bucket/uploads/test.pdf';
-      
+
       const mockDelete = jest.fn().mockResolvedValue(undefined);
       const mockFile = { delete: mockDelete };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
       await service.deleteFile(mockGcsPath);
 
@@ -196,12 +229,18 @@ describe('GcsService', () => {
     });
 
     it('should throw error when delete fails', async () => {
-      const mockDelete = jest.fn().mockRejectedValue(new Error('File not found'));
+      const mockDelete = jest
+        .fn()
+        .mockRejectedValue(new Error('File not found'));
       const mockFile = { delete: mockDelete };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
-      await expect(service.deleteFile('gs://test-bucket/test.pdf')).rejects.toThrow('Failed to delete file');
+      await expect(
+        service.deleteFile('gs://test-bucket/test.pdf'),
+      ).rejects.toThrow('Failed to delete file');
     });
   });
 
@@ -211,10 +250,12 @@ describe('GcsService', () => {
         { name: 'uploads/file1.pdf' },
         { name: 'uploads/file2.pdf' },
       ];
-      
+
       const mockGetFiles = jest.fn().mockResolvedValue([mockFiles]);
       const mockBucket = { getFiles: mockGetFiles };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
       const result = await service.listFiles('uploads');
 
@@ -227,7 +268,9 @@ describe('GcsService', () => {
     it('should use default folder when not provided', async () => {
       const mockGetFiles = jest.fn().mockResolvedValue([[]]);
       const mockBucket = { getFiles: mockGetFiles };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
       await service.listFiles();
 
@@ -235,22 +278,30 @@ describe('GcsService', () => {
     });
 
     it('should throw error when listing fails', async () => {
-      const mockGetFiles = jest.fn().mockRejectedValue(new Error('Access denied'));
+      const mockGetFiles = jest
+        .fn()
+        .mockRejectedValue(new Error('Access denied'));
       const mockBucket = { getFiles: mockGetFiles };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
-      await expect(service.listFiles('uploads')).rejects.toThrow('Failed to list files');
+      await expect(service.listFiles('uploads')).rejects.toThrow(
+        'Failed to list files',
+      );
     });
   });
 
   describe('fileExists', () => {
     it('should return true when file exists', async () => {
       const mockGcsPath = 'gs://test-bucket/uploads/test.pdf';
-      
+
       const mockExists = jest.fn().mockResolvedValue([true]);
       const mockFile = { exists: mockExists };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
       const result = await service.fileExists(mockGcsPath);
 
@@ -262,18 +313,26 @@ describe('GcsService', () => {
       const mockExists = jest.fn().mockResolvedValue([false]);
       const mockFile = { exists: mockExists };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
-      const result = await service.fileExists('gs://test-bucket/nonexistent.pdf');
+      const result = await service.fileExists(
+        'gs://test-bucket/nonexistent.pdf',
+      );
 
       expect(result).toBe(false);
     });
 
     it('should return false when check fails', async () => {
-      const mockExists = jest.fn().mockRejectedValue(new Error('Network error'));
+      const mockExists = jest
+        .fn()
+        .mockRejectedValue(new Error('Network error'));
       const mockFile = { exists: mockExists };
       const mockBucket = { file: jest.fn().mockReturnValue(mockFile) };
-      (service as any).storage = { bucket: jest.fn().mockReturnValue(mockBucket) };
+      (service as any).storage = {
+        bucket: jest.fn().mockReturnValue(mockBucket),
+      };
 
       const result = await service.fileExists('gs://test-bucket/test.pdf');
 

@@ -4,7 +4,7 @@ import { AnalyticsService } from './analytics.service';
 
 /**
  * Analytics API Controller
- * 
+ *
  * 提供数据分析和统计查询接口
  */
 @ApiTags('Analytics')
@@ -17,12 +17,17 @@ export class AnalyticsController {
    */
   @Get('active-users')
   @ApiOperation({ summary: '获取活跃用户数' })
-  @ApiQuery({ name: 'minutes', required: false, description: '时间范围（分钟）', example: 30 })
+  @ApiQuery({
+    name: 'minutes',
+    required: false,
+    description: '时间范围（分钟）',
+    example: 30,
+  })
   @ApiResponse({ status: 200, description: '返回活跃用户数' })
   async getActiveUsers(@Query('minutes') minutes?: string) {
     const mins = minutes ? parseInt(minutes, 10) : 30;
     const count = await this.analyticsService.getActiveUsers(mins);
-    
+
     return {
       activeUsers: count,
       timeRange: `${mins} minutes`,
@@ -34,7 +39,12 @@ export class AnalyticsController {
    */
   @Get('event-stats')
   @ApiOperation({ summary: '获取事件统计' })
-  @ApiQuery({ name: 'days', required: false, description: '统计天数', example: 7 })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    description: '统计天数',
+    example: 7,
+  })
   @ApiResponse({ status: 200, description: '返回事件统计数据' })
   async getEventStats(@Query('days') days?: string) {
     const numDays = days ? parseInt(days, 10) : 7;
@@ -42,7 +52,7 @@ export class AnalyticsController {
     const startDate = new Date(Date.now() - numDays * 24 * 60 * 60 * 1000);
 
     const stats = await this.analyticsService.getEventStats(startDate, endDate);
-    
+
     return {
       timeRange: {
         startDate: startDate.toISOString(),
@@ -57,7 +67,12 @@ export class AnalyticsController {
    */
   @Get('api-stats')
   @ApiOperation({ summary: '获取 API 统计' })
-  @ApiQuery({ name: 'hours', required: false, description: '统计小时数', example: 24 })
+  @ApiQuery({
+    name: 'hours',
+    required: false,
+    description: '统计小时数',
+    example: 24,
+  })
   @ApiResponse({ status: 200, description: '返回 API 统计数据' })
   async getApiStats(@Query('hours') hours?: string) {
     const numHours = hours ? parseInt(hours, 10) : 24;
@@ -109,7 +124,12 @@ export class AnalyticsController {
    */
   @Get('top-features')
   @ApiOperation({ summary: '获取最热门的功能' })
-  @ApiQuery({ name: 'limit', required: false, description: '返回数量', example: 10 })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: '返回数量',
+    example: 10,
+  })
   @ApiResponse({ status: 200, description: '返回热门功能列表' })
   async getTopFeatures(@Query('limit') limit?: string) {
     const numLimit = limit ? parseInt(limit, 10) : 10;
@@ -126,7 +146,12 @@ export class AnalyticsController {
    */
   @Get('retention')
   @ApiOperation({ summary: '获取用户留存率' })
-  @ApiQuery({ name: 'days', required: false, description: '留存天数', example: 7 })
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    description: '留存天数',
+    example: 7,
+  })
   @ApiResponse({ status: 200, description: '返回用户留存率' })
   async getRetention(@Query('days') days?: string) {
     const numDays = days ? parseInt(days, 10) : 7;
@@ -145,25 +170,20 @@ export class AnalyticsController {
   @ApiOperation({ summary: '获取分析数据综合概览' })
   @ApiResponse({ status: 200, description: '返回分析数据概览' })
   async getOverview() {
-    const [
-      activeUsers,
-      apiStats,
-      cost,
-      topFeatures,
-      retention,
-    ] = await Promise.all([
-      this.analyticsService.getActiveUsers(30),
-      Promise.all([
-        this.analyticsService.getApiErrorRate(24),
-        this.analyticsService.getAverageResponseTime(24),
-      ]),
-      Promise.all([
-        this.analyticsService.getOcrCost(),
-        this.analyticsService.getDeepseekCost(),
-      ]),
-      this.analyticsService.getTopFeatures(5),
-      this.analyticsService.getUserRetention(7),
-    ]);
+    const [activeUsers, apiStats, cost, topFeatures, retention] =
+      await Promise.all([
+        this.analyticsService.getActiveUsers(30),
+        Promise.all([
+          this.analyticsService.getApiErrorRate(24),
+          this.analyticsService.getAverageResponseTime(24),
+        ]),
+        Promise.all([
+          this.analyticsService.getOcrCost(),
+          this.analyticsService.getDeepseekCost(),
+        ]),
+        this.analyticsService.getTopFeatures(5),
+        this.analyticsService.getUserRetention(7),
+      ]);
 
     const [errorRate, avgResponseTime] = apiStats;
     const [ocrCost, deepseekCost] = cost;

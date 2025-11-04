@@ -88,7 +88,7 @@ describe('ChatService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
@@ -156,11 +156,23 @@ describe('ChatService', () => {
       mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-2',
         messages: [
-          { id: '1', role: 'user', content: '什么是递归？', conversationId: 'test-conv-2', createdAt: new Date() },
+          {
+            id: '1',
+            role: 'user',
+            content: '什么是递归？',
+            conversationId: 'test-conv-2',
+            createdAt: new Date(),
+          },
         ],
       });
       mockMessageRepo.findLastN.mockResolvedValueOnce([
-        { id: '1', role: 'user', content: '什么是递归？', conversationId: 'test-conv-2', createdAt: new Date() },
+        {
+          id: '1',
+          role: 'user',
+          content: '什么是递归？',
+          conversationId: 'test-conv-2',
+          createdAt: new Date(),
+        },
       ]);
 
       const request: ChatRequestDto = {
@@ -178,15 +190,51 @@ describe('ChatService', () => {
       mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-3',
         messages: [
-          { id: '1', role: 'user', content: '什么是递归？', conversationId: 'test-conv-3', createdAt: new Date() },
-          { id: '2', role: 'assistant', content: '提示1...', conversationId: 'test-conv-3', createdAt: new Date() },
-          { id: '3', role: 'user', content: '能再解释一下吗？', conversationId: 'test-conv-3', createdAt: new Date() },
+          {
+            id: '1',
+            role: 'user',
+            content: '什么是递归？',
+            conversationId: 'test-conv-3',
+            createdAt: new Date(),
+          },
+          {
+            id: '2',
+            role: 'assistant',
+            content: '提示1...',
+            conversationId: 'test-conv-3',
+            createdAt: new Date(),
+          },
+          {
+            id: '3',
+            role: 'user',
+            content: '能再解释一下吗？',
+            conversationId: 'test-conv-3',
+            createdAt: new Date(),
+          },
         ],
       });
       mockMessageRepo.findLastN.mockResolvedValueOnce([
-        { id: '1', role: 'user', content: '什么是递归？', conversationId: 'test-conv-3', createdAt: new Date() },
-        { id: '2', role: 'assistant', content: '提示1...', conversationId: 'test-conv-3', createdAt: new Date() },
-        { id: '3', role: 'user', content: '能再解释一下吗？', conversationId: 'test-conv-3', createdAt: new Date() },
+        {
+          id: '1',
+          role: 'user',
+          content: '什么是递归？',
+          conversationId: 'test-conv-3',
+          createdAt: new Date(),
+        },
+        {
+          id: '2',
+          role: 'assistant',
+          content: '提示1...',
+          conversationId: 'test-conv-3',
+          createdAt: new Date(),
+        },
+        {
+          id: '3',
+          role: 'user',
+          content: '能再解释一下吗？',
+          conversationId: 'test-conv-3',
+          createdAt: new Date(),
+        },
       ]);
 
       const request: ChatRequestDto = {
@@ -204,23 +252,107 @@ describe('ChatService', () => {
       mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-4',
         messages: [
-          { id: '1', role: 'user', content: '问题1', conversationId: 'test-conv-4', createdAt: new Date() },
-          { id: '2', role: 'assistant', content: '回答1', conversationId: 'test-conv-4', createdAt: new Date() },
-          { id: '3', role: 'user', content: '问题2', conversationId: 'test-conv-4', createdAt: new Date() },
-          { id: '4', role: 'assistant', content: '回答2', conversationId: 'test-conv-4', createdAt: new Date() },
-          { id: '5', role: 'user', content: '问题3', conversationId: 'test-conv-4', createdAt: new Date() },
-          { id: '6', role: 'assistant', content: '回答3', conversationId: 'test-conv-4', createdAt: new Date() },
-          { id: '7', role: 'user', content: '问题4', conversationId: 'test-conv-4', createdAt: new Date() },
+          {
+            id: '1',
+            role: 'user',
+            content: '问题1',
+            conversationId: 'test-conv-4',
+            createdAt: new Date(),
+          },
+          {
+            id: '2',
+            role: 'assistant',
+            content: '回答1',
+            conversationId: 'test-conv-4',
+            createdAt: new Date(),
+          },
+          {
+            id: '3',
+            role: 'user',
+            content: '问题2',
+            conversationId: 'test-conv-4',
+            createdAt: new Date(),
+          },
+          {
+            id: '4',
+            role: 'assistant',
+            content: '回答2',
+            conversationId: 'test-conv-4',
+            createdAt: new Date(),
+          },
+          {
+            id: '5',
+            role: 'user',
+            content: '问题3',
+            conversationId: 'test-conv-4',
+            createdAt: new Date(),
+          },
+          {
+            id: '6',
+            role: 'assistant',
+            content: '回答3',
+            conversationId: 'test-conv-4',
+            createdAt: new Date(),
+          },
+          {
+            id: '7',
+            role: 'user',
+            content: '问题4',
+            conversationId: 'test-conv-4',
+            createdAt: new Date(),
+          },
         ],
       });
       mockMessageRepo.findLastN.mockResolvedValueOnce([
-        { id: '1', role: 'user', content: '问题1', conversationId: 'test-conv-4', createdAt: new Date() },
-        { id: '2', role: 'assistant', content: '回答1', conversationId: 'test-conv-4', createdAt: new Date() },
-        { id: '3', role: 'user', content: '问题2', conversationId: 'test-conv-4', createdAt: new Date() },
-        { id: '4', role: 'assistant', content: '回答2', conversationId: 'test-conv-4', createdAt: new Date() },
-        { id: '5', role: 'user', content: '问题3', conversationId: 'test-conv-4', createdAt: new Date() },
-        { id: '6', role: 'assistant', content: '回答3', conversationId: 'test-conv-4', createdAt: new Date() },
-        { id: '7', role: 'user', content: '问题4', conversationId: 'test-conv-4', createdAt: new Date() },
+        {
+          id: '1',
+          role: 'user',
+          content: '问题1',
+          conversationId: 'test-conv-4',
+          createdAt: new Date(),
+        },
+        {
+          id: '2',
+          role: 'assistant',
+          content: '回答1',
+          conversationId: 'test-conv-4',
+          createdAt: new Date(),
+        },
+        {
+          id: '3',
+          role: 'user',
+          content: '问题2',
+          conversationId: 'test-conv-4',
+          createdAt: new Date(),
+        },
+        {
+          id: '4',
+          role: 'assistant',
+          content: '回答2',
+          conversationId: 'test-conv-4',
+          createdAt: new Date(),
+        },
+        {
+          id: '5',
+          role: 'user',
+          content: '问题3',
+          conversationId: 'test-conv-4',
+          createdAt: new Date(),
+        },
+        {
+          id: '6',
+          role: 'assistant',
+          content: '回答3',
+          conversationId: 'test-conv-4',
+          createdAt: new Date(),
+        },
+        {
+          id: '7',
+          role: 'user',
+          content: '问题4',
+          conversationId: 'test-conv-4',
+          createdAt: new Date(),
+        },
       ]);
 
       const request: ChatRequestDto = {
@@ -261,17 +393,65 @@ describe('ChatService', () => {
       mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-6',
         messages: [
-          { id: '1', role: 'user', content: '用户消息1', conversationId: 'test-conv-6', createdAt: new Date() },
-          { id: '2', role: 'assistant', content: 'AI回答1', conversationId: 'test-conv-6', createdAt: new Date() },
-          { id: '3', role: 'user', content: '用户消息2', conversationId: 'test-conv-6', createdAt: new Date() },
-          { id: '4', role: 'assistant', content: 'AI回答2', conversationId: 'test-conv-6', createdAt: new Date() },
+          {
+            id: '1',
+            role: 'user',
+            content: '用户消息1',
+            conversationId: 'test-conv-6',
+            createdAt: new Date(),
+          },
+          {
+            id: '2',
+            role: 'assistant',
+            content: 'AI回答1',
+            conversationId: 'test-conv-6',
+            createdAt: new Date(),
+          },
+          {
+            id: '3',
+            role: 'user',
+            content: '用户消息2',
+            conversationId: 'test-conv-6',
+            createdAt: new Date(),
+          },
+          {
+            id: '4',
+            role: 'assistant',
+            content: 'AI回答2',
+            conversationId: 'test-conv-6',
+            createdAt: new Date(),
+          },
         ],
       });
       mockMessageRepo.findLastN.mockResolvedValueOnce([
-        { id: '1', role: 'user', content: '用户消息1', conversationId: 'test-conv-6', createdAt: new Date() },
-        { id: '2', role: 'assistant', content: 'AI回答1', conversationId: 'test-conv-6', createdAt: new Date() },
-        { id: '3', role: 'user', content: '用户消息2', conversationId: 'test-conv-6', createdAt: new Date() },
-        { id: '4', role: 'assistant', content: 'AI回答2', conversationId: 'test-conv-6', createdAt: new Date() },
+        {
+          id: '1',
+          role: 'user',
+          content: '用户消息1',
+          conversationId: 'test-conv-6',
+          createdAt: new Date(),
+        },
+        {
+          id: '2',
+          role: 'assistant',
+          content: 'AI回答1',
+          conversationId: 'test-conv-6',
+          createdAt: new Date(),
+        },
+        {
+          id: '3',
+          role: 'user',
+          content: '用户消息2',
+          conversationId: 'test-conv-6',
+          createdAt: new Date(),
+        },
+        {
+          id: '4',
+          role: 'assistant',
+          content: 'AI回答2',
+          conversationId: 'test-conv-6',
+          createdAt: new Date(),
+        },
       ]);
 
       const request: ChatRequestDto = {
@@ -298,7 +478,7 @@ describe('ChatService', () => {
       });
 
       const beforeTime = Date.now();
-      
+
       const request: ChatRequestDto = {
         message: '测试时间戳',
         userId: 'test-user',
@@ -362,7 +542,7 @@ describe('ChatService', () => {
             content: `消息 ${i}`,
             conversationId: 'test-conv',
             createdAt: new Date(),
-          })
+          }),
         );
 
         if (testCase.userMessages === 0) {
@@ -410,7 +590,10 @@ describe('ChatService', () => {
         updatedAt: new Date(),
       });
 
-      const response = await service.chat({ message: '测试', userId: 'test-user' });
+      const response = await service.chat({
+        message: '测试',
+        userId: 'test-user',
+      });
 
       // 当 API 不可用时，应该返回降级响应
       expect(response).toBeDefined();
@@ -428,13 +611,13 @@ describe('ChatService', () => {
           userId: 'user-1',
           _count: { messages: 5 },
           messages: [
-            { 
-              id: 'msg-1', 
-              content: 'Hello', 
+            {
+              id: 'msg-1',
+              content: 'Hello',
               createdAt: new Date(),
               role: 'user',
-              conversationId: 'conv-1'
-            }
+              conversationId: 'conv-1',
+            },
           ],
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -445,20 +628,22 @@ describe('ChatService', () => {
           userId: 'user-2',
           _count: { messages: 3 },
           messages: [
-            { 
-              id: 'msg-2', 
-              content: 'World', 
+            {
+              id: 'msg-2',
+              content: 'World',
               createdAt: new Date(),
               role: 'user',
-              conversationId: 'conv-2'
-            }
+              conversationId: 'conv-2',
+            },
           ],
           createdAt: new Date(),
           updatedAt: new Date(),
         },
       ];
 
-      mockConversationRepo.findMany = jest.fn().mockResolvedValue(mockConversations);
+      mockConversationRepo.findMany = jest
+        .fn()
+        .mockResolvedValue(mockConversations);
       mockConversationRepo.count = jest.fn().mockResolvedValue(2);
 
       const result = await service.getConversations();
@@ -482,20 +667,22 @@ describe('ChatService', () => {
           userId: 'user-123',
           _count: { messages: 5 },
           messages: [
-            { 
-              id: 'msg-1', 
-              content: 'Hello', 
+            {
+              id: 'msg-1',
+              content: 'Hello',
               createdAt: new Date(),
               role: 'user',
-              conversationId: 'conv-1'
-            }
+              conversationId: 'conv-1',
+            },
           ],
           createdAt: new Date(),
           updatedAt: new Date(),
         },
       ];
 
-      mockConversationRepo.findMany = jest.fn().mockResolvedValue(mockConversations);
+      mockConversationRepo.findMany = jest
+        .fn()
+        .mockResolvedValue(mockConversations);
       mockConversationRepo.count = jest.fn().mockResolvedValue(1);
 
       const paginationDto: PaginationDto = { limit: 10, offset: 0 };
@@ -550,7 +737,9 @@ describe('ChatService', () => {
         updatedAt: new Date(),
       };
 
-      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest
+        .fn()
+        .mockResolvedValue(mockConversation);
 
       const result = await service.getConversation('conv-1');
 
@@ -562,8 +751,12 @@ describe('ChatService', () => {
     it('should throw NotFoundException when conversation not found', async () => {
       mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
 
-      await expect(service.getConversation('non-existent')).rejects.toThrow(NotFoundException);
-      await expect(service.getConversation('non-existent')).rejects.toThrow('not found');
+      await expect(service.getConversation('non-existent')).rejects.toThrow(
+        NotFoundException,
+      );
+      await expect(service.getConversation('non-existent')).rejects.toThrow(
+        'not found',
+      );
     });
   });
 
@@ -576,8 +769,12 @@ describe('ChatService', () => {
         createdAt: new Date(),
       };
 
-      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
-      mockConversationRepo.delete = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest
+        .fn()
+        .mockResolvedValue(mockConversation);
+      mockConversationRepo.delete = jest
+        .fn()
+        .mockResolvedValue(mockConversation);
 
       await service.deleteConversation('conv-1');
 
@@ -587,7 +784,9 @@ describe('ChatService', () => {
     it('should throw NotFoundException when conversation not found', async () => {
       mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
 
-      await expect(service.deleteConversation('non-existent')).rejects.toThrow(NotFoundException);
+      await expect(service.deleteConversation('non-existent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw BadRequestException when userId does not match', async () => {
@@ -598,10 +797,16 @@ describe('ChatService', () => {
         createdAt: new Date(),
       };
 
-      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest
+        .fn()
+        .mockResolvedValue(mockConversation);
 
-      await expect(service.deleteConversation('conv-1', 'user-2')).rejects.toThrow(BadRequestException);
-      await expect(service.deleteConversation('conv-1', 'user-2')).rejects.toThrow('Unauthorized');
+      await expect(
+        service.deleteConversation('conv-1', 'user-2'),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.deleteConversation('conv-1', 'user-2'),
+      ).rejects.toThrow('Unauthorized');
     });
 
     it('should allow deletion without userId check', async () => {
@@ -612,8 +817,12 @@ describe('ChatService', () => {
         createdAt: new Date(),
       };
 
-      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
-      mockConversationRepo.delete = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest
+        .fn()
+        .mockResolvedValue(mockConversation);
+      mockConversationRepo.delete = jest
+        .fn()
+        .mockResolvedValue(mockConversation);
 
       await service.deleteConversation('conv-1');
 
@@ -637,7 +846,9 @@ describe('ChatService', () => {
         updatedAt: new Date(),
       };
 
-      mockConversationRepo.create = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.create = jest
+        .fn()
+        .mockResolvedValue(mockConversation);
       mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-1',
         role: 'user',
@@ -655,8 +866,8 @@ describe('ChatService', () => {
       expect(result).toBeDefined();
       expect(mockConversationRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-            userId,
-            documentId,
+          userId,
+          documentId,
         }),
       );
     });
@@ -677,7 +888,7 @@ describe('ChatService', () => {
 
       expect(mockConversationRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-            title: expect.stringContaining('What is recursion'),
+          title: expect.stringContaining('What is recursion'),
         }),
       );
     });
@@ -709,10 +920,34 @@ describe('ChatService', () => {
       mockConversationRepo.findById = jest.fn().mockResolvedValue({
         id: 'conv-1',
         messages: [
-          { id: '1', role: 'user', content: 'Question 1', conversationId: 'conv-1', createdAt: new Date() },
-          { id: '2', role: 'assistant', content: 'Answer 1', conversationId: 'conv-1', createdAt: new Date() },
-          { id: '3', role: 'user', content: 'Question 2', conversationId: 'conv-1', createdAt: new Date() },
-          { id: '4', role: 'assistant', content: 'Answer 2', conversationId: 'conv-1', createdAt: new Date() },
+          {
+            id: '1',
+            role: 'user',
+            content: 'Question 1',
+            conversationId: 'conv-1',
+            createdAt: new Date(),
+          },
+          {
+            id: '2',
+            role: 'assistant',
+            content: 'Answer 1',
+            conversationId: 'conv-1',
+            createdAt: new Date(),
+          },
+          {
+            id: '3',
+            role: 'user',
+            content: 'Question 2',
+            conversationId: 'conv-1',
+            createdAt: new Date(),
+          },
+          {
+            id: '4',
+            role: 'assistant',
+            content: 'Answer 2',
+            conversationId: 'conv-1',
+            createdAt: new Date(),
+          },
         ],
       });
       mockMessageRepo.create = jest.fn().mockResolvedValue({
@@ -817,9 +1052,9 @@ describe('ChatService', () => {
 
     it('should handle conversation creation failure', async () => {
       mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
-      mockConversationRepo.create = jest.fn().mockRejectedValue(
-        new Error('Database connection failed'),
-      );
+      mockConversationRepo.create = jest
+        .fn()
+        .mockRejectedValue(new Error('Database connection failed'));
 
       await expect(
         service.chat({
@@ -837,7 +1072,9 @@ describe('ChatService', () => {
         createdAt: new Date(),
       };
 
-      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest
+        .fn()
+        .mockResolvedValue(mockConversation);
       mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-1',
         role: 'user',
@@ -863,7 +1100,7 @@ describe('ChatService', () => {
 
     it('should handle conversation title generation failure', async () => {
       const message = 'A'.repeat(1000); // Very long message
-      
+
       mockConversationRepo.create = jest.fn().mockResolvedValue({
         id: 'conv-1',
         userId: 'user-1',

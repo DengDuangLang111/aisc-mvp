@@ -5,7 +5,7 @@ import { EventName, EventCategory } from './analytics.types';
 
 /**
  * Analytics 中间件
- * 
+ *
  * 自动记录所有 API 请求的使用情况
  */
 @Injectable()

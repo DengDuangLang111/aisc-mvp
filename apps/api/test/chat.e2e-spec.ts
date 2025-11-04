@@ -174,7 +174,10 @@ describe('ChatController (e2e)', () => {
         .send({})
         .expect(400);
 
-      expect(Array.isArray(response.body.message) && response.body.message.some((m: string) => m.includes('message'))).toBeTruthy();
+      expect(
+        Array.isArray(response.body.message) &&
+          response.body.message.some((m: string) => m.includes('message')),
+      ).toBeTruthy();
       expect(mockChatService.chat).not.toHaveBeenCalled();
     });
 
@@ -209,9 +212,7 @@ describe('ChatController (e2e)', () => {
         .post('/chat')
         .send({
           message: 'Hello',
-          conversationHistory: [
-            { role: 'invalid-role', content: 'Test' },
-          ],
+          conversationHistory: [{ role: 'invalid-role', content: 'Test' }],
         })
         .expect(400);
 
@@ -235,9 +236,7 @@ describe('ChatController (e2e)', () => {
         .post('/chat')
         .send({
           message: 'Hello',
-          conversationHistory: [
-            { role: 'user', content: '' },
-          ],
+          conversationHistory: [{ role: 'user', content: '' }],
         })
         .expect(201);
 
@@ -250,9 +249,7 @@ describe('ChatController (e2e)', () => {
         .post('/chat')
         .send({
           message: 'Hello',
-          conversationHistory: [
-            { role: 'user', content: longContent },
-          ],
+          conversationHistory: [{ role: 'user', content: longContent }],
         })
         .expect(400);
 
@@ -302,7 +299,9 @@ describe('ChatController (e2e)', () => {
 
   describe('POST /chat - Error Handling', () => {
     it('should handle service errors', async () => {
-      mockChatService.chat.mockRejectedValue(new Error('AI service unavailable'));
+      mockChatService.chat.mockRejectedValue(
+        new Error('AI service unavailable'),
+      );
 
       await request(app.getHttpServer())
         .post('/chat')

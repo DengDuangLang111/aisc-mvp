@@ -31,7 +31,11 @@ describe('HttpCacheInterceptor', () => {
     jest.clearAllMocks();
   });
 
-  const createMockExecutionContext = (method: string, url: string, query: any = {}): ExecutionContext => {
+  const createMockExecutionContext = (
+    method: string,
+    url: string,
+    query: any = {},
+  ): ExecutionContext => {
     return {
       switchToHttp: () => ({
         getRequest: () => ({
@@ -76,7 +80,7 @@ describe('HttpCacheInterceptor', () => {
       const data = await result.toPromise();
 
       // Wait for async tap operation
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(data).toEqual(responseData);
       expect(cacheManager.get).toHaveBeenCalledWith('cache:/test:{}');
@@ -104,7 +108,10 @@ describe('HttpCacheInterceptor', () => {
     it('should include query parameters in cache key', async () => {
       cacheManager.get.mockResolvedValue(null);
 
-      const context = createMockExecutionContext('GET', '/test', { page: 1, limit: 10 });
+      const context = createMockExecutionContext('GET', '/test', {
+        page: 1,
+        limit: 10,
+      });
       const next = createMockCallHandler({ message: 'response' });
 
       await interceptor.intercept(context, next);
@@ -161,7 +168,7 @@ describe('HttpCacheInterceptor', () => {
       await result.toPromise();
 
       // Wait for async tap operation
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(cacheManager.set).not.toHaveBeenCalled();
     });
@@ -176,7 +183,7 @@ describe('HttpCacheInterceptor', () => {
       await result.toPromise();
 
       // Wait for async tap operation
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       expect(cacheManager.set).not.toHaveBeenCalled();
     });

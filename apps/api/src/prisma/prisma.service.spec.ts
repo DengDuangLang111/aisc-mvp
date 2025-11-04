@@ -10,7 +10,7 @@ describe('PrismaService', () => {
     }).compile();
 
     service = module.get<PrismaService>(PrismaService);
-    
+
     // Mock Prisma client methods
     service.$connect = jest.fn();
     service.$disconnect = jest.fn();

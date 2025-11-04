@@ -32,7 +32,10 @@ describe('AllExceptionsFilter', () => {
     jest.clearAllMocks();
   });
 
-  const createMockArgumentsHost = (url = '/test', method = 'GET'): ArgumentsHost => {
+  const createMockArgumentsHost = (
+    url = '/test',
+    method = 'GET',
+  ): ArgumentsHost => {
     const mockRequest = {
       url,
       method,
@@ -62,7 +65,10 @@ describe('AllExceptionsFilter', () => {
 
   describe('catch - HttpException handling', () => {
     it('should handle HttpException with 400 Bad Request', () => {
-      const exception = new HttpException('Bad request', HttpStatus.BAD_REQUEST);
+      const exception = new HttpException(
+        'Bad request',
+        HttpStatus.BAD_REQUEST,
+      );
       const host = createMockArgumentsHost('/upload', 'POST');
       const response = host.switchToHttp().getResponse();
 
@@ -94,7 +100,10 @@ describe('AllExceptionsFilter', () => {
     });
 
     it('should handle HttpException with 401 Unauthorized', () => {
-      const exception = new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
+      const exception = new HttpException(
+        'Unauthorized',
+        HttpStatus.UNAUTHORIZED,
+      );
       const host = createMockArgumentsHost('/auth/protected', 'GET');
       const response = host.switchToHttp().getResponse();
 
@@ -256,8 +265,12 @@ describe('AllExceptionsFilter', () => {
       const afterTime = new Date().toISOString();
 
       const callArgs = (response.json as jest.Mock).mock.calls[0][0];
-      expect(callArgs.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
-      expect(callArgs.timestamp >= beforeTime && callArgs.timestamp <= afterTime).toBe(true);
+      expect(callArgs.timestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/,
+      );
+      expect(
+        callArgs.timestamp >= beforeTime && callArgs.timestamp <= afterTime,
+      ).toBe(true);
     });
 
     it('should include correct path from request', () => {
@@ -300,8 +313,16 @@ describe('AllExceptionsFilter', () => {
     });
 
     it('should handle exceptions on different HTTP methods', () => {
-      const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
-      
+      const methods = [
+        'GET',
+        'POST',
+        'PUT',
+        'PATCH',
+        'DELETE',
+        'OPTIONS',
+        'HEAD',
+      ];
+
       methods.forEach((method) => {
         const exception = new HttpException('Test', HttpStatus.OK);
         const host = createMockArgumentsHost('/test', method);

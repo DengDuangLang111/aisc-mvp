@@ -105,7 +105,9 @@ describe('AnalyticsService', () => {
         { userId: 'user-3' },
       ];
 
-      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockResult);
+      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(
+        mockResult,
+      );
 
       const count = await service.getActiveUsers(30);
 
@@ -212,7 +214,9 @@ describe('AnalyticsService', () => {
         { eventName: 'CHAT_MESSAGE', _count: { eventName: 50 } },
       ];
 
-      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockEvents);
+      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(
+        mockEvents,
+      );
 
       const startDate = new Date('2024-01-01');
       const endDate = new Date('2024-01-07');
@@ -249,7 +253,9 @@ describe('AnalyticsService', () => {
         { eventName: 'OCR_REQUEST', _count: { eventName: 200 } },
       ];
 
-      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(mockFeatures);
+      (prisma.analyticsEvent.groupBy as jest.Mock).mockResolvedValue(
+        mockFeatures,
+      );
 
       const result = await service.getTopFeatures(3);
 
@@ -261,7 +267,11 @@ describe('AnalyticsService', () => {
 
   describe('getUserRetention', () => {
     it('should calculate user retention rate', async () => {
-      const mockInitialUsers = [{ userId: 'user-1' }, { userId: 'user-2' }, { userId: 'user-3' }];
+      const mockInitialUsers = [
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+        { userId: 'user-3' },
+      ];
       const mockReturnedUsers = [{ userId: 'user-1' }, { userId: 'user-2' }];
 
       (prisma.analyticsEvent.groupBy as jest.Mock)
@@ -294,7 +304,9 @@ describe('AnalyticsService', () => {
         activeTimeMinutes: 45,
       };
 
-      (prisma.userDailyStat.findUnique as jest.Mock).mockResolvedValue(mockStats);
+      (prisma.userDailyStat.findUnique as jest.Mock).mockResolvedValue(
+        mockStats,
+      );
 
       const result = await service.getUserDailyStats(userId, date);
 
@@ -346,7 +358,9 @@ describe('AnalyticsService', () => {
 
       // Should not throw error
       await expect(
-        service.updateUserDailyStats('user-123', new Date(), { filesUploaded: 1 }),
+        service.updateUserDailyStats('user-123', new Date(), {
+          filesUploaded: 1,
+        }),
       ).resolves.not.toThrow();
     });
   });

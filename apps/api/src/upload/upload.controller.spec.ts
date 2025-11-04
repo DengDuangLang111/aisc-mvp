@@ -109,7 +109,9 @@ describe('UploadController', () => {
     });
 
     it('should throw BadRequestException if no file provided', async () => {
-      await expect(controller.uploadFile(undefined as any)).rejects.toThrow(BadRequestException);
+      await expect(controller.uploadFile(undefined as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -133,9 +135,10 @@ describe('UploadController', () => {
 
       // We can't fully test this without implementing storage mock
       // So we just verify getFileInfo is called
-      await expect(controller.downloadFile('file-123', mockRes as any))
-        .rejects.toThrow();
-      
+      await expect(
+        controller.downloadFile('file-123', mockRes as any),
+      ).rejects.toThrow();
+
       expect(uploadService.getFileInfo).toHaveBeenCalledWith('file-123');
     });
   });
@@ -157,9 +160,13 @@ describe('UploadController', () => {
     });
 
     it('should handle error when getting content', async () => {
-      mockUploadService.readFileContent.mockRejectedValue(new Error('Cannot read file'));
+      mockUploadService.readFileContent.mockRejectedValue(
+        new Error('Cannot read file'),
+      );
 
-      await expect(controller.getFileContent('file-123')).rejects.toThrow('Cannot read file');
+      await expect(controller.getFileContent('file-123')).rejects.toThrow(
+        'Cannot read file',
+      );
     });
   });
 
@@ -197,7 +204,9 @@ describe('UploadController', () => {
     it('should handle document not found', async () => {
       mockPrismaService.document.findUnique.mockResolvedValue(null);
 
-      await expect(controller.getDocumentInfo('non-existent')).rejects.toThrow(NotFoundException);
+      await expect(controller.getDocumentInfo('non-existent')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should return pending status if no OCR result', async () => {
@@ -240,7 +249,9 @@ describe('UploadController', () => {
     it('should throw NotFoundException if OCR result not available', async () => {
       mockVisionService.getOcrResult.mockResolvedValue(null);
 
-      await expect(controller.getOcrResult('file-123')).rejects.toThrow(NotFoundException);
+      await expect(controller.getOcrResult('file-123')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -253,11 +264,13 @@ describe('UploadController', () => {
         buffer: Buffer.from('test'),
       } as Express.Multer.File;
 
-      mockUploadService.saveFile.mockRejectedValue(new Error('Storage service unavailable'));
+      mockUploadService.saveFile.mockRejectedValue(
+        new Error('Storage service unavailable'),
+      );
 
-      await expect(
-        controller.uploadFile(mockFile, 'user-123'),
-      ).rejects.toThrow('Storage service unavailable');
+      await expect(controller.uploadFile(mockFile, 'user-123')).rejects.toThrow(
+        'Storage service unavailable',
+      );
     });
 
     it('should handle invalid document ID in getDocumentInfo', async () => {
@@ -265,9 +278,9 @@ describe('UploadController', () => {
         new Error('Invalid ID format'),
       );
 
-      await expect(
-        controller.getDocumentInfo('invalid-id'),
-      ).rejects.toThrow('Invalid ID format');
+      await expect(controller.getDocumentInfo('invalid-id')).rejects.toThrow(
+        'Invalid ID format',
+      );
     });
 
     it('should handle database errors in listDocuments', async () => {
@@ -275,9 +288,9 @@ describe('UploadController', () => {
         new Error('Database connection failed'),
       );
 
-      await expect(
-        controller.getDocuments('user-123'),
-      ).rejects.toThrow('Database connection failed');
+      await expect(controller.getDocuments('user-123')).rejects.toThrow(
+        'Database connection failed',
+      );
     });
   });
 
@@ -344,14 +357,14 @@ describe('UploadController', () => {
 
       mockUploadService.saveFile.mockResolvedValue(mockResult);
 
-      const uploadPromises = Array(5).fill(null).map(() =>
-        controller.uploadFile(mockFile, 'user-123'),
-      );
+      const uploadPromises = Array(5)
+        .fill(null)
+        .map(() => controller.uploadFile(mockFile, 'user-123'));
 
       const results = await Promise.all(uploadPromises);
 
       expect(results).toHaveLength(5);
-      results.forEach(result => {
+      results.forEach((result) => {
         expect(result.id).toBe('doc-concurrent');
       });
     });
@@ -374,6 +387,135 @@ describe('UploadController', () => {
 
       expect(result.id).toBe(docIdWithSpecialChars);
       expect(result.filename).toBe('测试文档.pdf');
+    });
+  });
+
+  describe('getDocuments', () => {
+    it('should get documents list with default limit', async () => {
+      const mockDocuments = [
+        {
+          id: 'doc-1',
+          filename: 'test1.pdf',
+          mimeType: 'application/pdf',
+          size: 1024,
+          uploadedAt: new Date('2025-01-01'),
+          ocrResult: {
+            confidence: 0.95,
+            pageCount: 10,
+          },
+        },
+        {
+          id: 'doc-2',
+          filename: 'test2.pdf',
+          mimeType: 'application/pdf',
+          size: 2048,
+          uploadedAt: new Date('2025-01-02'),
+          ocrResult: null,
+        },
+      ];
+
+      mockPrismaService.document.findMany.mockResolvedValue(mockDocuments);
+
+      const result = await controller.getDocuments();
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        id: 'doc-1',
+        filename: 'test1.pdf',
+        ocrStatus: 'completed',
+        ocrConfidence: 0.95,
+        ocrPageCount: 10,
+      });
+      expect(result[1]).toMatchObject({
+        id: 'doc-2',
+        filename: 'test2.pdf',
+        ocrStatus: 'pending',
+      });
+    });
+
+    it('should filter documents by userId', async () => {
+      const mockDocuments = [
+        {
+          id: 'doc-user',
+          filename: 'user-doc.pdf',
+          mimeType: 'application/pdf',
+          size: 1024,
+          uploadedAt: new Date(),
+          ocrResult: null,
+        },
+      ];
+
+      mockPrismaService.document.findMany.mockResolvedValue(mockDocuments);
+
+      const result = await controller.getDocuments('user-123');
+
+      expect(result).toHaveLength(1);
+      expect(mockPrismaService.document.findMany).toHaveBeenCalledWith({
+        where: { userId: 'user-123' },
+        include: expect.any(Object),
+        orderBy: { uploadedAt: 'desc' },
+        take: 20,
+      });
+    });
+
+    it('should respect custom limit parameter', async () => {
+      mockPrismaService.document.findMany.mockResolvedValue([]);
+
+      await controller.getDocuments(undefined, '50');
+
+      expect(mockPrismaService.document.findMany).toHaveBeenCalledWith({
+        where: undefined,
+        include: expect.any(Object),
+        orderBy: { uploadedAt: 'desc' },
+        take: 50,
+      });
+    });
+
+    it('should return empty array when no documents found', async () => {
+      mockPrismaService.document.findMany.mockResolvedValue([]);
+
+      const result = await controller.getDocuments('user-empty');
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('downloadFile - Enhanced', () => {
+    it('should throw NotFoundException if file does not exist', async () => {
+      mockUploadService.getFileInfo.mockResolvedValue(null);
+
+      const mockRes = {
+        setHeader: jest.fn(),
+        sendFile: jest.fn(),
+      };
+
+      await expect(
+        controller.downloadFile('non-existent', mockRes as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should set correct headers for file download', async () => {
+      const mockFileInfo = {
+        diskFilename: '测试文档.pdf',
+        uploadDir: '/uploads',
+      };
+
+      mockUploadService.getFileInfo.mockResolvedValue(mockFileInfo);
+
+      const mockRes = {
+        setHeader: jest.fn(),
+        sendFile: jest.fn(),
+      };
+
+      await controller.downloadFile('file-special', mockRes as any);
+
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        'attachment; filename="测试文档.pdf"',
+      );
+      expect(mockRes.sendFile).toHaveBeenCalledWith('测试文档.pdf', {
+        root: '/uploads',
+      });
     });
   });
 });

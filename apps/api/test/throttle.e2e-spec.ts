@@ -47,7 +47,7 @@ describe('Throttler (Rate Limiting) E2E', () => {
       for (let i = 0; i < 5; i++) {
         const response = await request(app.getHttpServer()).get('/health');
         responses.push(response);
-        
+
         // Small delay between requests
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
@@ -62,7 +62,7 @@ describe('Throttler (Rate Limiting) E2E', () => {
   describe('Rate Limiting - Upload Endpoint', () => {
     it('should rate limit excessive upload requests', async () => {
       const responses = [];
-      
+
       // The upload endpoint has ThrottlerGuard applied
       // Rate limit: 20 requests per 60 seconds
       // We'll send requests and track which ones are throttled
@@ -72,7 +72,7 @@ describe('Throttler (Rate Limiting) E2E', () => {
           const response = await request(app.getHttpServer())
             .post('/upload')
             .attach('file', Buffer.from(`Test content ${i}`), `test-${i}.txt`);
-          
+
           responses.push({
             index: i,
             status: response.status,
@@ -98,9 +98,11 @@ describe('Throttler (Rate Limiting) E2E', () => {
 
       // We should have some successful requests
       expect(successCount).toBeGreaterThan(0);
-      
+
       // Some requests might be throttled depending on timing
-      console.log(`Upload test: ${successCount} succeeded, ${throttledCount} throttled out of ${responses.length}`);
+      console.log(
+        `Upload test: ${successCount} succeeded, ${throttledCount} throttled out of ${responses.length}`,
+      );
     });
 
     it('should return 429 status when rate limit exceeded', async () => {
@@ -112,7 +114,11 @@ describe('Throttler (Rate Limiting) E2E', () => {
         promises.push(
           request(app.getHttpServer())
             .post('/upload')
-            .attach('file', Buffer.from(`Throttle test ${i}`), `throttle-${i}.txt`)
+            .attach(
+              'file',
+              Buffer.from(`Throttle test ${i}`),
+              `throttle-${i}.txt`,
+            ),
         );
       }
 
@@ -128,8 +134,10 @@ describe('Throttler (Rate Limiting) E2E', () => {
       });
 
       // We expect some throttling to occur with 25 rapid requests
-      console.log(`Found ${throttledResponses.length} throttled responses out of ${responses.length}`);
-      
+      console.log(
+        `Found ${throttledResponses.length} throttled responses out of ${responses.length}`,
+      );
+
       // This assertion is flexible since timing can vary
       expect(responses.length).toBe(25);
     }, 30000); // Increase timeout for this test
@@ -167,7 +175,7 @@ describe('Throttler (Rate Limiting) E2E', () => {
 
       // Count successful requests
       const successCount = responses.filter((r) => r.success).length;
-      
+
       // We should have some successful requests
       expect(successCount).toBeGreaterThan(0);
       expect(responses.length).toBe(10);
@@ -198,7 +206,7 @@ describe('Throttler (Rate Limiting) E2E', () => {
     it('should reset rate limit counter after waiting', async () => {
       // Make a few requests
       const initialResponses = [];
-      
+
       for (let i = 0; i < 3; i++) {
         const response = await request(app.getHttpServer()).get('/health');
         initialResponses.push(response.status);
@@ -215,7 +223,7 @@ describe('Throttler (Rate Limiting) E2E', () => {
 
       // Make more requests - should still work
       const laterResponses = [];
-      
+
       for (let i = 0; i < 3; i++) {
         const response = await request(app.getHttpServer()).get('/health');
         laterResponses.push(response.status);
@@ -254,9 +262,10 @@ describe('Throttler (Rate Limiting) E2E', () => {
       const responses = [];
 
       for (const endpoint of endpoints) {
-        const response = await request(app.getHttpServer())
-          [endpoint.method](endpoint.path);
-        
+        const response = await request(app.getHttpServer())[endpoint.method](
+          endpoint.path,
+        );
+
         responses.push({
           path: endpoint.path,
           status: response.status,
@@ -280,7 +289,11 @@ describe('Throttler (Rate Limiting) E2E', () => {
       for (let i = 0; i < 30; i++) {
         const response = await request(app.getHttpServer())
           .post('/upload')
-          .attach('file', Buffer.from(`Error test ${i}`), `error-test-${i}.txt`);
+          .attach(
+            'file',
+            Buffer.from(`Error test ${i}`),
+            `error-test-${i}.txt`,
+          );
 
         if (response.status === 429) {
           responses.push(response);
@@ -292,10 +305,10 @@ describe('Throttler (Rate Limiting) E2E', () => {
       // If we got any 429 responses, check their structure
       if (responses.length > 0) {
         const throttledResponse = responses[0];
-        
+
         expect(throttledResponse.status).toBe(429);
         expect(throttledResponse.body).toBeDefined();
-        
+
         console.log('Throttle error response:', throttledResponse.body);
       } else {
         console.log('No throttling occurred in this test run');

@@ -16,7 +16,7 @@ describe('UploadController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    
+
     // 应用与生产环境相同的管道
     app.useGlobalPipes(
       new ValidationPipe({
@@ -25,7 +25,7 @@ describe('UploadController (e2e)', () => {
         transform: true,
       }),
     );
-    
+
     await app.init();
   });
 
@@ -37,7 +37,7 @@ describe('UploadController (e2e)', () => {
     it('should successfully upload a valid PDF file', async () => {
       // 创建一个真实的 PDF 文件头（魔数）
       const pdfBuffer = Buffer.concat([
-        Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2D]), // %PDF- magic number
+        Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]), // %PDF- magic number
         Buffer.from('This is a test PDF content'),
       ]);
 
@@ -49,7 +49,7 @@ describe('UploadController (e2e)', () => {
       if (response.status !== 201) {
         console.log('Error response:', response.status, response.body);
       }
-      
+
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('id');
       expect(response.body).toHaveProperty('filename', 'test-document.pdf');
@@ -78,7 +78,7 @@ describe('UploadController (e2e)', () => {
     it('should successfully upload a valid PNG image', async () => {
       // PNG 魔数: 89 50 4E 47 0D 0A 1A 0A
       const pngBuffer = Buffer.concat([
-        Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
         Buffer.from('PNG image content placeholder'),
       ]);
 
@@ -132,9 +132,7 @@ describe('UploadController (e2e)', () => {
     });
 
     it('should reject file without file field', async () => {
-      await request(app.getHttpServer())
-        .post('/upload')
-        .expect(400);
+      await request(app.getHttpServer()).post('/upload').expect(400);
     });
 
     it('should reject file exceeding size limit', async () => {
@@ -155,14 +153,16 @@ describe('UploadController (e2e)', () => {
       const uploadResponse = await request(app.getHttpServer())
         .post('/upload')
         .attach('file', textBuffer, 'download-test.txt');
-      
+
       const fileId = uploadResponse.body.id;
 
       const response = await request(app.getHttpServer())
         .get(`/upload/${fileId}`)
         .expect(200);
 
-      expect(response.headers['content-type']).toMatch(/text\/plain|application\/octet-stream/);
+      expect(response.headers['content-type']).toMatch(
+        /text\/plain|application\/octet-stream/,
+      );
       expect(response.headers['content-disposition']).toContain('attachment');
     });
 
@@ -184,7 +184,8 @@ describe('UploadController (e2e)', () => {
 
     beforeAll(async () => {
       // 上传一个文本文件用于读取内容
-      const textContent = 'Line 1: Hello World\nLine 2: Test Content\nLine 3: End of file';
+      const textContent =
+        'Line 1: Hello World\nLine 2: Test Content\nLine 3: End of file';
       const response = await request(app.getHttpServer())
         .post('/upload')
         .attach('file', Buffer.from(textContent), 'content-test.txt');
@@ -210,7 +211,7 @@ describe('UploadController (e2e)', () => {
     it('should handle binary files gracefully', async () => {
       // 上传一个 PNG 图片
       const pngBuffer = Buffer.concat([
-        Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
         Buffer.from('PNG content'),
       ]);
 
@@ -248,7 +249,9 @@ describe('UploadController (e2e)', () => {
         .expect(200);
 
       // 文件以UUID存储，Content-Disposition应该包含UUID文件名和.txt扩展名
-      expect(downloadResponse.headers['content-disposition']).toContain('attachment');
+      expect(downloadResponse.headers['content-disposition']).toContain(
+        'attachment',
+      );
       expect(downloadResponse.headers['content-disposition']).toMatch(/\.txt/);
 
       // 3. 读取文件内容
@@ -280,9 +283,7 @@ describe('UploadController (e2e)', () => {
 
       // 验证所有文件都可以访问
       for (const fileId of uploadedIds) {
-        await request(app.getHttpServer())
-          .get(`/upload/${fileId}`)
-          .expect(200);
+        await request(app.getHttpServer()).get(`/upload/${fileId}`).expect(200);
       }
     });
   });
@@ -312,10 +313,14 @@ describe('UploadController (e2e)', () => {
       for (let i = 0; i < 2; i++) {
         const response = await request(app.getHttpServer())
           .post('/upload')
-          .attach('file', Buffer.from(`Concurrent test ${i}`), `concurrent-${i}.txt`);
-        
+          .attach(
+            'file',
+            Buffer.from(`Concurrent test ${i}`),
+            `concurrent-${i}.txt`,
+          );
+
         results.push(response);
-        
+
         // 在请求之间添加小延迟
         if (i === 0) {
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -323,7 +328,7 @@ describe('UploadController (e2e)', () => {
       }
 
       // 验证至少有一个成功
-      const successCount = results.filter(r => r.status === 201).length;
+      const successCount = results.filter((r) => r.status === 201).length;
       expect(successCount).toBeGreaterThanOrEqual(1);
     });
   });

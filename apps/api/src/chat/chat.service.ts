@@ -1,16 +1,31 @@
-import { Injectable, Inject, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import axios from 'axios';
 
 import { VisionService } from '../ocr/vision.service';
-import { AnalyticsService, AnalyticsEventData } from '../analytics/analytics.service';
+import {
+  AnalyticsService,
+  AnalyticsEventData,
+} from '../analytics/analytics.service';
 import { EventName, EventCategory } from '../analytics/analytics.types';
 import type { ChatResponse, HintLevel } from '@study-oasis/contracts';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { ConversationRepository } from './repositories/conversation.repository';
 import { MessageRepository } from './repositories/message.repository';
-import { PaginationDto, PaginatedResponse, createPaginatedResponse } from '../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  PaginatedResponse,
+  createPaginatedResponse,
+} from '../common/dto/pagination.dto';
+import { ChatPromptBuilder } from './helpers/chat-prompt.builder';
+import { ChatMessageHelper } from './helpers/chat-message.helper';
 
 /**
  * DeepSeek API 响应类型
@@ -39,7 +54,7 @@ interface DeepSeekResponse {
  */
 interface DbMessage {
   id: string;
-  role: string;  // Prisma返回string，不是字面量类型
+  role: string; // Prisma返回string，不是字面量类型
   content: string;
   tokensUsed: number | null;
   hintLevel: number | null;
@@ -86,10 +101,9 @@ interface ResponseStream {
   setHeader: (name: string, value: string) => void;
 }
 
-
 /**
  * ChatService - 重构版
- * 
+ *
  * 新增功能：
  * 1. 对话历史持久化（conversations, messages 表）
  * 2. 文档上下文集成（从 OCR 结果读取）
@@ -99,7 +113,8 @@ interface ResponseStream {
  */
 @Injectable()
 export class ChatService {
-  private readonly DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
+  private readonly DEEPSEEK_API_URL =
+    'https://api.deepseek.com/v1/chat/completions';
   private readonly DEEPSEEK_MODEL = 'deepseek-chat';
 
   constructor(
@@ -113,7 +128,7 @@ export class ChatService {
 
   /**
    * 处理聊天请求（重构版）
-   * 
+   *
    * 流程：
    * 1. 创建或获取对话
    * 2. 加载文档上下文（如果有 documentId）
@@ -124,7 +139,7 @@ export class ChatService {
    */
   async chat(request: ChatRequestDto): Promise<ChatResponse> {
     const { message, conversationId, documentId, userId } = request;
-    const sessionId = this.generateSessionId();
+    const sessionId = ChatMessageHelper.generateSessionId();
 
     this.logger.log('info', 'Processing chat request', {
       context: 'ChatService',
@@ -138,7 +153,7 @@ export class ChatService {
       // 1. 记录对话开始事件
       await this.trackEvent({
         userId,
-        sessionId: sessionId!,
+        sessionId: sessionId,
         eventName: EventName.CHAT_SESSION_START,
         eventCategory: EventCategory.CHAT,
         eventProperties: {
@@ -151,12 +166,15 @@ export class ChatService {
       // 2. 获取或创建对话
       let conversation: ConversationWithMessages;
       if (conversationId) {
-        const existingConv = await this.conversationRepo.findById(conversationId);
-        
+        const existingConv =
+          await this.conversationRepo.findById(conversationId);
+
         if (!existingConv) {
-          throw new NotFoundException(`Conversation ${conversationId} not found`);
+          throw new NotFoundException(
+            `Conversation ${conversationId} not found`,
+          );
         }
-        
+
         // 只获取最近10条消息
         conversation = {
           ...existingConv,
@@ -167,9 +185,9 @@ export class ChatService {
         const newConversation = await this.conversationRepo.create({
           userId,
           documentId,
-          title: this.generateConversationTitle(message),
+          title: ChatPromptBuilder.generateConversationTitle(message),
         });
-        
+
         conversation = {
           ...newConversation,
           messages: [],
@@ -186,7 +204,7 @@ export class ChatService {
       if (documentId || conversation.documentId) {
         const docId = documentId || conversation.documentId;
         const ocrResult = await this.visionService.getOcrResult(docId!);
-        
+
         if (ocrResult) {
           documentContext = ocrResult.fullText;
           this.logger.log('info', 'Loaded document context', {
@@ -201,14 +219,15 @@ export class ChatService {
       const userMessageCount = conversation.messages.filter(
         (msg: DbMessage) => msg.role === 'user',
       ).length;
-      const hintLevel = this.calculateHintLevel(userMessageCount);
+      const hintLevel = ChatPromptBuilder.calculateHintLevel(userMessageCount);
 
       // 5. 构建消息历史
-      const messageHistory: DeepSeekMessage[] = this.buildMessageHistory(
-        conversation.messages,
-        documentContext,
-        hintLevel,
-      );
+      const messageHistory: DeepSeekMessage[] =
+        ChatMessageHelper.buildMessageHistory(
+          conversation.messages,
+          documentContext,
+          hintLevel,
+        );
 
       // 6. 添加当前用户消息
       messageHistory.push({
@@ -217,7 +236,11 @@ export class ChatService {
       });
 
       // 7. 调用 DeepSeek API
-      const aiResponse = await this.callDeepSeekAPI(messageHistory, userId, sessionId);
+      const aiResponse = await this.callDeepSeekAPI(
+        messageHistory,
+        userId,
+        sessionId,
+      );
 
       // 8. 保存用户消息到数据库
       await this.messageRepo.create({
@@ -237,7 +260,7 @@ export class ChatService {
       // 10. 记录消息发送成功事件
       await this.trackEvent({
         userId,
-        sessionId: sessionId!,
+        sessionId: sessionId,
         eventName: EventName.CHAT_MESSAGE_SENT,
         eventCategory: EventCategory.CHAT,
         eventProperties: {
@@ -265,7 +288,7 @@ export class ChatService {
       // 记录失败事件
       await this.trackEvent({
         userId,
-        sessionId: sessionId!,
+        sessionId: sessionId,
         eventName: EventName.CHAT_MESSAGE_FAILED,
         eventCategory: EventCategory.CHAT,
         eventProperties: {
@@ -281,10 +304,13 @@ export class ChatService {
   /**
    * 获取对话历史
    */
-  async getConversations(userId?: string, pagination: PaginationDto = new PaginationDto()): Promise<PaginatedResponse<any>> {
+  async getConversations(
+    userId?: string,
+    pagination: PaginationDto = new PaginationDto(),
+  ): Promise<PaginatedResponse<any>> {
     // 获取总数
     const total = await this.conversationRepo.count({ userId });
-    
+
     // 获取分页数据
     const conversations = await this.conversationRepo.findMany({
       userId,
@@ -304,7 +330,12 @@ export class ChatService {
       updatedAt: conv.updatedAt,
     }));
 
-    return createPaginatedResponse(data, total, pagination.limit || 20, pagination.offset || 0);
+    return createPaginatedResponse(
+      data,
+      total,
+      pagination.limit || 20,
+      pagination.offset || 0,
+    );
   }
 
   /**
@@ -337,7 +368,10 @@ export class ChatService {
   /**
    * 删除对话
    */
-  async deleteConversation(conversationId: string, userId?: string): Promise<void> {
+  async deleteConversation(
+    conversationId: string,
+    userId?: string,
+  ): Promise<void> {
     const conversation = await this.conversationRepo.findById(conversationId);
 
     if (!conversation) {
@@ -372,10 +406,12 @@ export class ChatService {
       this.logger.warn('DeepSeek API key not configured, using fallback', {
         context: 'ChatService',
       });
-      
+
       // Fallback: 返回硬编码回复
       return {
-        reply: this.generateFallbackResponse(messages[messages.length - 1].content),
+        reply: ChatPromptBuilder.generateFallbackResponse(
+          messages[messages.length - 1].content,
+        ),
         tokensUsed: 0,
       };
     }
@@ -403,7 +439,7 @@ export class ChatService {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
+            Authorization: `Bearer ${apiKey}`,
           },
           timeout: 30000, // 30 秒超时
         },
@@ -458,155 +494,6 @@ export class ChatService {
   }
 
   /**
-   * 构建消息历史（包含系统提示和文档上下文）
-   */
-  private buildMessageHistory(
-    dbMessages: DbMessage[],
-    documentContext: string,
-    hintLevel: HintLevel,
-  ): DeepSeekMessage[] {
-    const messages: DeepSeekMessage[] = [];
-
-    // 1. 系统提示（根据 hintLevel 调整）
-    const systemPrompt = this.buildSystemPrompt(hintLevel, !!documentContext);
-    messages.push({
-      role: 'system',
-      content: systemPrompt,
-    });
-
-    // 2. 文档上下文（如果有）
-    if (documentContext) {
-      messages.push({
-        role: 'system',
-        content: `以下是用户上传的文档内容，请基于此内容回答用户的问题：\n\n${documentContext.slice(0, 4000)}`, // 限制长度
-      });
-    }
-
-      // 3. 历史消息（最近 10 条）
-      dbMessages.slice(-10).forEach((msg: DbMessage) => {
-        messages.push({
-          role: msg.role as 'user' | 'assistant',
-          content: msg.content,
-        });
-      });    return messages;
-  }
-
-  /**
-   * 构建系统提示（根据提示等级）
-   */
-  private buildSystemPrompt(hintLevel: HintLevel, hasDocument: boolean): string {
-    const basePrompt = `你是 Study Oasis 的智能学习助手，你的使命是帮助学生通过独立思考来学习和成长。
-
-🎯 核心原则：
-- 永远不要直接给出答案，而是引导学生自己探索
-- 采用苏格拉底式教学法：通过提问启发思考
-- 培养学生的问题解决能力和批判思维
-- 根据学生的提问次数逐步提高提示详细程度
-
-${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行引导。' : ''}`;
-
-    const hintPrompts = {
-      1: `${basePrompt}
-
-📍 当前模式：Level 1 - 轻微提示（第 1-2 次提问）
-
-**你的角色**：启蒙者
-- 帮助学生理解问题的本质和关键概念
-- 提示相关的知识领域或思考维度
-- 不提供具体的解法步骤
-
-**行动指南**：
-1. 首先，确认你理解了学生的问题
-2. 问一个启发性的问题，引导学生思考关键点
-3. 给出 2-3 个思考方向，让学生选择
-4. 提醒学生可以查阅的相关概念或知识点
-5. 鼓励学生主动思考和探索
-
-**示例回应**：
-"这是个很有意思的问题！在开始之前，你能告诉我...？"
-"你有想过这个问题的哪些方面呢？"
-"我建议你先考虑这几个方向..."
-
-**禁止**：给出公式、步骤序列、或具体答案`,
-
-      2: `${basePrompt}
-
-📍 当前模式：Level 2 - 中等提示（第 3-4 次提问）
-
-**你的角色**：教练
-- 学生已经开始思考，现在需要更结构化的引导
-- 提供思路框架和解题方法论
-- 可以透露部分关键步骤，但留下主要部分给学生完成
-
-**行动指南**：
-1. 肯定学生已经做过的思考工作
-2. 提供清晰的思路框架（比如第一步...第二步...）
-3. 解释关键概念或给出相关公式
-4. 给出一个类似的例子（但不是答案）
-5. 提问让学生自己完成最后的推导
-
-**示例回应**：
-"很好的思路！现在让我给你一个框架..."
-"在这个例子中，你可以用这个方法来处理..."
-"基于你的理解，下一步应该考虑什么？"
-
-**可以**：给出方法论、部分公式、思路框架
-**禁止**：给出完整的解题步骤或最终答案`,
-
-      3: `${basePrompt}
-
-📍 当前模式：Level 3 - 详细提示（第 5+ 次提问）
-
-**你的角色**：顾问
-- 学生已经充分思考，现在需要验证和完善理解
-- 提供接近完整的答案，但保留最后一步供学生完成
-- 解释每个步骤背后的原理和推理过程
-
-**行动指南**：
-1. 总结学生到目前为止的思路历程
-2. 提供详细的分析和完整的解题框架
-3. 逐步展示关键步骤，解释每步的原因
-4. 给出一个完整的参考例子
-5. 让学生自己完成最后的应用或总结
-
-**示例回应**：
-"经过这么多步的思考，你已经很接近答案了。让我为你总结一下完整的思路..."
-"这就是完整的解决方案，最后你需要自己思考一下..."
-"基于以上分析，你现在能够得出什么结论呢？"
-
-**可以**：给出完整步骤、具体公式、详细分析、完整例子
-**最后保留**：最终答案或核心结论由学生自己完成`,
-    };
-
-    return hintPrompts[hintLevel];
-  }
-
-  /**
-   * 生成对话标题（从第一条消息提取）
-   */
-  private generateConversationTitle(message: string): string {
-    // 取前 50 个字符作为标题
-    const title = message.slice(0, 50);
-    return title.length < message.length ? `${title}...` : title;
-  }
-
-  /**
-   * 计算提示等级（根据对话轮次）
-   */
-  private calculateHintLevel(userMessageCount: number): HintLevel {
-    if (userMessageCount <= 1) return 1;
-    if (userMessageCount <= 3) return 2;
-    return 3;
-  }
-
-  /**
-   * 生成会话 ID
-   */
-  private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  /**
    * 辅助方法：记录事件（不抛出错误）
    */
   private async trackEvent(eventData: AnalyticsEventData): Promise<void> {
@@ -623,31 +510,24 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
   /**
    * Fallback 回复（当 API 不可用时）
    */
-  private generateFallbackResponse(message: string): string {
-    return `🤔 感谢你的提问！由于 AI 服务暂时不可用，这里是一些通用建议：
-
-1. **理解问题**：确保你完全理解了问题要求
-2. **寻找关键概念**：识别问题中的核心概念和术语
-3. **回顾相关知识**：复习与问题相关的基础知识
-4. **尝试分解问题**：将复杂问题分解为更小的子问题
-5. **使用资源**：查阅教科书、笔记或在线资源
-
-如果你继续遇到困难，请稍后再试，我的 AI 功能应该会恢复。💪`;
-  }
 
   /**
    * 流式聊天（SSE）
    * 逐个 token 流式发送响应
    */
-  async chatStream(request: ChatRequestDto, res: ResponseStream): Promise<void> {
+  async chatStream(
+    request: ChatRequestDto,
+    res: ResponseStream,
+  ): Promise<void> {
     const { message, conversationId, documentId, userId } = request;
-    const sessionId = this.generateSessionId();
+    const sessionId = ChatMessageHelper.generateSessionId();
 
     try {
       // 1. 获取或创建对话
       let conversation: ConversationWithMessages;
       if (conversationId) {
-        const existingConv = await this.conversationRepo.findById(conversationId);
+        const existingConv =
+          await this.conversationRepo.findById(conversationId);
         if (!existingConv) {
           res.write(
             `data: ${JSON.stringify({
@@ -661,7 +541,7 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
           res.end();
           return;
         }
-        
+
         conversation = {
           ...existingConv,
           messages: await this.messageRepo.findLastN(conversationId, 10),
@@ -670,9 +550,9 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
         const newConversation = await this.conversationRepo.create({
           userId,
           documentId,
-          title: this.generateConversationTitle(message),
+          title: ChatPromptBuilder.generateConversationTitle(message),
         });
-        
+
         conversation = {
           ...newConversation,
           messages: [],
@@ -693,21 +573,23 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
       const userMessageCount = conversation.messages.filter(
         (msg: DbMessage) => msg.role === 'user',
       ).length;
-      const hintLevel = this.calculateHintLevel(userMessageCount);
+      const hintLevel = ChatPromptBuilder.calculateHintLevel(userMessageCount);
 
       // 4. 构建消息历史
-      const messageHistory: DeepSeekMessage[] = this.buildMessageHistory(
-        conversation.messages,
-        documentContext,
-        hintLevel,
-      );
+      const messageHistory: DeepSeekMessage[] =
+        ChatMessageHelper.buildMessageHistory(
+          conversation.messages,
+          documentContext,
+          hintLevel,
+        );
       messageHistory.push({ role: 'user', content: message });
 
       // 5. 调用 DeepSeek API（支持流式）
       const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
       if (!apiKey) {
         // Fallback
-        const fallbackReply = this.generateFallbackResponse(message);
+        const fallbackReply =
+          ChatPromptBuilder.generateFallbackResponse(message);
         for (const char of fallbackReply) {
           res.write(
             `data: ${JSON.stringify({
@@ -736,7 +618,7 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
           {
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`,
+              Authorization: `Bearer ${apiKey}`,
             },
             timeout: 60000,
             responseType: 'stream',

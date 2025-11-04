@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { VisionService } from './vision.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleCredentialsProvider } from '../common/providers/google-credentials.provider';
-import { createMockPrismaService, createMockOcrResult } from '../../test/helpers/prisma.mock';
+import {
+  createMockPrismaService,
+  createMockOcrResult,
+} from '../../test/helpers/prisma.mock';
 
 // Mock @google-cloud/vision
 const mockDocumentTextDetection = jest.fn();
@@ -25,21 +28,27 @@ jest.mock('@google-cloud/storage', () => {
     [
       {
         name: 'ocr-output/doc-123/output-1.json',
-        download: jest.fn().mockResolvedValue([Buffer.from(JSON.stringify({
-          responses: [{
-            fullTextAnnotation: {
-              text: 'This is extracted text from image',
-              pages: [{ confidence: 0.95 }]
-            },
-            textAnnotations: [
-              { locale: 'en', description: 'This is extracted text' }
-            ]
-          }]
-        }))]),
-      }
-    ]
+        download: jest.fn().mockResolvedValue([
+          Buffer.from(
+            JSON.stringify({
+              responses: [
+                {
+                  fullTextAnnotation: {
+                    text: 'This is extracted text from image',
+                    pages: [{ confidence: 0.95 }],
+                  },
+                  textAnnotations: [
+                    { locale: 'en', description: 'This is extracted text' },
+                  ],
+                },
+              ],
+            }),
+          ),
+        ]),
+      },
+    ],
   ]);
-  
+
   return {
     Storage: jest.fn().mockImplementation(() => ({
       bucket: jest.fn().mockReturnValue({
@@ -51,7 +60,6 @@ jest.mock('@google-cloud/storage', () => {
     })),
   };
 });
-
 
 // Mock @google-cloud/storage
 jest.mock('@google-cloud/storage', () => {
@@ -59,21 +67,27 @@ jest.mock('@google-cloud/storage', () => {
     [
       {
         name: 'ocr-output/doc-123/output-1.json',
-        download: jest.fn().mockResolvedValue([Buffer.from(JSON.stringify({
-          responses: [{
-            fullTextAnnotation: {
-              text: 'This is extracted text from image',
-              pages: [{ confidence: 0.95 }]
-            },
-            textAnnotations: [
-              { locale: 'en', description: 'This is extracted text' }
-            ]
-          }]
-        }))]),
-      }
-    ]
+        download: jest.fn().mockResolvedValue([
+          Buffer.from(
+            JSON.stringify({
+              responses: [
+                {
+                  fullTextAnnotation: {
+                    text: 'This is extracted text from image',
+                    pages: [{ confidence: 0.95 }],
+                  },
+                  textAnnotations: [
+                    { locale: 'en', description: 'This is extracted text' },
+                  ],
+                },
+              ],
+            }),
+          ),
+        ]),
+      },
+    ],
   ]);
-  
+
   return {
     Storage: jest.fn().mockImplementation(() => ({
       bucket: jest.fn().mockReturnValue({
@@ -85,7 +99,6 @@ jest.mock('@google-cloud/storage', () => {
     })),
   };
 });
-
 
 describe('VisionService', () => {
   let service: VisionService;
@@ -119,7 +132,10 @@ describe('VisionService', () => {
         {
           provide: GoogleCredentialsProvider,
           useValue: {
-            getCredentials: jest.fn(() => ({ type: 'service_account', project_id: 'test' })),
+            getCredentials: jest.fn(() => ({
+              type: 'service_account',
+              project_id: 'test',
+            })),
             getProjectId: jest.fn(() => 'test-project'),
             getClientEmail: jest.fn(() => 'test@example.com'),
           },
@@ -135,17 +151,19 @@ describe('VisionService', () => {
     const mockOperation = {
       promise: jest.fn().mockResolvedValue([
         {
-          responses: [{
-            fullTextAnnotation: {
-              text: 'This is extracted text from PDF',
-              pages: [{ confidence: 0.95 }]
+          responses: [
+            {
+              fullTextAnnotation: {
+                text: 'This is extracted text from PDF',
+                pages: [{ confidence: 0.95 }],
+              },
+              textAnnotations: [
+                { locale: 'en', description: 'This is extracted text' },
+              ],
             },
-            textAnnotations: [
-              { locale: 'en', description: 'This is extracted text' }
-            ]
-          }]
-        }
-      ])
+          ],
+        },
+      ]),
     };
     mockAsyncBatchAnnotateFiles.mockResolvedValue([mockOperation]);
   });
@@ -250,9 +268,7 @@ describe('VisionService', () => {
               },
             ],
           },
-          textAnnotations: [
-            { locale: 'zh', description: 'Buffer text' },
-          ],
+          textAnnotations: [{ locale: 'zh', description: 'Buffer text' }],
         },
       ];
 
@@ -290,7 +306,9 @@ describe('VisionService', () => {
         pageCount: 3,
       });
 
-      (prisma.ocrResult.findUnique as jest.Mock).mockResolvedValue(mockOcrResult);
+      (prisma.ocrResult.findUnique as jest.Mock).mockResolvedValue(
+        mockOcrResult,
+      );
 
       const result = await service.getOcrResult(documentId);
 
@@ -389,7 +407,9 @@ describe('VisionService', () => {
         updatedAt: new Date(),
       };
 
-      (prisma.ocrResult.findUnique as jest.Mock).mockResolvedValue(mockOcrResult);
+      (prisma.ocrResult.findUnique as jest.Mock).mockResolvedValue(
+        mockOcrResult,
+      );
 
       const result = await service.getOcrResult(documentId);
 
@@ -439,8 +459,8 @@ describe('VisionService', () => {
       ]);
 
       (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(
-        createMockOcrResult({ 
-          documentId, 
+        createMockOcrResult({
+          documentId,
           fullText: 'Some text',
           language: 'unknown',
         }),
@@ -458,7 +478,9 @@ describe('VisionService', () => {
       const buffer = Buffer.from('invalid pdf content');
       const documentId = 'doc-buffer-fail';
 
-      mockDocumentTextDetection.mockRejectedValue(new Error('Vision API timeout'));
+      mockDocumentTextDetection.mockRejectedValue(
+        new Error('Vision API timeout'),
+      );
 
       await expect(
         service.extractTextFromBuffer(buffer, documentId),
@@ -474,38 +496,41 @@ describe('VisionService', () => {
           fullTextAnnotation: {
             text: 'Page 1\nPage 2\nPage 3',
             pages: [
-              { 
+              {
                 confidence: 0.9,
-                blocks: [{
-                  paragraphs: [{
-                    words: [
-                      { confidence: 0.9 },
-                      { confidence: 0.8 },
+                blocks: [
+                  {
+                    paragraphs: [
+                      {
+                        words: [{ confidence: 0.9 }, { confidence: 0.8 }],
+                      },
                     ],
-                  }],
-                }],
+                  },
+                ],
               },
-              { 
+              {
                 confidence: 0.85,
-                blocks: [{
-                  paragraphs: [{
-                    words: [
-                      { confidence: 0.85 },
-                      { confidence: 0.90 },
+                blocks: [
+                  {
+                    paragraphs: [
+                      {
+                        words: [{ confidence: 0.85 }, { confidence: 0.9 }],
+                      },
                     ],
-                  }],
-                }],
+                  },
+                ],
               },
-              { 
+              {
                 confidence: 0.95,
-                blocks: [{
-                  paragraphs: [{
-                    words: [
-                      { confidence: 0.95 },
-                      { confidence: 0.92 },
+                blocks: [
+                  {
+                    paragraphs: [
+                      {
+                        words: [{ confidence: 0.95 }, { confidence: 0.92 }],
+                      },
                     ],
-                  }],
-                }],
+                  },
+                ],
               },
             ],
           },
@@ -516,8 +541,8 @@ describe('VisionService', () => {
       ]);
 
       (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(
-        createMockOcrResult({ 
-          documentId, 
+        createMockOcrResult({
+          documentId,
           fullText: 'Page 1\nPage 2\nPage 3',
           pageCount: 3,
           confidence: 0.89,
@@ -542,7 +567,7 @@ describe('VisionService', () => {
           fullTextAnnotation: {
             text: '你好世界',
             pages: [
-              { 
+              {
                 confidence: 0.95,
                 property: {
                   detectedLanguages: [{ languageCode: 'zh' }],
@@ -550,14 +575,12 @@ describe('VisionService', () => {
               },
             ],
           },
-          textAnnotations: [
-            { description: '你好世界', locale: 'zh' },
-          ],
+          textAnnotations: [{ description: '你好世界', locale: 'zh' }],
         },
       ]);
 
       (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(
-        createMockOcrResult({ 
+        createMockOcrResult({
           documentId,
           fullText: '你好世界',
           language: 'zh',
@@ -578,7 +601,7 @@ describe('VisionService', () => {
           fullTextAnnotation: {
             text: 'Hello World',
             pages: [
-              { 
+              {
                 confidence: 0.98,
                 property: {
                   detectedLanguages: [{ languageCode: 'en' }],
@@ -586,14 +609,12 @@ describe('VisionService', () => {
               },
             ],
           },
-          textAnnotations: [
-            { description: 'Hello World', locale: 'en' },
-          ],
+          textAnnotations: [{ description: 'Hello World', locale: 'en' }],
         },
       ]);
 
       (prisma.ocrResult.upsert as jest.Mock).mockResolvedValue(
-        createMockOcrResult({ 
+        createMockOcrResult({
           documentId,
           fullText: 'Hello World',
           language: 'en',
@@ -605,5 +626,4 @@ describe('VisionService', () => {
       expect(result.language).toBe('en');
     });
   });
-
 });

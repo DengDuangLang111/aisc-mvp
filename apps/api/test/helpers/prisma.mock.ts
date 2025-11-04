@@ -2,7 +2,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 
 /**
  * 测试工具 - Prisma Mock
- * 
+ *
  * 提供 Prisma Service 的 Mock 实现，用于单元测试
  */
 export const createMockPrismaService = (): Partial<PrismaService> => {

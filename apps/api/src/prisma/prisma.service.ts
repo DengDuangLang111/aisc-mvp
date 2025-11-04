@@ -8,9 +8,9 @@ import { PrismaClient } from '@prisma/client';
 
 /**
  * Prisma 服务
- * 
+ *
  * 提供全局的 Prisma Client 实例，管理数据库连接生命周期
- * 
+ *
  * Features:
  * - 模块初始化时自动连接数据库
  * - 模块销毁时自动断开连接

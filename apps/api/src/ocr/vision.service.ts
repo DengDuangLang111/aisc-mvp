@@ -16,7 +16,6 @@ export interface OcrResult {
   pageCount: number;
 }
 
-
 /**
  * Google Cloud Storage 文件对象
  */
@@ -99,7 +98,7 @@ interface StructuredData {
 
 /**
  * Google Cloud Vision OCR 服务
- * 
+ *
  * 功能:
  * - 从 GCS 文件提取文本
  * - 从 Buffer 提取文本
@@ -127,12 +126,15 @@ export class VisionService {
 
   /**
    * 从 GCS 文件提取文本
-   * 
+   *
    * @param gcsPath - GCS 文件路径（gs://bucket/path/file.ext）
    * @param documentId - 文档 ID（用于保存到数据库）
    * @returns OCR 结果
    */
-  async extractTextFromGcs(gcsPath: string, documentId: string): Promise<OcrResult> {
+  async extractTextFromGcs(
+    gcsPath: string,
+    documentId: string,
+  ): Promise<OcrResult> {
     try {
       this.logger.log(`Starting OCR for document ${documentId}: ${gcsPath}`);
 
@@ -167,7 +169,9 @@ export class VisionService {
         pageCount,
       });
 
-      this.logger.log(`OCR completed for document ${documentId}: ${fullText.length} chars, ${pageCount} pages`);
+      this.logger.log(
+        `OCR completed for document ${documentId}: ${fullText.length} chars, ${pageCount} pages`,
+      );
 
       return {
         fullText,
@@ -184,9 +188,14 @@ export class VisionService {
   /**
    * 从 GCS 的 PDF 文件提取文本（使用异步 API）
    */
-  private async extractPdfFromGcs(gcsPath: string, documentId: string): Promise<OcrResult> {
+  private async extractPdfFromGcs(
+    gcsPath: string,
+    documentId: string,
+  ): Promise<OcrResult> {
     try {
-      this.logger.log(`Starting async PDF OCR for document ${documentId}: ${gcsPath}`);
+      this.logger.log(
+        `Starting async PDF OCR for document ${documentId}: ${gcsPath}`,
+      );
 
       // 提取 bucket 和路径
       const gcsMatch = gcsPath.match(/gs:\/\/([^\/]+)\/(.+)/);
@@ -219,7 +228,9 @@ export class VisionService {
         ],
       });
 
-      this.logger.log(`Waiting for PDF OCR operation to complete for document ${documentId}`);
+      this.logger.log(
+        `Waiting for PDF OCR operation to complete for document ${documentId}`,
+      );
 
       // 等待操作完成（最多等待 5 分钟）
       const [result] = await operation.promise();
@@ -229,7 +240,9 @@ export class VisionService {
       // 从 GCS 读取结果
       const { Storage } = require('@google-cloud/storage');
       const storage = new Storage({
-        keyFilename: this.configService.get<string>('GOOGLE_APPLICATION_CREDENTIALS') || './google-cloud-key.json',
+        keyFilename:
+          this.configService.get<string>('GOOGLE_APPLICATION_CREDENTIALS') ||
+          './google-cloud-key.json',
       });
 
       const bucket = storage.bucket(bucketName);
@@ -269,7 +282,8 @@ export class VisionService {
         throw new Error('No text found in PDF');
       }
 
-      const confidence = confidenceCount > 0 ? totalConfidence / confidenceCount : 0.9;
+      const confidence =
+        confidenceCount > 0 ? totalConfidence / confidenceCount : 0.9;
       const language = this.detectLanguageFromText(fullText);
       const pageCount = totalPages || 1;
 
@@ -284,12 +298,18 @@ export class VisionService {
       // 清理临时文件
       try {
         await Promise.all(files.map((file: GcsFile) => file.delete()));
-        this.logger.log(`Cleaned up OCR output files for document ${documentId}`);
+        this.logger.log(
+          `Cleaned up OCR output files for document ${documentId}`,
+        );
       } catch (cleanupError) {
-        this.logger.warn(`Failed to cleanup OCR output files: ${cleanupError.message}`);
+        this.logger.warn(
+          `Failed to cleanup OCR output files: ${cleanupError.message}`,
+        );
       }
 
-      this.logger.log(`PDF OCR completed for document ${documentId}: ${fullText.length} chars, ${pageCount} pages`);
+      this.logger.log(
+        `PDF OCR completed for document ${documentId}: ${fullText.length} chars, ${pageCount} pages`,
+      );
 
       return {
         fullText: fullText.trim(),
@@ -305,12 +325,15 @@ export class VisionService {
 
   /**
    * 从文件 Buffer 提取文本
-   * 
+   *
    * @param fileBuffer - 文件 Buffer
    * @param documentId - 文档 ID
    * @returns OCR 结果
    */
-  async extractTextFromBuffer(fileBuffer: Buffer, documentId: string): Promise<OcrResult> {
+  async extractTextFromBuffer(
+    fileBuffer: Buffer,
+    documentId: string,
+  ): Promise<OcrResult> {
     try {
       this.logger.log(`Starting OCR from buffer for document ${documentId}`);
 
@@ -340,7 +363,9 @@ export class VisionService {
         pageCount,
       });
 
-      this.logger.log(`OCR completed for document ${documentId}: ${fullText.length} chars`);
+      this.logger.log(
+        `OCR completed for document ${documentId}: ${fullText.length} chars`,
+      );
 
       return {
         fullText,
@@ -356,7 +381,7 @@ export class VisionService {
 
   /**
    * 从数据库获取 OCR 结果
-   * 
+   *
    * @param documentId - 文档 ID
    * @returns OCR 结果或 null
    */
@@ -377,7 +402,10 @@ export class VisionService {
         pageCount: result.pageCount || 0,
       };
     } catch (error) {
-      this.logger.error(`Failed to get OCR result for document ${documentId}:`, error);
+      this.logger.error(
+        `Failed to get OCR result for document ${documentId}:`,
+        error,
+      );
       return null;
     }
   }
@@ -385,7 +413,10 @@ export class VisionService {
   /**
    * 保存 OCR 结果到数据库
    */
-  private async saveOcrResult(documentId: string, result: OcrResult): Promise<void> {
+  private async saveOcrResult(
+    documentId: string,
+    result: OcrResult,
+  ): Promise<void> {
     try {
       await this.prisma.ocrResult.upsert({
         where: { documentId },
@@ -406,7 +437,10 @@ export class VisionService {
 
       this.logger.log(`OCR result saved for document ${documentId}`);
     } catch (error) {
-      this.logger.error(`Failed to save OCR result for document ${documentId}:`, error);
+      this.logger.error(
+        `Failed to save OCR result for document ${documentId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -508,10 +542,12 @@ export class VisionService {
         height: page.height,
         blocks: (page.blocks || []).map((block: VisionBlock) => ({
           boundingBox: block.boundingBox,
-          paragraphs: (block.paragraphs || []).map((paragraph: VisionParagraph) => ({
-            text: this.extractText(paragraph.words || []),
-            confidence: paragraph.confidence,
-          })),
+          paragraphs: (block.paragraphs || []).map(
+            (paragraph: VisionParagraph) => ({
+              text: this.extractText(paragraph.words || []),
+              confidence: paragraph.confidence,
+            }),
+          ),
         })),
       })),
     };

@@ -1,7 +1,29 @@
-import { Controller, Post, Get, Param, UploadedFile, UseInterceptors, UseGuards, BadRequestException, Res, NotFoundException, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  UploadedFile,
+  UseInterceptors,
+  UseGuards,
+  BadRequestException,
+  Res,
+  NotFoundException,
+  Query,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody, ApiBadRequestResponse, ApiNotFoundResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiConsumes,
+  ApiBody,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { UploadService } from './upload.service';
@@ -19,9 +41,10 @@ export class UploadController {
   ) {}
 
   @Post()
-  @ApiOperation({ 
-    summary: '上传文件', 
-    description: '上传学习资料文件（支持 PDF、Word、文本等格式）。文件大小限制 10MB。使用魔数验证确保文件安全。'
+  @ApiOperation({
+    summary: '上传文件',
+    description:
+      '上传学习资料文件（支持 PDF、Word、文本等格式）。文件大小限制 10MB。使用魔数验证确保文件安全。',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -46,7 +69,11 @@ export class UploadController {
         originalFilename: { type: 'string', example: 'study-notes.pdf' },
         size: { type: 'number', example: 1024000 },
         mimeType: { type: 'string', example: 'application/pdf' },
-        uploadedAt: { type: 'string', format: 'date-time', example: '2025-11-01T12:00:00.000Z' },
+        uploadedAt: {
+          type: 'string',
+          format: 'date-time',
+          example: '2025-11-01T12:00:00.000Z',
+        },
       },
     },
   })
@@ -73,9 +100,9 @@ export class UploadController {
    * 下载指定的文件
    */
   @Get(':fileId')
-  @ApiOperation({ 
-    summary: '下载文件', 
-    description: '根据文件 ID 下载之前上传的文件'
+  @ApiOperation({
+    summary: '下载文件',
+    description: '根据文件 ID 下载之前上传的文件',
   })
   @ApiParam({
     name: 'fileId',
@@ -97,12 +124,9 @@ export class UploadController {
   @ApiNotFoundResponse({
     description: '文件不存在',
   })
-  async downloadFile(
-    @Param('fileId') fileId: string,
-    @Res() res: Response,
-  ) {
+  async downloadFile(@Param('fileId') fileId: string, @Res() res: Response) {
     const fileInfo = await this.uploadService.getFileInfo(fileId);
-    
+
     if (!fileInfo) {
       throw new NotFoundException(`文件不存在: ${fileId}`);
     }
@@ -121,9 +145,9 @@ export class UploadController {
    * 读取文件内容（文本文件）
    */
   @Get(':fileId/content')
-  @ApiOperation({ 
-    summary: '读取文件内容', 
-    description: '读取文本类型文件的内容（仅支持文本文件）'
+  @ApiOperation({
+    summary: '读取文件内容',
+    description: '读取文本类型文件的内容（仅支持文本文件）',
   })
   @ApiParam({
     name: 'fileId',
@@ -239,9 +263,7 @@ export class UploadController {
     const ocrResult = await this.visionService.getOcrResult(documentId);
 
     if (!ocrResult) {
-      throw new NotFoundException(
-        `OCR 结果不存在或尚未完成: ${documentId}`,
-      );
+      throw new NotFoundException(`OCR 结果不存在或尚未完成: ${documentId}`);
     }
 
     return ocrResult;

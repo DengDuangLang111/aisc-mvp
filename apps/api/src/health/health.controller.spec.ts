@@ -79,12 +79,16 @@ describe('HealthController', () => {
         },
       };
 
-      mockHealthService.getDetailedHealthStatus.mockReturnValue(mockDetailedStatus);
+      mockHealthService.getDetailedHealthStatus.mockReturnValue(
+        mockDetailedStatus,
+      );
 
       const result = controller.getDetailedHealth();
 
       expect(result).toEqual(mockDetailedStatus);
-      expect(mockHealthService.getDetailedHealthStatus).toHaveBeenCalledTimes(1);
+      expect(mockHealthService.getDetailedHealthStatus).toHaveBeenCalledTimes(
+        1,
+      );
     });
   });
 });

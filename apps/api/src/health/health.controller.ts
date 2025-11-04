@@ -9,9 +9,9 @@ export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Get()
-  @ApiOperation({ 
-    summary: '健康检查', 
-    description: '检查 API 服务是否正常运行'
+  @ApiOperation({
+    summary: '健康检查',
+    description: '检查 API 服务是否正常运行',
   })
   @ApiResponse({
     status: 200,
@@ -30,9 +30,9 @@ export class HealthController {
   }
 
   @Get('detailed')
-  @ApiOperation({ 
-    summary: '详细健康检查', 
-    description: '获取服务的详细状态信息，包括内存使用、系统信息等'
+  @ApiOperation({
+    summary: '详细健康检查',
+    description: '获取服务的详细状态信息，包括内存使用、系统信息等',
   })
   @ApiResponse({
     status: 200,

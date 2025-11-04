@@ -7,23 +7,32 @@ import { join } from 'path';
 import compression from 'compression';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { initSentry } from './config/sentry.config';
+import { SentryInterceptor } from './common/interceptors/sentry.interceptor';
 
 async function bootstrap() {
+  // 初始化 Sentry（在应用创建之前）
+  initSentry();
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  
+
   // 获取配置服务和日志服务
   const configService = app.get(ConfigService);
   const logger = app.get(WINSTON_MODULE_PROVIDER);
   const port = configService.get<number>('port') || 4000;
-  const corsOrigin = configService.get<string>('cors.origin') || 'http://localhost:3000';
-  const uploadDir = configService.get<string>('upload.destination') || './uploads';
-  
+  const corsOrigin =
+    configService.get<string>('cors.origin') || 'http://localhost:3000';
+  const uploadDir =
+    configService.get<string>('upload.destination') || './uploads';
+
   // 启用压缩中间件 (gzip/deflate)
-  app.use(compression({
-    threshold: 1024, // 只压缩大于 1KB 的响应
-    level: 6, // 压缩级别 (0-9, 6 是平衡点)
-  }));
-  
+  app.use(
+    compression({
+      threshold: 1024, // 只压缩大于 1KB 的响应
+      level: 6, // 压缩级别 (0-9, 6 是平衡点)
+    }),
+  );
+
   // 配置 CORS
   app.enableCors({
     origin: corsOrigin,
@@ -31,7 +40,7 @@ async function bootstrap() {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
-  
+
   // 全局验证管道
   app.useGlobalPipes(
     new ValidationPipe({
@@ -43,13 +52,18 @@ async function bootstrap() {
       },
     }),
   );
-  
+
+  // 应用 Sentry 拦截器（生产环境）
+  if (process.env.NODE_ENV === 'production' && process.env.SENTRY_DSN) {
+    app.useGlobalInterceptors(new SentryInterceptor());
+  }
+
   // Serve uploaded files as static assets
   const uploadsPath = join(process.cwd(), 'uploads');
   app.useStaticAssets(uploadsPath, {
     prefix: '/uploads/',
   });
-  
+
   // Swagger API Documentation
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Study Oasis API')
@@ -74,9 +88,9 @@ async function bootstrap() {
       showRequestDuration: true,
     },
   });
-  
+
   await app.listen(port);
-  
+
   // 使用 Winston 记录启动信息
   logger.log('info', '✅ API Server Started Successfully', {
     port,

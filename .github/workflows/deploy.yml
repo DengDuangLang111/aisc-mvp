@@ -1,0 +1,164 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # Build and Test
+  build:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: '**/pnpm-lock.yaml'
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build Backend
+        run: |
+          cd apps/api
+          pnpm run build
+      
+      - name: Build Frontend
+        run: |
+          cd apps/web
+          pnpm run build
+      
+      - name: Run Backend Tests
+        run: |
+          cd apps/api
+          pnpm test -- --maxWorkers=2
+        env:
+          NODE_ENV: test
+      
+      - name: Upload Backend Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: apps/api/dist
+          retention-days: 7
+      
+      - name: Upload Frontend Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: apps/web/.next
+          retention-days: 7
+
+  # Deploy to Staging (可选)
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: staging
+      url: https://staging.yourdomain.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download Backend Build
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: apps/api/dist
+      
+      - name: Download Frontend Build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: apps/web/.next
+      
+      # 部署到 Staging 环境的步骤
+      # 根据实际部署方式配置（SSH, Docker, Cloud Provider CLI 等）
+      - name: Deploy Backend to Staging
+        run: |
+          echo "Deploy backend to staging environment"
+          # 示例：使用 SSH 部署
+          # ssh user@staging-server "cd /app && ./deploy-backend.sh"
+          # 或使用 Docker
+          # docker build -t backend:${{ github.sha }} ./apps/api
+          # docker push backend:${{ github.sha }}
+      
+      - name: Deploy Frontend to Staging
+        run: |
+          echo "Deploy frontend to staging environment"
+          # 示例：部署到 Vercel/Netlify
+          # vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+      
+      - name: Run Smoke Tests
+        run: |
+          echo "Running smoke tests on staging"
+          # curl https://staging.yourdomain.com/health
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://yourdomain.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download Backend Build
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: apps/api/dist
+      
+      - name: Download Frontend Build
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: apps/web/.next
+      
+      # 部署到生产环境的步骤
+      - name: Deploy Backend to Production
+        run: |
+          echo "Deploy backend to production environment"
+          # 实际部署命令
+      
+      - name: Deploy Frontend to Production
+        run: |
+          echo "Deploy frontend to production environment"
+          # 实际部署命令
+      
+      - name: Run Health Check
+        run: |
+          echo "Running production health checks"
+          # curl https://yourdomain.com/health
+      
+      - name: Notify Success
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          # 发送通知（Slack, Discord, Email 等）
+      
+      - name: Notify Failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          # 发送失败通知

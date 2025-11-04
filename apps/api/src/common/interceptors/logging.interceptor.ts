@@ -39,14 +39,18 @@ export class LoggingInterceptor implements NestInterceptor {
           const responseTime = Date.now() - startTime;
 
           // 记录请求成功
-          this.logger.log('info', `${method} ${url} ${statusCode} - ${responseTime}ms`, {
-            context: 'HTTP',
-            method,
-            url,
-            statusCode,
-            responseTime,
-            ip,
-          });
+          this.logger.log(
+            'info',
+            `${method} ${url} ${statusCode} - ${responseTime}ms`,
+            {
+              context: 'HTTP',
+              method,
+              url,
+              statusCode,
+              responseTime,
+              ip,
+            },
+          );
         },
         error: (error) => {
           const responseTime = Date.now() - startTime;

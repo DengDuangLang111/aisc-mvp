@@ -67,9 +67,10 @@ export class HealthService {
     const usedMemory = memUsage.heapUsed;
     const memoryPercentage = ((usedMemory / totalMemory) * 100).toFixed(2);
 
-    const uploadsDir = this.configService.get<string>('upload.directory') || './uploads';
+    const uploadsDir =
+      this.configService.get<string>('upload.directory') || './uploads';
     const uploadsPath = path.resolve(uploadsDir);
-    
+
     let uploadsStatus: 'available' | 'unavailable' = 'unavailable';
     let uploadsWritable = false;
 

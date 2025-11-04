@@ -70,7 +70,9 @@ describe('LoggingInterceptor', () => {
     } as unknown as ExecutionContext;
   };
 
-  const createMockCallHandler = (data: any = { result: 'success' }): CallHandler => {
+  const createMockCallHandler = (
+    data: any = { result: 'success' },
+  ): CallHandler => {
     return {
       handle: jest.fn(() => of(data)),
     };
@@ -82,7 +84,12 @@ describe('LoggingInterceptor', () => {
 
   describe('intercept - Request logging', () => {
     it('should log incoming request with correct information', (done) => {
-      const context = createMockExecutionContext('GET', '/api/users', '192.168.1.1', 'Chrome/120');
+      const context = createMockExecutionContext(
+        'GET',
+        '/api/users',
+        '192.168.1.1',
+        'Chrome/120',
+      );
       const next = createMockCallHandler();
 
       interceptor.intercept(context, next).subscribe(() => {
@@ -119,7 +126,12 @@ describe('LoggingInterceptor', () => {
     });
 
     it('should handle missing user-agent', (done) => {
-      const context = createMockExecutionContext('GET', '/test', '127.0.0.1', '');
+      const context = createMockExecutionContext(
+        'GET',
+        '/test',
+        '127.0.0.1',
+        '',
+      );
       const next = createMockCallHandler();
 
       interceptor.intercept(context, next).subscribe(() => {
@@ -157,7 +169,13 @@ describe('LoggingInterceptor', () => {
 
   describe('intercept - Response logging', () => {
     it('should log successful response with status code and timing', (done) => {
-      const context = createMockExecutionContext('GET', '/api/data', '127.0.0.1', 'Test', 200);
+      const context = createMockExecutionContext(
+        'GET',
+        '/api/data',
+        '127.0.0.1',
+        'Test',
+        200,
+      );
       const next = createMockCallHandler({ data: 'test' });
 
       const startTime = Date.now();
@@ -179,7 +197,9 @@ describe('LoggingInterceptor', () => {
         );
 
         const logCalls = mockLogger.log.mock.calls;
-        const responseLog = logCalls.find((call: any) => call[1].includes('200'));
+        const responseLog = logCalls.find((call: any) =>
+          call[1].includes('200'),
+        );
         expect(responseLog[2].responseTime).toBeGreaterThanOrEqual(0);
         expect(responseLog[2].responseTime).toBeLessThan(1000);
 
@@ -188,7 +208,13 @@ describe('LoggingInterceptor', () => {
     });
 
     it('should log response with 201 Created status', (done) => {
-      const context = createMockExecutionContext('POST', '/api/users', '127.0.0.1', 'Test', 201);
+      const context = createMockExecutionContext(
+        'POST',
+        '/api/users',
+        '127.0.0.1',
+        'Test',
+        201,
+      );
       const next = createMockCallHandler({ id: 1, name: 'New User' });
 
       interceptor.intercept(context, next).subscribe(() => {
@@ -218,8 +244,10 @@ describe('LoggingInterceptor', () => {
 
       interceptor.intercept(context, next).subscribe(() => {
         const logCalls = mockLogger.log.mock.calls;
-        const responseLog = logCalls.find((call: any) => call[1].includes('200'));
-        
+        const responseLog = logCalls.find((call: any) =>
+          call[1].includes('200'),
+        );
+
         expect(responseLog[2].responseTime).toBeGreaterThanOrEqual(40);
         expect(responseLog[2].responseTime).toBeLessThan(200);
         done();
@@ -383,7 +411,10 @@ describe('LoggingInterceptor', () => {
 
   describe('intercept - Edge cases', () => {
     it('should handle request with query parameters', (done) => {
-      const context = createMockExecutionContext('GET', '/api/search?q=test&limit=10');
+      const context = createMockExecutionContext(
+        'GET',
+        '/api/search?q=test&limit=10',
+      );
       const next = createMockCallHandler();
 
       interceptor.intercept(context, next).subscribe(() => {
@@ -457,7 +488,13 @@ describe('LoggingInterceptor', () => {
       let completed = 0;
 
       statuses.forEach((statusCode) => {
-        const context = createMockExecutionContext('GET', '/test', '127.0.0.1', 'Test', statusCode);
+        const context = createMockExecutionContext(
+          'GET',
+          '/test',
+          '127.0.0.1',
+          'Test',
+          statusCode,
+        );
         const next = createMockCallHandler();
 
         interceptor.intercept(context, next).subscribe(() => {
@@ -471,6 +508,247 @@ describe('LoggingInterceptor', () => {
           completed++;
           if (completed === statuses.length) done();
         });
+      });
+    });
+  });
+
+  describe('intercept - Performance & Concurrency', () => {
+    it('should handle concurrent requests independently', (done) => {
+      const requests = [
+        { method: 'GET', url: '/api/users' },
+        { method: 'POST', url: '/api/posts' },
+        { method: 'PUT', url: '/api/comments' },
+      ];
+
+      let completed = 0;
+
+      requests.forEach(({ method, url }) => {
+        const context = createMockExecutionContext(method, url);
+        const next = createMockCallHandler();
+
+        interceptor.intercept(context, next).subscribe(() => {
+          expect(mockLogger.log).toHaveBeenCalledWith(
+            'info',
+            `Incoming ${method} ${url}`,
+            expect.any(Object),
+          );
+          completed++;
+          if (completed === requests.length) done();
+        });
+      });
+    });
+
+    it('should track response time for slow requests', (done) => {
+      const context = createMockExecutionContext('GET', '/slow-endpoint');
+      const slowHandler: CallHandler = {
+        handle: jest.fn(
+          () =>
+            new Observable((subscriber) => {
+              setTimeout(() => {
+                subscriber.next({ data: 'slow response' });
+                subscriber.complete();
+              }, 100);
+            }),
+        ),
+      };
+
+      interceptor.intercept(context, slowHandler).subscribe(() => {
+        const logCalls = mockLogger.log.mock.calls;
+        const responseLog = logCalls.find(
+          (call: any[]) =>
+            call[1].includes('GET /slow-endpoint') && call[1].includes('ms'),
+        );
+
+        expect(responseLog).toBeDefined();
+        expect(responseLog[2].responseTime).toBeGreaterThanOrEqual(100);
+        done();
+      });
+    });
+
+    it('should log multiple sequential requests correctly', (done) => {
+      const context1 = createMockExecutionContext('GET', '/first');
+      const context2 = createMockExecutionContext('GET', '/second');
+      const next = createMockCallHandler();
+
+      interceptor.intercept(context1, next).subscribe(() => {
+        interceptor.intercept(context2, next).subscribe(() => {
+          expect(mockLogger.log).toHaveBeenCalledWith(
+            'info',
+            'Incoming GET /first',
+            expect.any(Object),
+          );
+          expect(mockLogger.log).toHaveBeenCalledWith(
+            'info',
+            'Incoming GET /second',
+            expect.any(Object),
+          );
+          done();
+        });
+      });
+    });
+
+    it('should handle requests with zero response time', (done) => {
+      const context = createMockExecutionContext('GET', '/instant');
+      const instantHandler: CallHandler = {
+        handle: jest.fn(() => of({ instant: true })),
+      };
+
+      interceptor.intercept(context, instantHandler).subscribe(() => {
+        const logCalls = mockLogger.log.mock.calls;
+        const responseLog = logCalls.find((call: any[]) =>
+          call[1].includes('200'),
+        );
+
+        expect(responseLog[2].responseTime).toBeGreaterThanOrEqual(0);
+        done();
+      });
+    });
+  });
+
+  describe('intercept - Additional Error Scenarios', () => {
+    it('should handle network timeout errors', (done) => {
+      const context = createMockExecutionContext('GET', '/timeout');
+      const timeoutError = new Error('Request timeout');
+      (timeoutError as any).status = 504;
+      const errorHandler: CallHandler = {
+        handle: jest.fn(() => throwError(() => timeoutError)),
+      };
+
+      interceptor.intercept(context, errorHandler).subscribe({
+        error: () => {
+          expect(mockLogger.error).toHaveBeenCalledWith(
+            expect.stringContaining('504'),
+            expect.objectContaining({
+              statusCode: 504,
+              error: 'Request timeout',
+            }),
+          );
+          done();
+        },
+      });
+    });
+
+    it('should handle validation errors (400)', (done) => {
+      const context = createMockExecutionContext('POST', '/api/users');
+      const validationError = new Error('Validation failed');
+      (validationError as any).status = 400;
+      const errorHandler: CallHandler = {
+        handle: jest.fn(() => throwError(() => validationError)),
+      };
+
+      interceptor.intercept(context, errorHandler).subscribe({
+        error: () => {
+          expect(mockLogger.error).toHaveBeenCalledWith(
+            expect.stringContaining('400'),
+            expect.objectContaining({
+              statusCode: 400,
+              error: 'Validation failed',
+            }),
+          );
+          done();
+        },
+      });
+    });
+
+    it('should handle unauthorized errors (401)', (done) => {
+      const context = createMockExecutionContext('GET', '/api/protected');
+      const authError = new Error('Unauthorized');
+      (authError as any).status = 401;
+      const errorHandler: CallHandler = {
+        handle: jest.fn(() => throwError(() => authError)),
+      };
+
+      interceptor.intercept(context, errorHandler).subscribe({
+        error: () => {
+          expect(mockLogger.error).toHaveBeenCalledWith(
+            expect.stringContaining('401'),
+            expect.objectContaining({
+              statusCode: 401,
+              error: 'Unauthorized',
+            }),
+          );
+          done();
+        },
+      });
+    });
+
+    it('should handle errors without message property', (done) => {
+      const context = createMockExecutionContext('GET', '/error');
+      const strangeError = { status: 500 } as any;
+      const errorHandler: CallHandler = {
+        handle: jest.fn(() => throwError(() => strangeError)),
+      };
+
+      interceptor.intercept(context, errorHandler).subscribe({
+        error: () => {
+          expect(mockLogger.error).toHaveBeenCalled();
+          done();
+        },
+      });
+    });
+  });
+
+  describe('intercept - Data Handling', () => {
+    it('should handle large response data', (done) => {
+      const largeData = { items: Array(10000).fill({ id: 1, name: 'test' }) };
+      const context = createMockExecutionContext('GET', '/api/large-dataset');
+      const largeHandler: CallHandler = {
+        handle: jest.fn(() => of(largeData)),
+      };
+
+      interceptor.intercept(context, largeHandler).subscribe(() => {
+        expect(mockLogger.log).toHaveBeenCalledWith(
+          'info',
+          expect.stringContaining('200'),
+          expect.objectContaining({
+            statusCode: 200,
+          }),
+        );
+        done();
+      });
+    });
+
+    it('should handle null response data', (done) => {
+      const context = createMockExecutionContext(
+        'GET',
+        '/api/null',
+        '127.0.0.1',
+        'Test',
+        204,
+      );
+      const nullHandler: CallHandler = {
+        handle: jest.fn(() => of(null)),
+      };
+
+      interceptor.intercept(context, nullHandler).subscribe(() => {
+        expect(mockLogger.log).toHaveBeenCalledWith(
+          'info',
+          expect.stringContaining('204'),
+          expect.any(Object),
+        );
+        done();
+      });
+    });
+
+    it('should handle undefined response data', (done) => {
+      const context = createMockExecutionContext(
+        'DELETE',
+        '/api/resource/123',
+        '127.0.0.1',
+        'Test',
+        204,
+      );
+      const undefinedHandler: CallHandler = {
+        handle: jest.fn(() => of(undefined)),
+      };
+
+      interceptor.intercept(context, undefinedHandler).subscribe(() => {
+        expect(mockLogger.log).toHaveBeenCalledWith(
+          'info',
+          expect.stringContaining('DELETE /api/resource/123 204'),
+          expect.any(Object),
+        );
+        done();
       });
     });
   });

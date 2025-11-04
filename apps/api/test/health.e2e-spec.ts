@@ -47,7 +47,9 @@ describe('HealthController (e2e)', () => {
 
       const timestamp = new Date(response.body.timestamp);
       expect(timestamp.toString()).not.toBe('Invalid Date');
-      expect(response.body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+      expect(response.body.timestamp).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,
+      );
     });
 
     it('should return uptime as a positive number', async () => {
@@ -81,27 +83,29 @@ describe('HealthController (e2e)', () => {
         .expect(200);
 
       // Uptime should be non-decreasing
-      expect(response2.body.uptime).toBeGreaterThanOrEqual(response1.body.uptime);
-      
+      expect(response2.body.uptime).toBeGreaterThanOrEqual(
+        response1.body.uptime,
+      );
+
       // The difference should be at least 0 (non-decreasing) and at most 4 seconds
       const uptimeDiff = response2.body.uptime - response1.body.uptime;
       expect(uptimeDiff).toBeGreaterThanOrEqual(0);
       expect(uptimeDiff).toBeLessThanOrEqual(4); // Allow some tolerance
-      
+
       // Both responses should have valid timestamps
       expect(new Date(response1.body.timestamp).getTime()).toBeLessThanOrEqual(
-        new Date(response2.body.timestamp).getTime()
+        new Date(response2.body.timestamp).getTime(),
       );
     });
 
     it('should handle multiple concurrent requests', async () => {
       // Use sequential requests with small delays to avoid connection issues
       const responses = [];
-      
+
       for (let i = 0; i < 3; i++) {
         const response = await request(app.getHttpServer()).get('/health');
         responses.push(response);
-        
+
         // Small delay between requests
         if (i < 2) {
           await new Promise((resolve) => setTimeout(resolve, 50));
@@ -165,7 +169,9 @@ describe('HealthController (e2e)', () => {
         .expect(200);
 
       expect(typeof response.body.environment).toBe('string');
-      expect(['development', 'test', 'production']).toContain(response.body.environment);
+      expect(['development', 'test', 'production']).toContain(
+        response.body.environment,
+      );
     });
 
     it('should return uploads directory status', async () => {
@@ -258,12 +264,12 @@ describe('HealthController (e2e)', () => {
 
       // Check structure consistency
       expect(Object.keys(response1.body).sort()).toEqual(
-        Object.keys(response2.body).sort()
+        Object.keys(response2.body).sort(),
       );
 
       // Check memory structure consistency
       expect(Object.keys(response1.body.memory).sort()).toEqual(
-        Object.keys(response2.body.memory).sort()
+        Object.keys(response2.body.memory).sort(),
       );
     });
   });
@@ -272,9 +278,7 @@ describe('HealthController (e2e)', () => {
     it('should respond quickly to basic health check', async () => {
       const start = Date.now();
 
-      await request(app.getHttpServer())
-        .get('/health')
-        .expect(200);
+      await request(app.getHttpServer()).get('/health').expect(200);
 
       const duration = Date.now() - start;
 
@@ -285,9 +289,7 @@ describe('HealthController (e2e)', () => {
     it('should respond quickly to detailed health check', async () => {
       const start = Date.now();
 
-      await request(app.getHttpServer())
-        .get('/health/detailed')
-        .expect(200);
+      await request(app.getHttpServer()).get('/health/detailed').expect(200);
 
       const duration = Date.now() - start;
 

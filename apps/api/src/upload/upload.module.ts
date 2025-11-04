@@ -8,17 +8,9 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 import { DocumentRepository } from './repositories/document.repository';
 
 @Module({
-  imports: [
-    LoggerModule,
-    StorageModule,
-    OcrModule,
-    AnalyticsModule,
-  ],
+  imports: [LoggerModule, StorageModule, OcrModule, AnalyticsModule],
   controllers: [UploadController],
-  providers: [
-    UploadService,
-    DocumentRepository,
-  ],
+  providers: [UploadService, DocumentRepository],
   exports: [UploadService, DocumentRepository],
 })
 export class UploadModule {}

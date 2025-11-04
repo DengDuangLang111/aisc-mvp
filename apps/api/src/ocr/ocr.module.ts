@@ -3,7 +3,7 @@ import { VisionService } from './vision.service';
 
 /**
  * OCR 模块
- * 
+ *
  * 提供 Google Cloud Vision OCR 服务
  */
 @Module({

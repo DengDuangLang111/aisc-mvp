@@ -18,7 +18,7 @@ export interface GcsUploadResult {
 
 /**
  * Google Cloud Storage 服务
- * 
+ *
  * 功能:
  * - 文件上传到 GCS
  * - 生成预签名 URL（临时访问）
@@ -36,19 +36,21 @@ export class GcsService {
     private googleCredentialsProvider: GoogleCredentialsProvider,
   ) {
     const credentials = this.googleCredentialsProvider.getCredentials();
-    
+
     this.storage = new Storage({
       projectId: this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID'),
       credentials,
     });
 
-    this.bucketName = this.configService.get<string>('GCS_BUCKET_NAME') || 'study-oasis-uploads';
+    this.bucketName =
+      this.configService.get<string>('GCS_BUCKET_NAME') ||
+      'study-oasis-uploads';
     this.logger.log(`GCS Service initialized with bucket: ${this.bucketName}`);
   }
 
   /**
    * 上传文件到 GCS
-   * 
+   *
    * @param file - 文件 Buffer
    * @param originalFilename - 原始文件名
    * @param folder - 存储文件夹（默认：'uploads'）
@@ -98,12 +100,15 @@ export class GcsService {
 
   /**
    * 生成预签名 URL（临时访问链接，默认 7 天有效）
-   * 
+   *
    * @param gcsPath - GCS 路径（gs://bucket/path/file.ext 或 path/file.ext）
    * @param expiresInDays - 有效期（天）
    * @returns 预签名 URL
    */
-  async getSignedUrl(gcsPath: string, expiresInDays: number = 7): Promise<string> {
+  async getSignedUrl(
+    gcsPath: string,
+    expiresInDays: number = 7,
+  ): Promise<string> {
     try {
       // 移除 gs://bucket/ 前缀
       const filePath = gcsPath.replace(`gs://${this.bucketName}/`, '');
@@ -126,7 +131,7 @@ export class GcsService {
 
   /**
    * 删除文件
-   * 
+   *
    * @param gcsPath - GCS 路径
    */
   async deleteFile(gcsPath: string): Promise<void> {
@@ -145,7 +150,7 @@ export class GcsService {
 
   /**
    * 列出文件夹下的所有文件
-   * 
+   *
    * @param folder - 文件夹路径
    * @returns 文件列表
    */
@@ -163,7 +168,7 @@ export class GcsService {
 
   /**
    * 检查文件是否存在
-   * 
+   *
    * @param gcsPath - GCS 路径
    * @returns 是否存在
    */
@@ -188,7 +193,8 @@ export class GcsService {
     const mimeTypes: Record<string, string> = {
       '.pdf': 'application/pdf',
       '.doc': 'application/msword',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.docx':
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       '.txt': 'text/plain',
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',

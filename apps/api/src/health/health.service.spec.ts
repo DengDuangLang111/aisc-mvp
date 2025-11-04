@@ -16,7 +16,7 @@ describe('HealthService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         HealthService,
@@ -46,19 +46,19 @@ describe('HealthService', () => {
     it('should have valid timestamp format', () => {
       const result = service.getHealthStatus();
       const timestamp = new Date(result.timestamp);
-      
+
       expect(timestamp).toBeInstanceOf(Date);
       expect(timestamp.getTime()).not.toBeNaN();
     });
 
     it('should increment uptime on subsequent calls', async () => {
       const result1 = service.getHealthStatus();
-      
+
       // Wait a bit
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const result2 = service.getHealthStatus();
-      
+
       expect(result2.uptime).toBeGreaterThanOrEqual(result1.uptime);
     });
   });

@@ -2,11 +2,14 @@
 
 > 基于 Next.js + NestJS 的 AI 学习平台，支持文档上传、OCR 识别、智能对话和数据分析
 
+[![CI Status](https://github.com/YOUR_USERNAME/study_oasis_simple/workflows/CI/badge.svg)](https://github.com/YOUR_USERNAME/study_oasis_simple/actions)
+[![Deploy Status](https://github.com/YOUR_USERNAME/study_oasis_simple/workflows/Deploy/badge.svg)](https://github.com/YOUR_USERNAME/study_oasis_simple/actions)
+[![codecov](https://codecov.io/gh/YOUR_USERNAME/study_oasis_simple/branch/main/graph/badge.svg)](https://codecov.io/gh/YOUR_USERNAME/study_oasis_simple)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-11-red)](https://nestjs.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-6.18-2D3748)](https://www.prisma.io/)
-[![Tests](https://img.shields.io/badge/tests-218%2F227%20passing-brightgreen)](./apps/api/README.md)
+[![Tests](https://img.shields.io/badge/tests-256%2F256%20passing-brightgreen)](./apps/api/README.md)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
 ---

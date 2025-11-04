@@ -23,16 +23,18 @@ import { ConfigService } from '@nestjs/config';
         const consoleFormat = winston.format.combine(
           winston.format.colorize(),
           winston.format.timestamp({ format: 'HH:mm:ss' }),
-          winston.format.printf(({ timestamp, level, message, context, ...meta }) => {
-            let msg = `${timestamp} [${context || 'Application'}] ${level}: ${message}`;
-            
-            // 如果有额外的元数据，添加到日志中
-            if (Object.keys(meta).length > 0) {
-              msg += ` ${JSON.stringify(meta)}`;
-            }
-            
-            return msg;
-          }),
+          winston.format.printf(
+            ({ timestamp, level, message, context, ...meta }) => {
+              let msg = `${timestamp} [${context || 'Application'}] ${level}: ${message}`;
+
+              // 如果有额外的元数据，添加到日志中
+              if (Object.keys(meta).length > 0) {
+                msg += ` ${JSON.stringify(meta)}`;
+              }
+
+              return msg;
+            },
+          ),
         );
 
         // 日志传输配置

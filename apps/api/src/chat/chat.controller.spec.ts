@@ -130,7 +130,10 @@ describe('ChatController', () => {
       const result = await controller.getConversations();
 
       expect(result).toEqual(mockConversations);
-      expect(service.getConversations).toHaveBeenCalledWith(undefined, { limit: 20, offset: 0 });
+      expect(service.getConversations).toHaveBeenCalledWith(undefined, {
+        limit: 20,
+        offset: 0,
+      });
     });
 
     it('should return conversations with custom limit', async () => {
@@ -138,10 +141,16 @@ describe('ChatController', () => {
 
       mockChatService.getConversations.mockResolvedValue(mockConversations);
 
-      const result = await controller.getConversations(undefined, { limit: 10, offset: 0 });
+      const result = await controller.getConversations(undefined, {
+        limit: 10,
+        offset: 0,
+      });
 
       expect(result).toEqual(mockConversations);
-      expect(service.getConversations).toHaveBeenCalledWith(undefined, { limit: 10, offset: 0 });
+      expect(service.getConversations).toHaveBeenCalledWith(undefined, {
+        limit: 10,
+        offset: 0,
+      });
     });
 
     it('should return conversations for specific user', async () => {
@@ -149,10 +158,16 @@ describe('ChatController', () => {
 
       mockChatService.getConversations.mockResolvedValue(mockConversations);
 
-      const result = await controller.getConversations('user-123', { limit: 20, offset: 0 });
+      const result = await controller.getConversations('user-123', {
+        limit: 20,
+        offset: 0,
+      });
 
       expect(result).toEqual(mockConversations);
-      expect(service.getConversations).toHaveBeenCalledWith('user-123', { limit: 20, offset: 0 });
+      expect(service.getConversations).toHaveBeenCalledWith('user-123', {
+        limit: 20,
+        offset: 0,
+      });
     });
   });
 
@@ -198,7 +213,10 @@ describe('ChatController', () => {
       const result = await controller.deleteConversation('conv-1');
 
       expect(result).toEqual({ message: 'Conversation deleted successfully' });
-      expect(service.deleteConversation).toHaveBeenCalledWith('conv-1', undefined);
+      expect(service.deleteConversation).toHaveBeenCalledWith(
+        'conv-1',
+        undefined,
+      );
       expect(service.deleteConversation).toHaveBeenCalledTimes(1);
     });
 
@@ -208,7 +226,10 @@ describe('ChatController', () => {
       const result = await controller.deleteConversation('conv-1', 'user-123');
 
       expect(result).toEqual({ message: 'Conversation deleted successfully' });
-      expect(service.deleteConversation).toHaveBeenCalledWith('conv-1', 'user-123');
+      expect(service.deleteConversation).toHaveBeenCalledWith(
+        'conv-1',
+        'user-123',
+      );
     });
   });
 });

@@ -88,7 +88,9 @@ describe('Cache (HTTP Caching) E2E', () => {
         .expect(201);
 
       // POST responses should not be identical (different timestamps)
-      expect(secondResponse.body.timestamp).not.toBe(firstResponse.body.timestamp);
+      expect(secondResponse.body.timestamp).not.toBe(
+        firstResponse.body.timestamp,
+      );
       console.log('✓ POST requests not cached');
     });
   });
@@ -113,7 +115,7 @@ describe('Cache (HTTP Caching) E2E', () => {
     it('should use different cache keys for different query parameters', async () => {
       // Note: Health endpoints don't accept query params, but we can verify
       // that cache clearing works correctly, which indirectly proves cache key isolation
-      
+
       const response1 = await request(app.getHttpServer())
         .get('/health/detailed')
         .expect(200);
@@ -180,7 +182,10 @@ describe('Cache (HTTP Caching) E2E', () => {
       const firstMemory = firstResponse.body.memory.used;
 
       // Clear cache
-      if (cacheManager.store && typeof cacheManager.store.reset === 'function') {
+      if (
+        cacheManager.store &&
+        typeof cacheManager.store.reset === 'function'
+      ) {
         await cacheManager.store.reset();
       }
 
@@ -192,7 +197,9 @@ describe('Cache (HTTP Caching) E2E', () => {
       // Memory values might differ (not guaranteed, but likely)
       expect(secondResponse.body).toHaveProperty('memory');
       expect(secondResponse.body.memory).toHaveProperty('used');
-      console.log(`Memory changed: ${firstMemory} → ${secondResponse.body.memory.used}`);
+      console.log(
+        `Memory changed: ${firstMemory} → ${secondResponse.body.memory.used}`,
+      );
 
       // Third request (should be cached again)
       const thirdResponse = await request(app.getHttpServer())
@@ -233,7 +240,10 @@ describe('Cache (HTTP Caching) E2E', () => {
       await request(app.getHttpServer()).get('/health/detailed').expect(200);
 
       // Reset all caches
-      if (cacheManager.store && typeof cacheManager.store.reset === 'function') {
+      if (
+        cacheManager.store &&
+        typeof cacheManager.store.reset === 'function'
+      ) {
         await cacheManager.store.reset();
       }
       console.log('All caches cleared with reset()');

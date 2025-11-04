@@ -5,7 +5,7 @@ import { AnalyticsMiddleware } from './analytics.middleware';
 
 /**
  * Analytics 模块
- * 
+ *
  * 提供数据埋点和统计分析服务
  */
 @Module({

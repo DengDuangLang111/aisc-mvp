@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException, Inject, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  Inject,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { extname, join } from 'path';
@@ -6,9 +12,13 @@ import { promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
 import { GcsService } from '../storage/gcs.service';
 import { VisionService } from '../ocr/vision.service';
-import { AnalyticsService, AnalyticsEventData } from '../analytics/analytics.service';
+import {
+  AnalyticsService,
+  AnalyticsEventData,
+} from '../analytics/analytics.service';
 import { EventName, EventCategory } from '../analytics/analytics.types';
 import { DocumentRepository } from './repositories/document.repository';
+import { FileValidatorHelper } from './helpers/file-validator.helper';
 const fileTypeImport = require('file-type');
 
 export interface UploadResult {
@@ -25,9 +35,22 @@ export interface UploadResult {
 export class UploadService {
   // 危险文件扩展名黑名单
   private readonly DANGEROUS_EXTENSIONS = [
-    '.exe', '.dll', '.bat', '.cmd', '.sh', '.bash',
-    '.scr', '.vbs', '.js', '.jar', '.app', '.msi',
-    '.com', '.pif', '.ps1', '.psm1',
+    '.exe',
+    '.dll',
+    '.bat',
+    '.cmd',
+    '.sh',
+    '.bash',
+    '.scr',
+    '.vbs',
+    '.js',
+    '.jar',
+    '.app',
+    '.msi',
+    '.com',
+    '.pif',
+    '.ps1',
+    '.psm1',
   ];
 
   constructor(
@@ -39,9 +62,13 @@ export class UploadService {
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {
     // 检查是否启用云存储
-    const useCloudStorage = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
+    const useCloudStorage = this.configService.get<string>(
+      'GOOGLE_CLOUD_PROJECT_ID',
+    );
     if (useCloudStorage) {
-      this.logger.log('Cloud storage enabled (GCS)', { context: 'UploadService' });
+      this.logger.log('Cloud storage enabled (GCS)', {
+        context: 'UploadService',
+      });
     } else {
       this.logger.log('Using local storage', { context: 'UploadService' });
     }
@@ -51,7 +78,8 @@ export class UploadService {
    * 验证文件类型
    */
   private isAllowedMimeType(mimetype: string): boolean {
-    const allowed = this.configService.get<string[]>('upload.allowedMimeTypes') || [];
+    const allowed =
+      this.configService.get<string[]>('upload.allowedMimeTypes') || [];
     return allowed.some((allowedType: string) => {
       if (allowedType.endsWith('/*')) {
         const prefix = allowedType.slice(0, -2);
@@ -65,7 +93,8 @@ export class UploadService {
    * 验证文件大小
    */
   private isAllowedSize(size: number): boolean {
-    const maxSize = this.configService.get<number>('upload.maxSize') || 10485760;
+    const maxSize =
+      this.configService.get<number>('upload.maxSize') || 10485760;
     return size <= maxSize;
   }
 
@@ -80,7 +109,8 @@ export class UploadService {
    * 构建文件 URL
    */
   private buildFileUrl(filename: string): string {
-    const baseUrl = this.configService.get<string>('baseUrl') || 'http://localhost:4001';
+    const baseUrl =
+      this.configService.get<string>('baseUrl') || 'http://localhost:4001';
     return `${baseUrl}/uploads/${filename}`;
   }
 
@@ -134,16 +164,19 @@ export class UploadService {
         'text/css',
         'application/javascript',
       ];
-      
+
       if (textBasedTypes.includes(declaredMimetype)) {
-        this.logger.debug('Text-based file accepted without magic number validation', {
-          context: 'UploadService',
-          declaredMimetype,
-          bufferSize: buffer.length,
-        });
+        this.logger.debug(
+          'Text-based file accepted without magic number validation',
+          {
+            context: 'UploadService',
+            declaredMimetype,
+            bufferSize: buffer.length,
+          },
+        );
         return; // 文本类型文件允许通过
       }
-      
+
       this.logger.warn('Unable to detect file type from buffer', {
         context: 'UploadService',
         declaredMimetype,
@@ -160,7 +193,7 @@ export class UploadService {
         actual: detected.mime,
       });
       throw new BadRequestException(
-        `文件类型不匹配。声明类型: ${declaredMimetype}, 实际类型: ${detected.mime}`
+        `文件类型不匹配。声明类型: ${declaredMimetype}, 实际类型: ${detected.mime}`,
       );
     }
   }
@@ -168,10 +201,13 @@ export class UploadService {
   /**
    * 处理文件上传
    */
-  async saveFile(file: Express.Multer.File, userId?: string): Promise<UploadResult> {
+  async saveFile(
+    file: Express.Multer.File,
+    userId?: string,
+  ): Promise<UploadResult> {
     const originalFilename = file.originalname;
     const sessionId = this.generateSessionId();
-    
+
     this.logger.log('info', 'Processing file upload', {
       context: 'UploadService',
       filename: originalFilename,
@@ -201,7 +237,7 @@ export class UploadService {
           filename: originalFilename,
         });
         throw new BadRequestException(
-          `不允许上传可执行文件类型: ${extname(originalFilename)}`
+          `不允许上传可执行文件类型: ${extname(originalFilename)}`,
         );
       }
 
@@ -227,14 +263,17 @@ export class UploadService {
         });
 
         throw new BadRequestException(
-          `不支持的文件类型: ${file.mimetype}。允许的类型: PDF, 文本, 图片`
+          `不支持的文件类型: ${file.mimetype}。允许的类型: PDF, 文本, 图片`,
         );
       }
 
       // 5. 验证文件大小
       if (!this.isAllowedSize(file.size)) {
-        const maxSizeMB = (this.configService.get<number>('upload.maxSize') || 10485760) / 1024 / 1024;
-        
+        const maxSizeMB =
+          (this.configService.get<number>('upload.maxSize') || 10485760) /
+          1024 /
+          1024;
+
         this.logger.warn('File size exceeds limit', {
           context: 'UploadService',
           filename: originalFilename,
@@ -243,7 +282,7 @@ export class UploadService {
         });
 
         throw new BadRequestException(
-          `文件大小超过限制。最大允许: ${maxSizeMB}MB`
+          `文件大小超过限制。最大允许: ${maxSizeMB}MB`,
         );
       }
 
@@ -253,8 +292,10 @@ export class UploadService {
       let gcsPath: string | null = null;
       let localPath: string | null = null;
 
-      const useCloudStorage = this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID');
-      
+      const useCloudStorage = this.configService.get<string>(
+        'GOOGLE_CLOUD_PROJECT_ID',
+      );
+
       if (useCloudStorage) {
         // 上传到 Google Cloud Storage
         this.logger.log('info', 'Uploading to Google Cloud Storage', {
@@ -326,14 +367,19 @@ export class UploadService {
       });
 
       // 9. 异步触发 OCR（不阻塞响应）
-      this.triggerOCR(document.id, gcsPath || localPath, file.buffer, userId, sessionId)
-        .catch((error) => {
-          this.logger.error('OCR processing failed', {
-            context: 'UploadService',
-            documentId: document.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
+      this.triggerOCR(
+        document.id,
+        gcsPath || localPath,
+        file.buffer,
+        userId,
+        sessionId,
+      ).catch((error) => {
+        this.logger.error('OCR processing failed', {
+          context: 'UploadService',
+          documentId: document.id,
+          error: error instanceof Error ? error.message : String(error),
         });
+      });
 
       const result: UploadResult = {
         id: uniqueId,
@@ -376,13 +422,16 @@ export class UploadService {
    * @param fileId 文件ID（不含扩展名）
    * @returns 文件信息
    */
-  async getFileInfo(fileId: string): Promise<{ diskFilename: string; uploadDir: string } | null> {
-    const uploadDir = this.configService.get<string>('upload.destination') || './uploads';
-    
+  async getFileInfo(
+    fileId: string,
+  ): Promise<{ diskFilename: string; uploadDir: string } | null> {
+    const uploadDir =
+      this.configService.get<string>('upload.destination') || './uploads';
+
     try {
       const files = await fs.readdir(uploadDir);
       const targetFile = files.find((file: string) => file.startsWith(fileId));
-      
+
       if (!targetFile) {
         return null;
       }
@@ -412,13 +461,14 @@ export class UploadService {
       fileId,
     });
 
-    const uploadDir = this.configService.get<string>('upload.destination') || './uploads';
-    
+    const uploadDir =
+      this.configService.get<string>('upload.destination') || './uploads';
+
     try {
       // 查找文件（支持多种扩展名）
       const files = await fs.readdir(uploadDir);
       const targetFile = files.find((file: string) => file.startsWith(fileId));
-      
+
       if (!targetFile) {
         this.logger.warn('File not found', {
           context: 'UploadService',
@@ -428,29 +478,29 @@ export class UploadService {
       }
 
       const filePath = join(uploadDir, targetFile);
-      
+
       // 读取文件内容
       const content = await fs.readFile(filePath, 'utf-8');
-      
+
       this.logger.log('info', 'File content read successfully', {
         context: 'UploadService',
         fileId,
         filename: targetFile,
         contentLength: content.length,
       });
-      
+
       return content;
     } catch (error: unknown) {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      
+
       this.logger.error('Failed to read file content', {
         context: 'UploadService',
         fileId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
-      
+
       throw new BadRequestException('无法读取文件内容');
     }
   }
@@ -517,14 +567,20 @@ export class UploadService {
             bufferSize: fileBuffer.length,
           });
 
-          ocrResult = await this.visionService.extractTextFromBuffer(fileBuffer, documentId);
+          ocrResult = await this.visionService.extractTextFromBuffer(
+            fileBuffer,
+            documentId,
+          );
         } catch (error: unknown) {
           lastError = error instanceof Error ? error : new Error(String(error));
-          this.logger.warn('Buffer OCR attempt failed, will retry with storage path if available', {
-            context: 'UploadService',
-            documentId,
-            error: lastError.message,
-          });
+          this.logger.warn(
+            'Buffer OCR attempt failed, will retry with storage path if available',
+            {
+              context: 'UploadService',
+              documentId,
+              error: lastError.message,
+            },
+          );
         }
       }
 
@@ -537,7 +593,10 @@ export class UploadService {
             gcsPath: filePath,
           });
 
-          ocrResult = await this.visionService.extractTextFromGcs(filePath, documentId);
+          ocrResult = await this.visionService.extractTextFromGcs(
+            filePath,
+            documentId,
+          );
         } catch (error: unknown) {
           lastError = error instanceof Error ? error : new Error(String(error));
           this.logger.error('GCS OCR attempt failed', {
@@ -558,7 +617,10 @@ export class UploadService {
           });
 
           const buffer = await fs.readFile(filePath);
-          ocrResult = await this.visionService.extractTextFromBuffer(buffer, documentId);
+          ocrResult = await this.visionService.extractTextFromBuffer(
+            buffer,
+            documentId,
+          );
         } catch (error: unknown) {
           lastError = error instanceof Error ? error : new Error(String(error));
           this.logger.error('Local file OCR attempt failed', {

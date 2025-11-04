@@ -1,11 +1,22 @@
-import { Body, Controller, Post, Get, Delete, Param, Query, UseGuards, Res, Logger } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Get,
+  Delete,
+  Param,
+  Query,
+  UseGuards,
+  Res,
+  Logger,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { 
-  ApiTags, 
-  ApiOperation, 
-  ApiResponse, 
-  ApiBadRequestResponse, 
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBadRequestResponse,
   ApiTooManyRequestsResponse,
   ApiParam,
   ApiQuery,
@@ -28,9 +39,10 @@ export class ChatController {
    * 发送聊天消息
    */
   @Post()
-  @ApiOperation({ 
-    summary: '发送聊天消息', 
-    description: '向 AI 助手发送消息并获取回复。支持对话历史、文档上下文、渐进式提示。'
+  @ApiOperation({
+    summary: '发送聊天消息',
+    description:
+      '向 AI 助手发送消息并获取回复。支持对话历史、文档上下文、渐进式提示。',
   })
   @ApiResponse({
     status: 200,
@@ -38,7 +50,10 @@ export class ChatController {
     schema: {
       type: 'object',
       properties: {
-        reply: { type: 'string', example: '这是一个很好的问题！让我们一起思考...' },
+        reply: {
+          type: 'string',
+          example: '这是一个很好的问题！让我们一起思考...',
+        },
         hintLevel: { type: 'number', example: 1, enum: [1, 2, 3] },
         timestamp: { type: 'number', example: 1698765432000 },
         conversationId: { type: 'string', example: 'conv-123' },
@@ -112,11 +127,21 @@ export class ChatController {
   @Get('conversations')
   @ApiOperation({
     summary: '获取对话列表',
-    description: '获取用户的对话历史列表'
+    description: '获取用户的对话历史列表',
   })
   @ApiQuery({ name: 'userId', required: false, description: '用户 ID' })
-  @ApiQuery({ name: 'limit', required: false, description: '每页数量', example: 20 })
-  @ApiQuery({ name: 'offset', required: false, description: '跳过的记录数', example: 0 })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: '每页数量',
+    example: 20,
+  })
+  @ApiQuery({
+    name: 'offset',
+    required: false,
+    description: '跳过的记录数',
+    example: 0,
+  })
   @ApiResponse({
     status: 200,
     description: '对话列表',
@@ -151,7 +176,7 @@ export class ChatController {
   @Get('conversations/:id')
   @ApiOperation({
     summary: '获取对话详情',
-    description: '获取单个对话的完整历史记录'
+    description: '获取单个对话的完整历史记录',
   })
   @ApiParam({ name: 'id', description: '对话 ID' })
   @ApiResponse({
@@ -211,17 +236,24 @@ export class ChatController {
   @Delete('conversations/:id')
   @ApiOperation({
     summary: '删除对话',
-    description: '删除指定的对话及其所有消息'
+    description: '删除指定的对话及其所有消息',
   })
   @ApiParam({ name: 'id', description: '对话 ID' })
-  @ApiQuery({ name: 'userId', required: false, description: '用户 ID（用于权限验证）' })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    description: '用户 ID（用于权限验证）',
+  })
   @ApiResponse({
     status: 200,
     description: '删除成功',
     schema: {
       type: 'object',
       properties: {
-        message: { type: 'string', example: 'Conversation deleted successfully' },
+        message: {
+          type: 'string',
+          example: 'Conversation deleted successfully',
+        },
       },
     },
   })

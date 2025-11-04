@@ -6,7 +6,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 
 /**
  * 完整流程 E2E 测试
- * 
+ *
  * 测试场景：
  * 1. 上传文档 → 触发 OCR
  * 2. 查询文档信息（验证 OCR 状态）
@@ -78,7 +78,10 @@ describe('Cloud Integration E2E Flow', () => {
       expect(response.body).toHaveProperty('filename');
       expect(response.body).toHaveProperty('ocrStatus');
 
-      console.log('✓ Document info retrieved, OCR status:', response.body.ocrStatus);
+      console.log(
+        '✓ Document info retrieved, OCR status:',
+        response.body.ocrStatus,
+      );
     });
   });
 
@@ -181,7 +184,9 @@ describe('Cloud Integration E2E Flow', () => {
       expect(Array.isArray(response.body)).toBe(true);
       expect(response.body.length).toBeGreaterThan(0);
 
-      const conversation = response.body.find((c: any) => c.id === conversationId);
+      const conversation = response.body.find(
+        (c: any) => c.id === conversationId,
+      );
       expect(conversation).toBeDefined();
       expect(conversation.messageCount).toBeGreaterThanOrEqual(2);
 

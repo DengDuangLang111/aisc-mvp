@@ -1,0 +1,63 @@
+groups:
+  - name: api_alerts
+    interval: 30s
+    rules:
+      # API 宕机告警
+      - alert: APIDown
+        expr: up{job="study-oasis-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 服务宕机"
+          description: "Study Oasis API 已宕机超过 1 分钟"
+
+      # 高错误率告警
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status_code=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "高错误率检测"
+          description: "5xx 错误率超过 5% 持续 5 分钟"
+
+      # 响应时间过长
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "响应时间过长"
+          description: "95% 请求响应时间超过 2 秒"
+
+      # 高内存使用
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / 1024 / 1024 > 500
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "内存使用过高"
+          description: "进程内存使用超过 500MB"
+
+      # CPU 使用过高
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU 使用过高"
+          description: "CPU 使用率超过 80%"
+
+      # 请求量激增
+      - alert: RequestSpike
+        expr: rate(http_requests_total[1m]) > 100
+        for: 2m
+        labels:
+          severity: info
+        annotations:
+          summary: "请求量激增"
+          description: "每秒请求数超过 100"

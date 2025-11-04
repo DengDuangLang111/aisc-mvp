@@ -5,7 +5,7 @@ import * as fs from 'fs';
 
 /**
  * Google Cloud 认证提供者
- * 
+ *
  * 统一管理 Google Cloud 服务（Vision API, Storage）的认证凭据
  * 支持多种认证方式：
  * 1. Base64 编码的环境变量（Railway 部署）
@@ -47,7 +47,9 @@ export class GoogleCredentialsProvider {
    */
   private loadCredentials(): any {
     // 方法 1: Base64 编码的凭据（Railway 部署）
-    const base64Creds = this.configService.get<string>('GOOGLE_CREDENTIALS_BASE64');
+    const base64Creds = this.configService.get<string>(
+      'GOOGLE_CREDENTIALS_BASE64',
+    );
     if (base64Creds) {
       try {
         const decoded = Buffer.from(base64Creds, 'base64').toString('utf-8');
@@ -60,7 +62,9 @@ export class GoogleCredentialsProvider {
     }
 
     // 方法 2: 文件路径
-    const credentialsPath = this.configService.get<string>('GOOGLE_APPLICATION_CREDENTIALS');
+    const credentialsPath = this.configService.get<string>(
+      'GOOGLE_APPLICATION_CREDENTIALS',
+    );
     if (credentialsPath) {
       try {
         // 尝试多个可能的路径
@@ -78,8 +82,10 @@ export class GoogleCredentialsProvider {
             return JSON.parse(fileContent);
           }
         }
-        
-        this.logger.warn(`Credentials file not found in any of the paths: ${pathsToTry.join(', ')}`);
+
+        this.logger.warn(
+          `Credentials file not found in any of the paths: ${pathsToTry.join(', ')}`,
+        );
       } catch (error) {
         this.logger.error('Failed to load credentials from file', error);
       }
@@ -99,10 +105,12 @@ export class GoogleCredentialsProvider {
     }
 
     const required = ['project_id', 'private_key', 'client_email'];
-    const missing = required.filter(key => !this.credentials[key]);
+    const missing = required.filter((key) => !this.credentials[key]);
 
     if (missing.length > 0) {
-      this.logger.error(`Missing required credential fields: ${missing.join(', ')}`);
+      this.logger.error(
+        `Missing required credential fields: ${missing.join(', ')}`,
+      );
       return false;
     }
 
