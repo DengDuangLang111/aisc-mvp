@@ -13,6 +13,7 @@ import {
 import { ChatService } from './chat.service';
 import type { ChatResponse } from '@study-oasis/contracts';
 import { ChatRequestDto } from './dto/chat-request.dto';
+import { PaginationDto, PaginatedResponse } from '../common/dto/pagination.dto';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -114,7 +115,8 @@ export class ChatController {
     description: '获取用户的对话历史列表'
   })
   @ApiQuery({ name: 'userId', required: false, description: '用户 ID' })
-  @ApiQuery({ name: 'limit', required: false, description: '返回数量限制', example: 20 })
+  @ApiQuery({ name: 'limit', required: false, description: '每页数量', example: 20 })
+  @ApiQuery({ name: 'offset', required: false, description: '跳过的记录数', example: 0 })
   @ApiResponse({
     status: 200,
     description: '对话列表',
@@ -137,10 +139,9 @@ export class ChatController {
   })
   async getConversations(
     @Query('userId') userId?: string,
-    @Query('limit') limit?: string,
-  ): Promise<any[]> {
-    const limitNum = limit ? parseInt(limit, 10) : 20;
-    return this.chatService.getConversations(userId, limitNum);
+    @Query() pagination: PaginationDto = new PaginationDto(),
+  ): Promise<PaginatedResponse<any>> {
+    return this.chatService.getConversations(userId, pagination);
   }
 
   /**

@@ -10,6 +10,7 @@ import type { ChatResponse, HintLevel } from '@study-oasis/contracts';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { ConversationRepository } from './repositories/conversation.repository';
 import { MessageRepository } from './repositories/message.repository';
+import { PaginationDto, PaginatedResponse, createPaginatedResponse } from '../common/dto/pagination.dto';
 
 /**
  * DeepSeek API 响应类型
@@ -227,15 +228,19 @@ export class ChatService {
   /**
    * 获取对话历史
    */
-  async getConversations(userId?: string, limit: number = 20): Promise<any[]> {
+  async getConversations(userId?: string, pagination: PaginationDto = new PaginationDto()): Promise<PaginatedResponse<any>> {
+    // 获取总数
+    const total = await this.conversationRepo.count({ userId });
+    
+    // 获取分页数据
     const conversations = await this.conversationRepo.findMany({
       userId,
-      limit,
-      offset: 0,
+      limit: pagination.limit || 20,
+      offset: pagination.offset || 0,
       orderBy: { updatedAt: 'desc' },
     });
 
-    return conversations.map((conv: any) => ({
+    const data = conversations.map((conv: any) => ({
       id: conv.id,
       title: conv.title,
       documentId: conv.documentId,
@@ -245,6 +250,8 @@ export class ChatService {
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
     }));
+
+    return createPaginatedResponse(data, total, pagination.limit || 20, pagination.offset || 0);
   }
 
   /**

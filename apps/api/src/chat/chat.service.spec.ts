@@ -436,9 +436,9 @@ describe('ChatService', () => {
 
       const result = await service.getConversations();
 
-      expect(result).toHaveLength(2);
-      expect(result[0].messageCount).toBe(5);
-      expect(result[0].lastMessage).toBe('Hello');
+      expect(result.data).toHaveLength(2);
+      expect(result.data[0].messageCount).toBe(5);
+      expect(result.data[0].lastMessage).toBe('Hello');
       expect(mockConversationRepo.findMany).toHaveBeenCalledWith({
         where: undefined,
         include: { 
@@ -478,7 +478,7 @@ describe('ChatService', () => {
 
       const result = await service.getConversations('user-123', 10);
 
-      expect(result).toHaveLength(1);
+      expect(result.data).toHaveLength(1);
       expect(mockConversationRepo.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-123' },
         include: { 

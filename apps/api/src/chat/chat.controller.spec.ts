@@ -130,7 +130,7 @@ describe('ChatController', () => {
       const result = await controller.getConversations();
 
       expect(result).toEqual(mockConversations);
-      expect(service.getConversations).toHaveBeenCalledWith(undefined, 20);
+      expect(service.getConversations).toHaveBeenCalledWith(undefined, { limit: 20, offset: 0 });
     });
 
     it('should return conversations with custom limit', async () => {
@@ -138,10 +138,10 @@ describe('ChatController', () => {
 
       mockChatService.getConversations.mockResolvedValue(mockConversations);
 
-      const result = await controller.getConversations(undefined, '10');
+      const result = await controller.getConversations(undefined, { limit: 10, offset: 0 });
 
       expect(result).toEqual(mockConversations);
-      expect(service.getConversations).toHaveBeenCalledWith(undefined, 10);
+      expect(service.getConversations).toHaveBeenCalledWith(undefined, { limit: 10, offset: 0 });
     });
 
     it('should return conversations for specific user', async () => {
@@ -149,10 +149,10 @@ describe('ChatController', () => {
 
       mockChatService.getConversations.mockResolvedValue(mockConversations);
 
-      const result = await controller.getConversations('user-123', '20');
+      const result = await controller.getConversations('user-123', { limit: 20, offset: 0 });
 
       expect(result).toEqual(mockConversations);
-      expect(service.getConversations).toHaveBeenCalledWith('user-123', 20);
+      expect(service.getConversations).toHaveBeenCalledWith('user-123', { limit: 20, offset: 0 });
     });
   });
 
