@@ -128,7 +128,7 @@ describe('ChatService', () => {
   describe('chat', () => {
     it('should return hint level 1 for first message (no history)', async () => {
       // Mock: 新对话，没有历史消息
-      mockPrismaService.conversation.create.mockResolvedValueOnce({
+      mockConversationRepo.create.mockResolvedValueOnce({
         id: 'test-conv-1',
         userId: 'test-user',
         documentId: null,
@@ -152,7 +152,7 @@ describe('ChatService', () => {
 
     it('should return hint level 1 with one previous message', async () => {
       // Mock: 对话有 1 个用户消息
-      mockPrismaService.conversation.findUnique.mockResolvedValueOnce({
+      mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-2',
         messages: [
           { id: '1', role: 'user', content: '什么是递归？', conversationId: 'test-conv-2', createdAt: new Date() },
@@ -171,7 +171,7 @@ describe('ChatService', () => {
 
     it('should return hint level 2 with 2-3 previous messages', async () => {
       // Mock: 对话有 2 个用户消息
-      mockPrismaService.conversation.findUnique.mockResolvedValueOnce({
+      mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-3',
         messages: [
           { id: '1', role: 'user', content: '什么是递归？', conversationId: 'test-conv-3', createdAt: new Date() },
@@ -192,7 +192,7 @@ describe('ChatService', () => {
 
     it('should return hint level 3 with 4+ previous messages', async () => {
       // Mock: 对话有 4 个用户消息
-      mockPrismaService.conversation.findUnique.mockResolvedValueOnce({
+      mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-4',
         messages: [
           { id: '1', role: 'user', content: '问题1', conversationId: 'test-conv-4', createdAt: new Date() },
@@ -217,7 +217,7 @@ describe('ChatService', () => {
 
     it('should handle empty conversation history', async () => {
       // Mock: 新对话，无消息历史
-      mockPrismaService.conversation.create.mockResolvedValueOnce({
+      mockConversationRepo.create.mockResolvedValueOnce({
         id: 'test-conv-5',
         userId: 'test-user',
         documentId: null,
@@ -240,7 +240,7 @@ describe('ChatService', () => {
 
     it('should count only user messages in history', async () => {
       // Mock: 4 条消息（2 个用户 + 2 个助手） → 应该是 hintLevel 2
-      mockPrismaService.conversation.findUnique.mockResolvedValueOnce({
+      mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-6',
         messages: [
           { id: '1', role: 'user', content: '用户消息1', conversationId: 'test-conv-6', createdAt: new Date() },
@@ -263,7 +263,7 @@ describe('ChatService', () => {
 
     it('should generate timestamp close to current time', async () => {
       // Mock: 新对话
-      mockPrismaService.conversation.create.mockResolvedValueOnce({
+      mockConversationRepo.create.mockResolvedValueOnce({
         id: 'test-conv-7',
         userId: 'test-user',
         documentId: null,
@@ -297,7 +297,7 @@ describe('ChatService', () => {
         createdAt: new Date(),
       }));
 
-      mockPrismaService.conversation.findUnique.mockResolvedValueOnce({
+      mockConversationRepo.findById.mockResolvedValueOnce({
         id: 'test-conv-8',
         messages: longMessages,
       });
@@ -342,7 +342,7 @@ describe('ChatService', () => {
 
         if (testCase.userMessages === 0) {
           // 新对话
-          mockPrismaService.conversation.create.mockResolvedValueOnce({
+          mockConversationRepo.create.mockResolvedValueOnce({
             id: 'test-conv',
             userId: 'test-user',
             documentId: null,
@@ -353,7 +353,7 @@ describe('ChatService', () => {
           });
         } else {
           // 现有对话
-          mockPrismaService.conversation.findUnique.mockResolvedValueOnce({
+          mockConversationRepo.findById.mockResolvedValueOnce({
             id: 'test-conv',
             messages,
           });
@@ -374,7 +374,7 @@ describe('ChatService', () => {
   describe('response content', () => {
     it('should return fallback response when API fails', async () => {
       // Mock: 新对话
-      mockPrismaService.conversation.create.mockResolvedValueOnce({
+      mockConversationRepo.create.mockResolvedValueOnce({
         id: 'conv-1',
         userId: 'test-user',
         documentId: null,
@@ -432,14 +432,14 @@ describe('ChatService', () => {
         },
       ];
 
-      (mockPrismaService.conversation as any).findMany = jest.fn().mockResolvedValue(mockConversations);
+      mockConversationRepo.findMany = jest.fn().mockResolvedValue(mockConversations);
 
       const result = await service.getConversations();
 
       expect(result).toHaveLength(2);
       expect(result[0].messageCount).toBe(5);
       expect(result[0].lastMessage).toBe('Hello');
-      expect((mockPrismaService.conversation as any).findMany).toHaveBeenCalledWith({
+      expect(mockConversationRepo.findMany).toHaveBeenCalledWith({
         where: undefined,
         include: { 
           _count: { select: { messages: true } },
@@ -474,12 +474,12 @@ describe('ChatService', () => {
         },
       ];
 
-      (mockPrismaService.conversation as any).findMany = jest.fn().mockResolvedValue(mockConversations);
+      mockConversationRepo.findMany = jest.fn().mockResolvedValue(mockConversations);
 
       const result = await service.getConversations('user-123', 10);
 
       expect(result).toHaveLength(1);
-      expect((mockPrismaService.conversation as any).findMany).toHaveBeenCalledWith({
+      expect(mockConversationRepo.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-123' },
         include: { 
           _count: { select: { messages: true } },
@@ -533,7 +533,7 @@ describe('ChatService', () => {
         updatedAt: new Date(),
       };
 
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
 
       const result = await service.getConversation('conv-1');
 
@@ -544,7 +544,7 @@ describe('ChatService', () => {
     });
 
     it('should throw NotFoundException when conversation not found', async () => {
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(null);
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.getConversation('non-existent')).rejects.toThrow(NotFoundException);
       await expect(service.getConversation('non-existent')).rejects.toThrow('not found');
@@ -560,18 +560,18 @@ describe('ChatService', () => {
         createdAt: new Date(),
       };
 
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
-      (mockPrismaService.conversation as any).delete = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.delete = jest.fn().mockResolvedValue(mockConversation);
 
       await service.deleteConversation('conv-1');
 
-      expect((mockPrismaService.conversation as any).delete).toHaveBeenCalledWith({
+      expect(mockConversationRepo.delete).toHaveBeenCalledWith({
         where: { id: 'conv-1' },
       });
     });
 
     it('should throw NotFoundException when conversation not found', async () => {
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(null);
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.deleteConversation('non-existent')).rejects.toThrow(NotFoundException);
     });
@@ -584,7 +584,7 @@ describe('ChatService', () => {
         createdAt: new Date(),
       };
 
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
 
       await expect(service.deleteConversation('conv-1', 'user-2')).rejects.toThrow(BadRequestException);
       await expect(service.deleteConversation('conv-1', 'user-2')).rejects.toThrow('Unauthorized');
@@ -598,12 +598,12 @@ describe('ChatService', () => {
         createdAt: new Date(),
       };
 
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
-      (mockPrismaService.conversation as any).delete = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
+      mockConversationRepo.delete = jest.fn().mockResolvedValue(mockConversation);
 
       await service.deleteConversation('conv-1');
 
-      expect((mockPrismaService.conversation as any).delete).toHaveBeenCalled();
+      expect(mockConversationRepo.delete).toHaveBeenCalled();
     });
   });
 
@@ -623,8 +623,8 @@ describe('ChatService', () => {
         updatedAt: new Date(),
       };
 
-      mockPrismaService.conversation.create = jest.fn().mockResolvedValue(mockConversation);
-      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+      mockConversationRepo.create = jest.fn().mockResolvedValue(mockConversation);
+      mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-1',
         role: 'user',
         content: 'Hello',
@@ -639,18 +639,16 @@ describe('ChatService', () => {
       });
 
       expect(result).toBeDefined();
-      expect(mockPrismaService.conversation.create).toHaveBeenCalledWith(
+      expect(mockConversationRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
             userId,
             documentId,
-          }),
         }),
       );
     });
 
     it('should generate conversation title from first message', async () => {
-      mockPrismaService.conversation.create = jest.fn().mockResolvedValue({
+      mockConversationRepo.create = jest.fn().mockResolvedValue({
         id: 'conv-123',
         userId: 'user-1',
         title: 'What is recursion?',
@@ -663,11 +661,9 @@ describe('ChatService', () => {
         userId: 'user-1',
       });
 
-      expect(mockPrismaService.conversation.create).toHaveBeenCalledWith(
+      expect(mockConversationRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
             title: expect.stringContaining('What is recursion'),
-          }),
         }),
       );
     });
@@ -675,11 +671,11 @@ describe('ChatService', () => {
 
   describe('hint level calculation', () => {
     it('should return hint level 0 for first message', async () => {
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue({
+      mockConversationRepo.findById = jest.fn().mockResolvedValue({
         id: 'conv-1',
         messages: [],
       });
-      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+      mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-1',
         role: 'user',
         content: 'What is a loop?',
@@ -696,7 +692,7 @@ describe('ChatService', () => {
     });
 
     it('should calculate hint level based on conversation length', async () => {
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue({
+      mockConversationRepo.findById = jest.fn().mockResolvedValue({
         id: 'conv-1',
         messages: [
           { id: '1', role: 'user', content: 'Question 1', conversationId: 'conv-1', createdAt: new Date() },
@@ -705,7 +701,7 @@ describe('ChatService', () => {
           { id: '4', role: 'assistant', content: 'Answer 2', conversationId: 'conv-1', createdAt: new Date() },
         ],
       });
-      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+      mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-5',
         role: 'user',
         content: 'Can you explain more?',
@@ -736,7 +732,7 @@ describe('ChatService', () => {
         updatedAt: new Date(),
       };
 
-      mockPrismaService.conversation.create = jest.fn().mockResolvedValue({
+      mockConversationRepo.create = jest.fn().mockResolvedValue({
         id: 'conv-1',
         userId: 'user-1',
         documentId,
@@ -744,7 +740,7 @@ describe('ChatService', () => {
         messages: [],
         createdAt: new Date(),
       });
-      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+      mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-1',
         role: 'user',
         content: 'Tell me about this document',
@@ -764,7 +760,7 @@ describe('ChatService', () => {
     });
 
     it('should handle missing OCR result gracefully', async () => {
-      mockPrismaService.conversation.create = jest.fn().mockResolvedValue({
+      mockConversationRepo.create = jest.fn().mockResolvedValue({
         id: 'conv-1',
         userId: 'user-1',
         documentId: 'doc-no-ocr',
@@ -772,7 +768,7 @@ describe('ChatService', () => {
         messages: [],
         createdAt: new Date(),
       });
-      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+      mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-1',
         role: 'user',
         content: 'Tell me about this document',
@@ -795,7 +791,7 @@ describe('ChatService', () => {
 
   describe('error scenarios', () => {
     it('should throw NotFoundException for non-existent conversation', async () => {
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(null);
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
 
       await expect(
         service.chat({
@@ -806,8 +802,8 @@ describe('ChatService', () => {
     });
 
     it('should handle conversation creation failure', async () => {
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(null);
-      mockPrismaService.conversation.create = jest.fn().mockRejectedValue(
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
+      mockConversationRepo.create = jest.fn().mockRejectedValue(
         new Error('Database connection failed'),
       );
 
@@ -827,8 +823,8 @@ describe('ChatService', () => {
         createdAt: new Date(),
       };
 
-      mockPrismaService.conversation.findUnique = jest.fn().mockResolvedValue(mockConversation);
-      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+      mockConversationRepo.findById = jest.fn().mockResolvedValue(mockConversation);
+      mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-1',
         role: 'user',
         content: 'Test message',
@@ -854,14 +850,14 @@ describe('ChatService', () => {
     it('should handle conversation title generation failure', async () => {
       const message = 'A'.repeat(1000); // Very long message
       
-      mockPrismaService.conversation.create = jest.fn().mockResolvedValue({
+      mockConversationRepo.create = jest.fn().mockResolvedValue({
         id: 'conv-1',
         userId: 'user-1',
         title: 'New Conversation',
         messages: [],
         createdAt: new Date(),
       });
-      mockPrismaService.message.create = jest.fn().mockResolvedValue({
+      mockMessageRepo.create = jest.fn().mockResolvedValue({
         id: 'msg-1',
         role: 'user',
         content: message,
@@ -876,7 +872,7 @@ describe('ChatService', () => {
       });
 
       expect(result).toBeDefined();
-      expect(mockPrismaService.conversation.create).toHaveBeenCalled();
+      expect(mockConversationRepo.create).toHaveBeenCalled();
     });
   });
 });
