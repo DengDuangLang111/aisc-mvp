@@ -367,7 +367,7 @@ export function useChatLogic() {
       setMessages((prev) => [...prev, systemMessage]);
 
       // 4. 轮询 OCR 完成状态
-      let ocrResult: any = null;
+      let ocrResult: import('../../../lib/api-client').OcrResult | null = null;
       let attempts = 0;
       const maxAttempts = 60; // 最多 5 分钟（每 5 秒查询一次）
       const pollInterval = 5000; // 5 秒

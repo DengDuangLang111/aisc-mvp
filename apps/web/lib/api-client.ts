@@ -25,6 +25,17 @@ export interface UploadResponse {
   documentId?: string;
 }
 
+/**
+ * OCR 结果接口
+ */
+export interface OcrResult {
+  fullText: string;
+  confidence: number;
+  language: string;
+  pageCount: number;
+  structuredData?: Record<string, unknown>;
+}
+
 // Re-export types for convenience
 export type { Message, ChatRequest, ChatResponse, HintLevel };
 
@@ -35,7 +46,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public statusCode: number,
-    public details?: any
+    public details?: unknown
   ) {
     super(message);
     this.name = 'ApiError';
@@ -189,7 +200,7 @@ export class ApiClient {
   /**
    * 获取 OCR 结果
    */
-  static async getOcrResult(documentId: string): Promise<any> {
+  static async getOcrResult(documentId: string): Promise<OcrResult | null> {
     try {
       // documentId is the DB document id returned in UploadResponse.documentId
       const response = await fetch(`${API_URL}/upload/documents/${documentId}/ocr`, {

@@ -16,6 +16,87 @@ export interface OcrResult {
   pageCount: number;
 }
 
+
+/**
+ * Google Cloud Storage 文件对象
+ */
+interface GcsFile {
+  delete: () => Promise<void>;
+}
+
+/**
+ * Google Vision API Symbol 类型
+ */
+interface VisionSymbol {
+  text: string;
+  confidence?: number;
+}
+
+/**
+ * Google Vision API Word 类型
+ */
+interface VisionWord {
+  symbols?: VisionSymbol[] | null;
+  confidence?: number;
+}
+
+/**
+ * Google Vision API Paragraph 类型
+ */
+interface VisionParagraph {
+  words?: VisionWord[] | null;
+  confidence?: number;
+}
+
+/**
+ * Google Vision API Block 类型
+ */
+interface VisionBlock {
+  paragraphs?: VisionParagraph[] | null;
+  boundingBox?: unknown;
+}
+
+/**
+ * Google Vision API Page 类型
+ */
+interface VisionPage {
+  blocks?: VisionBlock[] | null;
+  width?: number;
+  height?: number;
+  confidence?: number;
+  property?: {
+    detectedLanguages?: Array<{ languageCode: string }>;
+  };
+}
+
+/**
+ * 结构化数据 - Block
+ */
+interface StructuredBlock {
+  boundingBox: unknown;
+  paragraphs: Array<{
+    text: string;
+    confidence?: number;
+  }>;
+}
+
+/**
+ * 结构化数据 - Page
+ */
+interface StructuredPage {
+  pageNumber: number;
+  width?: number;
+  height?: number;
+  blocks: StructuredBlock[];
+}
+
+/**
+ * 结构化数据结果
+ */
+interface StructuredData {
+  pages: StructuredPage[];
+}
+
 /**
  * Google Cloud Vision OCR 服务
  * 
@@ -75,8 +156,8 @@ export class VisionService {
       const pages = fullTextAnnotation.pages || [];
       const pageCount = pages.length || 1;
 
-      const confidence = this.calculateConfidence(pages);
-      const language = this.detectLanguage(pages);
+      const confidence = this.calculateConfidence(pages as VisionPage[]);
+      const language = this.detectLanguage(pages as VisionPage[]);
 
       // 保存到数据库
       await this.saveOcrResult(documentId, {
@@ -202,7 +283,7 @@ export class VisionService {
 
       // 清理临时文件
       try {
-        await Promise.all(files.map((file: any) => file.delete()));
+        await Promise.all(files.map((file: GcsFile) => file.delete()));
         this.logger.log(`Cleaned up OCR output files for document ${documentId}`);
       } catch (cleanupError) {
         this.logger.warn(`Failed to cleanup OCR output files: ${cleanupError.message}`);
@@ -248,8 +329,8 @@ export class VisionService {
       const pages = fullTextAnnotation.pages || [];
       const pageCount = pages.length;
 
-      const confidence = this.calculateConfidence(pages);
-      const language = this.detectLanguage(pages);
+      const confidence = this.calculateConfidence(pages as VisionPage[]);
+      const language = this.detectLanguage(pages as VisionPage[]);
 
       // 保存到数据库
       await this.saveOcrResult(documentId, {
@@ -333,7 +414,7 @@ export class VisionService {
   /**
    * 计算平均置信度
    */
-  private calculateConfidence(pages: any[]): number {
+  private calculateConfidence(pages: VisionPage[]): number {
     if (!pages || pages.length === 0) {
       return 0;
     }
@@ -366,7 +447,7 @@ export class VisionService {
   /**
    * 检测文档语言
    */
-  private detectLanguage(pages: any[]): string {
+  private detectLanguage(pages: VisionPage[]): string {
     if (!pages || pages.length === 0) {
       return 'unknown';
     }
@@ -419,16 +500,16 @@ export class VisionService {
   /**
    * 提取结构化数据（段落、行、词）
    */
-  private extractStructuredData(pages: any[]): any {
+  private extractStructuredData(pages: VisionPage[]): StructuredData {
     const structuredData = {
       pages: pages.map((page, pageIndex) => ({
         pageNumber: pageIndex + 1,
         width: page.width,
         height: page.height,
-        blocks: (page.blocks || []).map((block: any) => ({
+        blocks: (page.blocks || []).map((block: VisionBlock) => ({
           boundingBox: block.boundingBox,
-          paragraphs: (block.paragraphs || []).map((paragraph: any) => ({
-            text: this.extractText(paragraph.words),
+          paragraphs: (block.paragraphs || []).map((paragraph: VisionParagraph) => ({
+            text: this.extractText(paragraph.words || []),
             confidence: paragraph.confidence,
           })),
         })),
@@ -441,13 +522,13 @@ export class VisionService {
   /**
    * 从 words 数组提取文本
    */
-  private extractText(words: any[]): string {
+  private extractText(words: VisionWord[]): string {
     if (!words) return '';
 
     return words
       .map((word) => {
         if (!word.symbols) return '';
-        return word.symbols.map((symbol: any) => symbol.text).join('');
+        return word.symbols.map((symbol: VisionSymbol) => symbol.text).join('');
       })
       .join(' ');
   }

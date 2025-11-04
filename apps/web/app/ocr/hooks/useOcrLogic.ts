@@ -1,15 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ApiClient, ApiError } from "../../../lib/api-client";
+import { ApiClient, ApiError, OcrResult } from "../../../lib/api-client";
 import { logger } from '../../../lib/logger';
 
-export interface OcrResult {
-  fullText: string;
-  confidence: number;
-  language: string;
-  pageCount: number;
-  structuredData?: any;
-}
+export type { OcrResult };
+
+
 
 export interface UploadedImage {
   id: string;

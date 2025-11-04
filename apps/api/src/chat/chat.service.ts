@@ -4,7 +4,7 @@ import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import axios from 'axios';
 
 import { VisionService } from '../ocr/vision.service';
-import { AnalyticsService } from '../analytics/analytics.service';
+import { AnalyticsService, AnalyticsEventData } from '../analytics/analytics.service';
 import { EventName, EventCategory } from '../analytics/analytics.types';
 import type { ChatResponse, HintLevel } from '@study-oasis/contracts';
 import { ChatRequestDto } from './dto/chat-request.dto';
@@ -33,6 +33,59 @@ interface DeepSeekResponse {
     total_tokens: number;
   };
 }
+
+/**
+ * 数据库消息类型（匹配实际Prisma返回）
+ */
+interface DbMessage {
+  id: string;
+  role: string;  // Prisma返回string，不是字面量类型
+  content: string;
+  tokensUsed: number | null;
+  hintLevel: number | null;
+  modelUsed: string | null;
+  createdAt: Date;
+  conversationId: string;
+}
+
+/**
+ * 带消息的对话类型
+ */
+interface ConversationWithMessages {
+  id: string;
+  title: string | null;
+  userId: string | null;
+  documentId: string | null;
+  messages: DbMessage[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+/**
+ * 对话列表项类型
+ */
+interface ConversationListItem {
+  id: string;
+  title: string | null;
+  userId: string | null;
+  documentId: string | null;
+  _count: {
+    messages: number;
+  };
+  messages: DbMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Express 响应流类型
+ */
+interface ResponseStream {
+  write: (data: string) => void;
+  end: () => void;
+  setHeader: (name: string, value: string) => void;
+}
+
 
 /**
  * ChatService - 重构版
@@ -85,7 +138,7 @@ export class ChatService {
       // 1. 记录对话开始事件
       await this.trackEvent({
         userId,
-        sessionId,
+        sessionId: sessionId!,
         eventName: EventName.CHAT_SESSION_START,
         eventCategory: EventCategory.CHAT,
         eventProperties: {
@@ -96,7 +149,7 @@ export class ChatService {
       });
 
       // 2. 获取或创建对话
-      let conversation: { id: string; title: string | null; userId: string | null; documentId: string | null; messages: any[] };
+      let conversation: ConversationWithMessages;
       if (conversationId) {
         const existingConv = await this.conversationRepo.findById(conversationId);
         
@@ -146,7 +199,7 @@ export class ChatService {
 
       // 4. 计算提示等级（基于对话轮次）
       const userMessageCount = conversation.messages.filter(
-        (msg: any) => msg.role === 'user',
+        (msg: DbMessage) => msg.role === 'user',
       ).length;
       const hintLevel = this.calculateHintLevel(userMessageCount);
 
@@ -184,7 +237,7 @@ export class ChatService {
       // 10. 记录消息发送成功事件
       await this.trackEvent({
         userId,
-        sessionId,
+        sessionId: sessionId!,
         eventName: EventName.CHAT_MESSAGE_SENT,
         eventCategory: EventCategory.CHAT,
         eventProperties: {
@@ -212,7 +265,7 @@ export class ChatService {
       // 记录失败事件
       await this.trackEvent({
         userId,
-        sessionId,
+        sessionId: sessionId!,
         eventName: EventName.CHAT_MESSAGE_FAILED,
         eventCategory: EventCategory.CHAT,
         eventProperties: {
@@ -240,7 +293,7 @@ export class ChatService {
       orderBy: { updatedAt: 'desc' },
     });
 
-    const data = conversations.map((conv: any) => ({
+    const data = conversations.map((conv: ConversationListItem) => ({
       id: conv.id,
       title: conv.title,
       documentId: conv.documentId,
@@ -269,7 +322,7 @@ export class ChatService {
       title: conversation.title,
       userId: conversation.userId,
       documentId: conversation.documentId,
-      messages: conversation.messages.map((msg: any) => ({
+      messages: conversation.messages.map((msg: DbMessage) => ({
         id: msg.id,
         role: msg.role,
         content: msg.content,
@@ -331,7 +384,7 @@ export class ChatService {
       // 记录 API 调用开始
       await this.trackEvent({
         userId,
-        sessionId,
+        sessionId: sessionId!,
         eventName: EventName.DEEPSEEK_API_CALL_START,
         eventCategory: EventCategory.SYSTEM,
         eventProperties: {
@@ -362,7 +415,7 @@ export class ChatService {
       // 记录 API 调用成功
       await this.trackEvent({
         userId,
-        sessionId,
+        sessionId: sessionId!,
         eventName: EventName.DEEPSEEK_API_CALL_SUCCESS,
         eventCategory: EventCategory.SYSTEM,
         eventProperties: {
@@ -388,7 +441,7 @@ export class ChatService {
       // 记录 API 调用失败
       await this.trackEvent({
         userId,
-        sessionId,
+        sessionId: sessionId!,
         eventName: EventName.DEEPSEEK_API_CALL_FAILED,
         eventCategory: EventCategory.SYSTEM,
         eventProperties: {
@@ -408,7 +461,7 @@ export class ChatService {
    * 构建消息历史（包含系统提示和文档上下文）
    */
   private buildMessageHistory(
-    dbMessages: any[],
+    dbMessages: DbMessage[],
     documentContext: string,
     hintLevel: HintLevel,
   ): DeepSeekMessage[] {
@@ -430,7 +483,7 @@ export class ChatService {
     }
 
       // 3. 历史消息（最近 10 条）
-      dbMessages.slice(-10).forEach((msg: any) => {
+      dbMessages.slice(-10).forEach((msg: DbMessage) => {
         messages.push({
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
@@ -556,7 +609,7 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
   /**
    * 辅助方法：记录事件（不抛出错误）
    */
-  private async trackEvent(eventData: any): Promise<void> {
+  private async trackEvent(eventData: AnalyticsEventData): Promise<void> {
     try {
       await this.analyticsService.trackEvent(eventData);
     } catch (error) {
@@ -586,13 +639,13 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
    * 流式聊天（SSE）
    * 逐个 token 流式发送响应
    */
-  async chatStream(request: ChatRequestDto, res: any): Promise<void> {
+  async chatStream(request: ChatRequestDto, res: ResponseStream): Promise<void> {
     const { message, conversationId, documentId, userId } = request;
     const sessionId = this.generateSessionId();
 
     try {
       // 1. 获取或创建对话
-      let conversation: { id: string; title: string | null; userId: string | null; documentId: string | null; messages: any[] };
+      let conversation: ConversationWithMessages;
       if (conversationId) {
         const existingConv = await this.conversationRepo.findById(conversationId);
         if (!existingConv) {
@@ -638,7 +691,7 @@ ${hasDocument ? '📄 学生上传了学习资料，请基于资料内容进行�
 
       // 3. 计算提示等级
       const userMessageCount = conversation.messages.filter(
-        (msg: any) => msg.role === 'user',
+        (msg: DbMessage) => msg.role === 'user',
       ).length;
       const hintLevel = this.calculateHintLevel(userMessageCount);
 

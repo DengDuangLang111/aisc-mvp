@@ -35,6 +35,24 @@ export interface ApiUsageData {
   errorStack?: string;
 }
 
+
+/**
+ * Prisma groupBy 结果类型 - 事件名称统计
+ */
+interface EventNameGroupResult {
+  eventName: string;
+  _count: {
+    eventName: number;
+  };
+}
+
+/**
+ * Prisma groupBy 结果类型 - 用户ID分组
+ */
+interface UserIdGroupResult {
+  userId: string | null;
+}
+
 /**
  * 数据分析服务
  * 
@@ -143,7 +161,7 @@ export class AnalyticsService {
       },
     });
 
-    return result.map((item: any) => ({
+    return result.map((item: EventNameGroupResult) => ({
       eventName: item.eventName,
       count: item._count.eventName,
     }));
@@ -310,7 +328,7 @@ export class AnalyticsService {
       take: limit,
     });
 
-    return result.map((item: any) => ({
+    return result.map((item: EventNameGroupResult) => ({
       feature: item.eventName,
       usageCount: item._count.eventName,
     }));
@@ -339,7 +357,7 @@ export class AnalyticsService {
       return 0;
     }
 
-    const userIds = activeOnTargetDate.map((u: any) => u.userId!);
+    const userIds = activeOnTargetDate.map((u: UserIdGroupResult) => u.userId!);
 
     // 今天仍活跃的用户
     const activeToday = await this.prisma.analyticsEvent.groupBy({

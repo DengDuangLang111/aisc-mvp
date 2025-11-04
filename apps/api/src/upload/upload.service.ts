@@ -113,11 +113,11 @@ export class UploadService {
     let detected;
     try {
       detected = await fileTypeImport.fromBuffer(buffer);
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Error detecting file type', {
         context: 'UploadService',
-        error: error.message,
-        stack: error.stack,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
         bufferLength: buffer?.length,
       });
       throw new BadRequestException('文件类型检测失败');
@@ -331,7 +331,7 @@ export class UploadService {
           this.logger.error('OCR processing failed', {
             context: 'UploadService',
             documentId: document.id,
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           });
         });
 
@@ -354,7 +354,7 @@ export class UploadService {
       });
 
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       // 记录上传失败事件
       await this.trackEvent({
         userId,
@@ -363,7 +363,7 @@ export class UploadService {
         eventCategory: EventCategory.DOCUMENT,
         eventProperties: {
           filename: originalFilename,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         },
       });
 
@@ -391,7 +391,7 @@ export class UploadService {
         diskFilename: targetFile,
         uploadDir,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       this.logger.error('Failed to get file info', {
         context: 'UploadService',
         fileId,
@@ -440,7 +440,7 @@ export class UploadService {
       });
       
       return content;
-    } catch (error) {
+    } catch (error: unknown) {
       if (error instanceof NotFoundException) {
         throw error;
       }
@@ -474,7 +474,7 @@ export class UploadService {
         userId: data.userId,
         eventProperties: data.eventProperties,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       // 埋点失败不应该影响主流程
       this.logger.error('Failed to track event', {
         context: 'UploadService',
@@ -518,7 +518,7 @@ export class UploadService {
           });
 
           ocrResult = await this.visionService.extractTextFromBuffer(fileBuffer, documentId);
-        } catch (error) {
+        } catch (error: unknown) {
           lastError = error instanceof Error ? error : new Error(String(error));
           this.logger.warn('Buffer OCR attempt failed, will retry with storage path if available', {
             context: 'UploadService',
@@ -538,7 +538,7 @@ export class UploadService {
           });
 
           ocrResult = await this.visionService.extractTextFromGcs(filePath, documentId);
-        } catch (error) {
+        } catch (error: unknown) {
           lastError = error instanceof Error ? error : new Error(String(error));
           this.logger.error('GCS OCR attempt failed', {
             context: 'UploadService',
@@ -559,7 +559,7 @@ export class UploadService {
 
           const buffer = await fs.readFile(filePath);
           ocrResult = await this.visionService.extractTextFromBuffer(buffer, documentId);
-        } catch (error) {
+        } catch (error: unknown) {
           lastError = error instanceof Error ? error : new Error(String(error));
           this.logger.error('Local file OCR attempt failed', {
             context: 'UploadService',
@@ -597,7 +597,7 @@ export class UploadService {
         pageCount: ocrResult.pageCount,
         confidence: ocrResult.confidence,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 记录 OCR 失败
       await this.trackEvent({
         userId,
@@ -606,15 +606,15 @@ export class UploadService {
         eventCategory: EventCategory.DOCUMENT,
         eventProperties: {
           documentId,
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         },
       });
 
       this.logger.error('OCR processing failed', {
         context: 'UploadService',
         documentId,
-        error: error.message,
-        stack: error.stack,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       });
 
       throw error;
