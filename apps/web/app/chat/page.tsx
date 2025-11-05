@@ -1,12 +1,15 @@
 'use client'
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { ChatHeader } from './components/ChatHeader';
 import { ChatError } from './components/ChatError';
 import { ChatLayout } from './components/ChatLayout';
+import { FocusMode } from './components/FocusMode';
 import { useChatLogic } from './hooks/useChatLogic';
 
 function ChatPageContent() {
+  const [focusModeActive, setFocusModeActive] = useState(false);
+  
   const {
     messages,
     isLoading,
@@ -27,18 +30,35 @@ function ChatPageContent() {
     handleClearAllConversations,
   } = useChatLogic();
 
+  // 自动启动 Focus Mode（当有消息时）
+  // useEffect(() => {
+  //   if (messages.length > 0 && !focusModeActive) {
+  //     setFocusModeActive(true);
+  //   }
+  // }, [messages.length]);
+
   return (
     <div className="flex flex-col h-screen bg-white">
-      {/* Header */}
-      <ChatHeader
-        messageCount={messages.length}
-        hasDocument={!!fileUrl}
-        showDocument={showDocument}
-        onClearChat={handleClearChat}
-        onToggleDocument={handleToggleDocument}
-        onSelectConversation={handleSelectConversation}
-        onClearAllConversations={handleClearAllConversations}
+      {/* Focus Mode Bar (fixed at top when active) */}
+      <FocusMode 
+        isActive={focusModeActive} 
+        onToggle={() => setFocusModeActive(false)} 
       />
+      
+      {/* Header */}
+      <div className={focusModeActive ? 'mt-[72px] md:mt-[52px]' : ''}>
+        <ChatHeader
+          messageCount={messages.length}
+          hasDocument={!!fileUrl}
+          showDocument={showDocument}
+          focusModeActive={focusModeActive}
+          onClearChat={handleClearChat}
+          onToggleDocument={handleToggleDocument}
+          onToggleFocusMode={() => setFocusModeActive(!focusModeActive)}
+          onSelectConversation={handleSelectConversation}
+          onClearAllConversations={handleClearAllConversations}
+        />
+      </div>
 
       {/* Error message */}
       <ChatError error={error} />

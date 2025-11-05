@@ -61,7 +61,7 @@ async function bootstrap() {
   // Serve uploaded files as static assets
   const uploadsPath = join(process.cwd(), 'uploads');
   app.useStaticAssets(uploadsPath, {
-    prefix: '/uploads/',
+    prefix: '/uploads',
   });
 
   // Swagger API Documentation

@@ -6,8 +6,10 @@ interface ChatHeaderProps {
   messageCount: number;
   hasDocument: boolean;
   showDocument: boolean;
+  focusModeActive: boolean;
   onClearChat: () => void;
   onToggleDocument: () => void;
+  onToggleFocusMode: () => void;
   onSelectConversation?: (sessionId: string) => void;
   onClearAllConversations?: () => void;
 }
@@ -16,8 +18,10 @@ export function ChatHeader({
   messageCount,
   hasDocument,
   showDocument,
+  focusModeActive,
   onClearChat,
   onToggleDocument,
+  onToggleFocusMode,
   onSelectConversation,
   onClearAllConversations,
 }: ChatHeaderProps) {
@@ -38,6 +42,32 @@ export function ChatHeader({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          {/* Focus Mode Toggle */}
+          <button
+            onClick={onToggleFocusMode}
+            className={`inline-flex items-center px-4 py-2 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 ${
+              focusModeActive
+                ? 'border-purple-500 text-purple-700 bg-purple-50 hover:bg-purple-100'
+                : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+            }`}
+            title={focusModeActive ? 'Exit Focus Mode' : 'Enter Focus Mode'}
+          >
+            <svg
+              className="-ml-1 mr-2 h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
+            </svg>
+            {focusModeActive ? '🎯 Focus' : 'Focus'}
+          </button>
+
           {/* Conversation History - Integrated Component */}
           <ConversationList
             onSelectSession={(session) => {
