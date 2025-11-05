@@ -16,6 +16,7 @@ interface ChatLayoutProps {
   isThinking?: boolean; // 🧠 思考状态
   onSend: (content: string, options?: { conversationId?: string; streaming?: boolean }) => Promise<void>;
   onFileSelect?: (file: File) => void;
+  onToggleDocument?: () => void; // 切换文档面板显示
 }
 
 export function ChatLayout({
@@ -30,9 +31,17 @@ export function ChatLayout({
   isThinking,
   onSend,
   onFileSelect,
+  onToggleDocument,
 }: ChatLayoutProps) {
   const hasDocument = !!fileUrl;
   const [documentPanelSize, setDocumentPanelSize] = useState(50);
+
+  // 处理文件点击 - 如果文档面板隐藏则打开
+  const handleFileClick = (clickedFileUrl?: string, clickedFilename?: string) => {
+    if (!showDocument && hasDocument && onToggleDocument) {
+      onToggleDocument();
+    }
+  };
 
   // Handle panel resize
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -86,11 +95,11 @@ export function ChatLayout({
               <div className="flex items-center gap-2">
                 <span className="text-lg">📄</span>
                 <span className="text-sm font-medium text-gray-700">
-                  文档：<span className="text-blue-600">{filename || 'Untitled'}</span>
+                  Document: <span className="text-blue-600">{filename || 'Untitled'}</span>
                 </span>
               </div>
               <span className="text-xs text-gray-500">
-                {messages.length} 条消息
+                {messages.length} messages
               </span>
             </div>
           </div>
@@ -104,6 +113,7 @@ export function ChatLayout({
             streamingContent={streamingContent}
             isStreaming={isStreaming}
             isThinking={isThinking}
+            onFileClick={handleFileClick}
           />
         </div>
 

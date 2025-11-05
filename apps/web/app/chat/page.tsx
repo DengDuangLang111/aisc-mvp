@@ -56,6 +56,7 @@ function ChatPageContent() {
         isThinking={isThinking} // 🧠 传递思考状态
         onSend={handleSend}
         onFileSelect={handleFileSelect}
+        onToggleDocument={handleToggleDocument}
       />
     </div>
   );

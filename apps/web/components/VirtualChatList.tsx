@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useCallback } from 'react';
-import { FixedSizeList as List } from 'react-window';
+import React, { useRef, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 export interface Message {
   id: string;
@@ -8,76 +8,98 @@ export interface Message {
   timestamp: string;
 }
 
-interface VirtualChatListProps {
+export interface VirtualChatListProps {
   messages: Message[];
-  height?: number;
-  itemSize?: number;
+  height: number;
+  itemSize: number;
   className?: string;
   onScrollToBottom?: () => void;
 }
 
 /**
- * 虚拟滚动聊天列表组件
- * 使用 react-window 优化大量消息的渲染性能
+ * VirtualChatList - 使用 TanStack Virtual 实现的虚拟滚动聊天消息列表
+ *
+ * 特性:
+ * - 高性能渲染大量消息
+ * - 固定高度的消息项
+ * - 自动滚动到底部
+ * - 支持自定义样式
+ *
+ * @param messages - 消息数组
+ * @param height - 列表容器高度
+ * @param itemSize - 每条消息的固定高度
+ * @param className - 自定义类名
+ * @param onScrollToBottom - 滚动到底部时的回调
  */
-export function VirtualChatList({
+export const VirtualChatList: React.FC<VirtualChatListProps> = ({
   messages,
-  height = 600,
-  itemSize = 100,
+  height,
+  itemSize,
   className = '',
   onScrollToBottom,
-}: VirtualChatListProps) {
-  const listRef = useRef<List>(null);
+}) => {
+  const parentRef = useRef<HTMLDivElement>(null);
 
-  // 自动滚动到底部
-  const scrollToBottom = useCallback(() => {
-    if (listRef.current && messages.length > 0) {
-      listRef.current.scrollToItem(messages.length - 1, 'end');
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => itemSize,
+    overscan: 5,
+  });
+
+  // 当消息更新时自动滚动到底部
+  useEffect(() => {
+    if (messages.length > 0) {
+      virtualizer.scrollToIndex(messages.length - 1, { align: 'end' });
       onScrollToBottom?.();
     }
-  }, [messages.length, onScrollToBottom]);
-
-  // 新消息时自动滚动
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
-
-  // 渲染单个消息行
-  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
-    const message = messages[index];
-    
-    return (
-      <div style={style} className="message-row">
-        <div className={`message message-${message.role}`}>
-          <div className="message-content">{message.content}</div>
-          <div className="message-time">
-            {new Date(message.timestamp).toLocaleTimeString()}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  }, [messages.length, virtualizer, onScrollToBottom]);
 
   if (messages.length === 0) {
-    return (
-      <div className={`chat-list-empty ${className}`} style={{ height }}>
-        <p>暂无消息</p>
-      </div>
-    );
+    return <div className="empty-state">No messages yet</div>;
   }
 
   return (
-    <div className={`virtual-chat-list ${className}`}>
-      <List
-        ref={listRef}
-        height={height}
-        itemCount={messages.length}
-        itemSize={itemSize}
-        width="100%"
-        overscanCount={5} // 预渲染额外的5个项
+    <div
+      ref={parentRef}
+      className={`virtual-chat-list ${className}`}
+      style={{
+        height: `${height}px`,
+        overflow: 'auto',
+      }}
+      role="list"
+    >
+      <div
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
       >
-        {Row}
-      </List>
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const message = messages[virtualItem.index];
+          return (
+            <div
+              key={message.id}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: `${virtualItem.size}px`,
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+              className={`virtual-chat-message ${message.role}`}
+              role="listitem"
+            >
+              <div className="message-content">{message.content}</div>
+              <div className="message-time">
+                {new Date(message.timestamp).toLocaleTimeString()}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
-}
+};

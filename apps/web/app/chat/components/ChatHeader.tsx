@@ -25,12 +25,12 @@ export function ChatHeader({
     <header className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm flex-shrink-0">
       <div className="max-w-full mx-auto flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">AI 学习助手</h1>
+          <h1 className="text-xl font-semibold text-gray-900">AI Learning Assistant</h1>
           <p className="text-sm text-gray-600 mt-1">
-            智能渐进式提示系统 - 帮助你独立思考
+            Intelligent Progressive Prompting System - Helping You Think Independently
             {messageCount > 0 && (
               <span className="ml-2 text-xs text-gray-500">
-                ({messageCount} 条消息)
+                ({messageCount} messages)
               </span>
             )}
           </p>
@@ -57,7 +57,7 @@ export function ChatHeader({
             <button
               onClick={onClearChat}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              title="清空对话"
+              title="Clear chat"
             >
               <svg
                 className="h-5 w-5"

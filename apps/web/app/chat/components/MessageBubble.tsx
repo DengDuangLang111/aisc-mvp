@@ -1,5 +1,14 @@
 import { HintLevelBadge } from './HintLevelBadge'
+import { FileAttachment } from './FileAttachment'
 import { logger } from '../../../lib/logger';
+
+export interface FileAttachmentData {
+  filename: string
+  fileUrl?: string
+  documentId?: string
+  fileSize?: number
+  uploadTime?: number
+}
 
 export interface Message {
   role: 'user' | 'assistant'
@@ -7,15 +16,17 @@ export interface Message {
   hintLevel?: 1 | 2 | 3
   conversationId?: string
   timestamp?: number
+  attachment?: FileAttachmentData // 文件附件
 }
 
 export interface MessageBubbleProps {
   message: Message
   isLoading?: boolean
   isStreaming?: boolean
+  onFileClick?: (fileUrl?: string, filename?: string) => void // 点击文件附件的回调
 }
 
-export function MessageBubble({ message, isLoading = false, isStreaming = false }: MessageBubbleProps) {
+export function MessageBubble({ message, isLoading = false, isStreaming = false, onFileClick }: MessageBubbleProps) {
   const isUser = message.role === 'user'
 
   // 调试：记录内容变化
@@ -30,6 +41,12 @@ export function MessageBubble({ message, isLoading = false, isStreaming = false 
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  const handleFileClick = () => {
+    if (message.attachment && onFileClick) {
+      onFileClick(message.attachment.fileUrl, message.attachment.filename)
+    }
   }
 
   return (
@@ -48,6 +65,19 @@ export function MessageBubble({ message, isLoading = false, isStreaming = false 
             </span>
           )}
         </div>
+
+        {/* File Attachment (if present) */}
+        {message.attachment && (
+          <div className="mb-2">
+            <FileAttachment
+              filename={message.attachment.filename}
+              fileUrl={message.attachment.fileUrl}
+              fileSize={message.attachment.fileSize}
+              uploadTime={message.attachment.uploadTime}
+              onClick={onFileClick ? handleFileClick : undefined}
+            />
+          </div>
+        )}
 
         {/* Message bubble */}
         <div

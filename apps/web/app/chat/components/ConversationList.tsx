@@ -31,7 +31,7 @@ export function ConversationList({
 
   const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
-    if (confirm('确定要删除这个对话吗？')) {
+    if (confirm('Are you sure you want to delete this conversation?')) {
       ChatStorage.deleteSession(sessionId);
       setSessions(sessions.filter((s) => s.id !== sessionId));
       if (currentSessionId === sessionId) {
@@ -46,11 +46,11 @@ export function ConversationList({
   };
 
   const getSessionPreview = (session: ChatSession): string => {
-    if (session.messages.length === 0) return '(空对话)';
+    if (session.messages.length === 0) return '(Empty conversation)';
     const lastUserMessage = [...session.messages]
       .reverse()
       .find((m) => m.role === 'user');
-    return lastUserMessage ? lastUserMessage.content.slice(0, 40) : '(仅助手回复)';
+    return lastUserMessage ? lastUserMessage.content.slice(0, 40) : '(Assistant replies only)';
   };
 
   const formatDate = (timestamp: number): string => {
@@ -58,12 +58,12 @@ export function ConversationList({
     const now = new Date();
     const diff = now.getTime() - date.getTime();
 
-    if (diff < 60000) return '刚刚';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
-    if (diff < 604800000) return `${Math.floor(diff / 86400000)} 天前`;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)} minutes ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+    if (diff < 604800000) return `${Math.floor(diff / 86400000)} days ago`;
 
-    return date.toLocaleDateString('zh-CN');
+    return date.toLocaleDateString('en-US');
   };
 
   return (
@@ -74,7 +74,7 @@ export function ConversationList({
         className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
       >
         <span>📋</span>
-        对话历史 ({sessions.length})
+        Chat History ({sessions.length})
       </button>
 
       {/* Dropdown Menu */}
@@ -82,12 +82,12 @@ export function ConversationList({
         <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
           {/* Header */}
           <div className="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800">对话历史</h3>
+            <h3 className="font-semibold text-gray-800">Chat History</h3>
             <button
               onClick={handleNewChat}
               className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
             >
-              新建对话
+              New Chat
             </button>
           </div>
 
@@ -95,7 +95,7 @@ export function ConversationList({
           <div className="max-h-96 overflow-y-auto">
             {sessions.length === 0 ? (
               <div className="px-4 py-8 text-center text-gray-500 text-sm">
-                暂无历史对话
+                No chat history yet
               </div>
             ) : (
               sessions.map((session) => (
@@ -108,13 +108,13 @@ export function ConversationList({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-gray-800 truncate">
-                      {session.filename ? `📄 ${session.filename}` : '💬 普通对话'}
+                      {session.filename ? `📄 ${session.filename}` : '💬 General Chat'}
                     </div>
                     <div className="text-xs text-gray-600 mt-1 truncate">
                       {getSessionPreview(session)}
                     </div>
                     <div className="text-xs text-gray-400 mt-1">
-                      {formatDate(session.createdAt)} · {session.messages.length} 条消息
+                      {formatDate(session.createdAt)} · {session.messages.length} messages
                     </div>
                   </div>
 
@@ -122,7 +122,7 @@ export function ConversationList({
                   <button
                     onClick={(e) => handleDeleteSession(e, session.id)}
                     className="ml-2 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                    title="删除对话"
+                    title="Delete conversation"
                   >
                     ✕
                   </button>
@@ -136,7 +136,7 @@ export function ConversationList({
             <div className="border-t border-gray-200 px-4 py-2">
               <button
                 onClick={() => {
-                  if (confirm('确定要清空所有对话吗？')) {
+                  if (confirm('Are you sure you want to clear all conversations?')) {
                     ChatStorage.clearAllSessions();
                     setSessions([]);
                     onClearSession();
@@ -145,7 +145,7 @@ export function ConversationList({
                 }}
                 className="w-full text-xs text-red-500 hover:bg-red-50 px-3 py-2 rounded transition-colors"
               >
-                清空所有对话
+                Clear All Conversations
               </button>
             </div>
           )}

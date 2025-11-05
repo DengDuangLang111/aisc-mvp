@@ -52,12 +52,18 @@ export function useChatLogic() {
   useEffect(() => {
     if (filenameParam && filenameParam !== documentFilename) {
       setDocumentFilename(filenameParam);
+    } else if (!filenameParam && documentFilename) {
+      // URL 参数被删除时，清除 state
+      setDocumentFilename(undefined);
     }
   }, [filenameParam, documentFilename]);
 
   useEffect(() => {
     if (fileUrlParam && fileUrlParam !== documentUrl) {
       setDocumentUrl(fileUrlParam);
+    } else if (!fileUrlParam && documentUrl) {
+      // URL 参数被删除时，清除 state
+      setDocumentUrl(undefined);
     }
   }, [fileUrlParam, documentUrl]);
 
@@ -65,6 +71,9 @@ export function useChatLogic() {
   useEffect(() => {
     if (urlDocumentId && !currentDocumentId) {
       setCurrentDocumentId(urlDocumentId);
+    } else if (!urlDocumentId && currentDocumentId) {
+      // URL 参数被删除时，清除 state
+      setCurrentDocumentId(null);
     }
   }, [urlDocumentId, currentDocumentId]);
 
@@ -84,6 +93,17 @@ export function useChatLogic() {
 
       if (session && session.messages.length > 0) {
         setMessages(session.messages);
+        // 从 session 中恢复文档信息
+        if (session.fileId) {
+          setCurrentDocumentId(session.fileId);
+          setUploadId(session.fileId);
+        }
+        if (session.filename) {
+          setDocumentFilename(session.filename);
+        }
+        if (session.fileUrl) {
+          setDocumentUrl(session.fileUrl);
+        }
         // 从最后一条消息中恢复 conversationId（如果有）
         const lastMsg = session.messages[session.messages.length - 1];
         if (lastMsg && 'conversationId' in lastMsg) {
@@ -108,6 +128,7 @@ export function useChatLogic() {
         {
           fileId: effectiveDocumentId || undefined,
           filename: documentFilename,
+          fileUrl: documentUrl, // 保存文件 URL
           messages,
         },
         undefined,
@@ -116,7 +137,7 @@ export function useChatLogic() {
     } catch (e) {
       logger.error('保存会话失败', e, {});
     }
-  }, [messages, effectiveDocumentId, documentFilename, sessionLoaded, conversationId]);
+  }, [messages, effectiveDocumentId, documentFilename, documentUrl, sessionLoaded, conversationId]);
 
   // 重试逻辑
   const retryWithBackoff = async <T,>(
@@ -266,18 +287,18 @@ export function useChatLogic() {
         setMessages((prev) => [...prev, assistantMessage]);
       }
     } catch (err) {
-      let errorMessage = '发送消息失败，请重试';
+      let errorMessage = 'Failed to send message, please try again';
       
       if (err instanceof ApiError) {
         if (err.statusCode === 429) {
-          errorMessage = '请求过于频繁，请稍后再试';
+          errorMessage = 'Too many requests, please try again later';
         } else if (err.statusCode >= 500) {
-          errorMessage = '服务器错误，已自动重试';
+          errorMessage = 'Server error, auto retrying';
         } else {
-          errorMessage = `发送失败 (${err.statusCode}): ${err.message}`;
+          errorMessage = `Failed (${err.statusCode}): ${err.message}`;
         }
       } else if (err instanceof Error && err.name === 'AbortError') {
-        errorMessage = '请求已取消';
+        errorMessage = 'Request cancelled';
       }
       
       setError(errorMessage);
@@ -310,7 +331,7 @@ export function useChatLogic() {
       // 1. 验证文件
       const maxSize = 50 * 1024 * 1024; // 50MB
       if (file.size > maxSize) {
-        setError('文件过大，请选择不超过 50MB 的文件');
+        setError('File is too large, please select a file under 50MB');
         return;
       }
 
@@ -324,7 +345,7 @@ export function useChatLogic() {
       ];
       
       if (!allowedTypes.includes(file.type)) {
-        setError('不支持该文件类型，请上传 PDF、文本、图片或 Word 文档');
+        setError('Unsupported file type, please upload PDF, text, image, or Word document');
         return;
       }
 
@@ -358,11 +379,18 @@ export function useChatLogic() {
         logger.warn('更新聊天地址栏失败', { error: historyError });
       }
 
-      // 3. 添加"已上传文件"消息
+      // 3. Add "file uploaded" message with attachment
       const systemMessage: Message = {
         role: 'user',
-        content: `[系统] 已上传文档: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`,
+        content: `📎 Document Uploaded`,
         timestamp: Date.now(),
+        attachment: {
+          filename: file.name,
+          fileUrl: uploadResponse.url,
+          documentId: newDocumentId,
+          fileSize: file.size,
+          uploadTime: Date.now(),
+        },
       };
       setMessages((prev) => [...prev, systemMessage]);
 
@@ -420,17 +448,17 @@ export function useChatLogic() {
 
       const ocrMessage: Message = {
         role: 'assistant',
-        content: `✅ 文档已识别完成\n\n**识别信息**\n- 页数: ${pageCount}\n- 语言: ${ocrResult.language || '未识别'}\n- 置信度: ${confidenceText}\n\n**文本预览**\n${ocrSummary}`,
+        content: `✅ Document recognized successfully\n\n**Recognition Info**\n- Pages: ${pageCount}\n- Language: ${ocrResult.language || 'Not detected'}\n- Confidence: ${confidenceText}\n\n**Text Preview**\n${ocrSummary}`,
         timestamp: Date.now(),
       };
       setMessages((prev) => [...prev, ocrMessage]);
 
       logger.info('文件上传并 OCR 处理完成');
     } catch (err) {
-      let errorMessage = '文件处理失败，请重试';
+      let errorMessage = 'File processing failed, please try again';
 
       if (err instanceof ApiError) {
-        errorMessage = `上传失败 (${err.statusCode}): ${err.message}`;
+        errorMessage = `Upload failed (${err.statusCode}): ${err.message}`;
       } else if (err instanceof Error) {
         errorMessage = err.message;
       }
@@ -443,9 +471,30 @@ export function useChatLogic() {
   };
 
   const handleClearChat = () => {
-    if (confirm('确定要清空当前对话吗？此操作不可恢复。')) {
+    if (confirm('Are you sure you want to clear the current conversation? This action cannot be undone.')) {
       setMessages([]);
       setError(null);
+      setConversationId(null);
+      setUploadId(null);
+      setCurrentDocumentId(null);
+      setDocumentFilename(undefined);
+      setDocumentUrl(undefined);
+      
+      // 清除 URL 参数
+      try {
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('documentId');
+          url.searchParams.delete('fileId');
+          url.searchParams.delete('filename');
+          url.searchParams.delete('fileUrl');
+          url.searchParams.delete('initialMessage');
+          window.history.replaceState(null, '', url.toString());
+        }
+      } catch (historyError) {
+        logger.warn('清除 URL 参数失败', { error: historyError });
+      }
+      
       const targetId = currentDocumentId || effectiveDocumentId;
       if (targetId) {
         const session = ChatStorage.getSessionByFileId(targetId);
@@ -469,13 +518,13 @@ export function useChatLogic() {
         setCurrentDocumentId(session.fileId || null);
         setUploadId(session.fileId || null);
         setDocumentFilename(session.filename || undefined);
-        setDocumentUrl(undefined);
+        setDocumentUrl(session.fileUrl || undefined); // 加载保存的文件 URL
         setError(null);
-        logger.info('已加载对话', { filename: session.filename || '普通对话' });
+        logger.info('已加载对话', { filename: session.filename || 'General Chat' });
       }
     } catch (e) {
       logger.error('加载对话失败', e, {});
-      setError('加载对话失败');
+      setError('Failed to load conversation');
     }
   };
 
@@ -484,8 +533,26 @@ export function useChatLogic() {
     setConversationId(null);
     setUploadId(null);
     setCurrentDocumentId(null);
+    setDocumentFilename(undefined);
+    setDocumentUrl(undefined);
     setError(null);
     setShowDocument(true);
+    
+    // 清除 URL 参数，防止页面重新加载文档
+    try {
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('documentId');
+        url.searchParams.delete('fileId');
+        url.searchParams.delete('filename');
+        url.searchParams.delete('fileUrl');
+        url.searchParams.delete('initialMessage');
+        window.history.replaceState(null, '', url.toString());
+      }
+    } catch (historyError) {
+      logger.warn('清除 URL 参数失败', { error: historyError });
+    }
+    
     logger.info('已清空当前对话');
   };
 

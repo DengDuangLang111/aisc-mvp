@@ -9,12 +9,12 @@ export default function Home() {
       <div className="text-center mb-12">
         <div className="flex items-center justify-center gap-4 mb-4">
           <h1 className="text-4xl font-bold text-gray-900">
-            Study Oasis 学习绿洲
+            Study Oasis
           </h1>
           <Link 
             href="/settings"
             className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
-            title="设置"
+            title="Settings"
           >
             <svg
               className="h-6 w-6"
@@ -38,42 +38,42 @@ export default function Home() {
           </Link>
         </div>
         <p className="text-lg text-gray-600">
-          AI 驱动的智能学习助手 - 渐进式提示，帮助你独立思考
+          AI-powered intelligent learning assistant - Progressive prompts to help you think independently
         </p>
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-        <Card title="💬 AI 对话">
+        <Card title="💬 AI Chat">
           <div className="space-y-4">
             <p className="text-gray-600">
-              与 AI 助手对话，获得智能渐进式提示
+              Chat with AI assistant and get intelligent progressive hints
             </p>
             <ul className="text-sm text-gray-500 space-y-2">
-              <li>🤔 Level 1: 轻微提示 - 引导思考方向</li>
-              <li>💡 Level 2: 中等提示 - 提供思路步骤</li>
-              <li>✨ Level 3: 详细提示 - 接近完整答案</li>
+              <li>🤔 Level 1: Gentle Hint - Guide thinking direction</li>
+              <li>💡 Level 2: Medium Hint - Provide thought steps</li>
+              <li>✨ Level 3: Detailed Hint - Near complete answer</li>
             </ul>
             <Link href="/chat">
               <Button variant="primary" size="lg" className="w-full">
-                开始对话
+                Start Chat
               </Button>
             </Link>
           </div>
         </Card>
 
-        <Card title="📁 文件上传">
+        <Card title="📁 File Upload">
           <div className="space-y-4">
             <p className="text-gray-600">
-              上传学习资料，让 AI 帮助你理解内容
+              Upload study materials and let AI help you understand the content
             </p>
             <ul className="text-sm text-gray-500 space-y-2">
-              <li>📄 支持多种文件格式</li>
-              <li>🔍 智能内容分析</li>
-              <li>💾 安全存储</li>
+              <li>📄 Support multiple file formats</li>
+              <li>🔍 Intelligent content analysis</li>
+              <li>💾 Secure storage</li>
             </ul>
             <Link href="/upload">
               <Button variant="secondary" size="lg" className="w-full">
-                上传文件
+                Upload File
               </Button>
             </Link>
           </div>
@@ -82,28 +82,28 @@ export default function Home() {
 
       <div className="mt-16 text-center">
         <h2 className="text-2xl font-semibold text-gray-900 mb-8">
-          为什么选择 Study Oasis？
+          Why Choose Study Oasis?
         </h2>
         <div className="grid md:grid-cols-3 gap-8">
           <div>
             <div className="text-4xl mb-4">🧠</div>
-            <h3 className="text-lg font-semibold mb-2">独立思考</h3>
+            <h3 className="text-lg font-semibold mb-2">Independent Thinking</h3>
             <p className="text-gray-600 text-sm">
-              渐进式提示系统帮助你自己找到答案
+              Progressive prompting system helps you find answers yourself
             </p>
           </div>
           <div>
             <div className="text-4xl mb-4">⚡</div>
-            <h3 className="text-lg font-semibold mb-2">实时反馈</h3>
+            <h3 className="text-lg font-semibold mb-2">Real-time Feedback</h3>
             <p className="text-gray-600 text-sm">
-              即时获得 AI 助手的智能回复
+              Get instant intelligent responses from AI assistant
             </p>
           </div>
           <div>
             <div className="text-4xl mb-4">🎯</div>
-            <h3 className="text-lg font-semibold mb-2">个性化学习</h3>
+            <h3 className="text-lg font-semibold mb-2">Personalized Learning</h3>
             <p className="text-gray-600 text-sm">
-              根据你的进度调整提示等级
+              Adjust hint levels based on your progress
             </p>
           </div>
         </div>

@@ -23,9 +23,9 @@ export function DocumentViewer({ fileUrl, filename }: DocumentViewerProps) {
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
           </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">没有文档</h3>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No Document</h3>
           <p className="mt-1 text-sm text-gray-500">
-            上传文件后可以在这里查看
+            Upload a file to view it here
           </p>
           <div className="mt-6">
             <a
@@ -45,7 +45,7 @@ export function DocumentViewer({ fileUrl, filename }: DocumentViewerProps) {
                   d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                 />
               </svg>
-              上传文档
+              Upload Document
             </a>
           </div>
         </div>

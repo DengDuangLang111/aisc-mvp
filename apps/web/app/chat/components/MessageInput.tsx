@@ -17,7 +17,7 @@ export function MessageInput({
   onFileSelect,
   conversationId,
   disabled = false,
-  placeholder = '输入你的问题...' 
+  placeholder = 'Enter your question...' 
 }: MessageInputProps) {
   const [input, setInput] = useState('')
   const [isUploadingFile, setIsUploadingFile] = useState(false)
@@ -80,9 +80,9 @@ export function MessageInput({
             checked={streaming}
             onChange={(e) => setStreaming(e.target.checked)}
             className="w-4 h-4 rounded border-gray-300 cursor-pointer"
-            title="启用流式 AI 回答"
+            title="Enable streaming AI responses"
           />
-          <span className="text-sm text-gray-600">流式响应 (SSE)</span>
+          <span className="text-sm text-gray-600">Streaming Response (SSE)</span>
         </label>
       </div>
 
@@ -102,7 +102,7 @@ export function MessageInput({
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || isUploadingFile}
               className="p-2 text-gray-600 hover:text-blue-600 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors rounded-lg hover:bg-gray-100"
-              title="上传文件"
+              title="Upload file"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -141,7 +141,7 @@ export function MessageInput({
           loading={disabled}
           size="md"
           variant="primary"
-          title={input.trim() ? '发送消息 (Enter)' : '请输入消息'}
+          title={input.trim() ? 'Send message (Enter)' : 'Please enter a message'}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -160,7 +160,7 @@ export function MessageInput({
         </Button>
       </div>
       <div className="mt-2 text-xs text-gray-500 text-center max-w-4xl mx-auto">
-        按 <kbd className="bg-gray-100 px-2 py-1 rounded text-gray-700">Enter</kbd> 发送，<kbd className="bg-gray-100 px-2 py-1 rounded text-gray-700">Shift + Enter</kbd> 换行
+        Press <kbd className="bg-gray-100 px-2 py-1 rounded text-gray-700">Enter</kbd> to send, <kbd className="bg-gray-100 px-2 py-1 rounded text-gray-700">Shift + Enter</kbd> for new line
       </div>
     </div>
   )

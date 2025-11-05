@@ -61,6 +61,7 @@ export interface ChatSession {
   id: string
   fileId?: string
   filename?: string
+  fileUrl?: string // 添加文件 URL 字段
   conversationId?: string // Backend conversation ID for context persistence
   messages: Message[]
   createdAt: number

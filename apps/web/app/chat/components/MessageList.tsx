@@ -9,6 +9,7 @@ export interface MessageListProps {
   streamingContent?: string // 方案7: 流式内容
   isStreaming?: boolean // 方案7: 是否正在流式输出
   isThinking?: boolean // 🧠 是否正在思考（等待第一个字）
+  onFileClick?: (fileUrl?: string, filename?: string) => void // 文件点击回调
 }
 
 export function MessageList({ 
@@ -16,7 +17,8 @@ export function MessageList({
   isLoading = false,
   streamingContent = '',
   isStreaming = false,
-  isThinking = false
+  isThinking = false,
+  onFileClick
 }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -32,15 +34,15 @@ export function MessageList({
         <div className="text-center space-y-4">
           <div className="text-4xl">💬</div>
           <div>
-            <p className="text-lg font-medium">还没有消息</p>
-            <p className="text-sm text-gray-400 mt-1">开始对话吧，提出你的问题或疑惑！</p>
+            <p className="text-lg font-medium">No messages yet</p>
+            <p className="text-sm text-gray-400 mt-1">Start a conversation and ask your questions!</p>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4 max-w-sm text-sm text-left">
-            <p className="font-medium text-blue-900">💡 小提示：</p>
+            <p className="font-medium text-blue-900">💡 Tips:</p>
             <ul className="mt-2 space-y-1 text-blue-700 list-disc list-inside text-xs">
-              <li>提供具体的问题背景</li>
-              <li>描述你已经尝试过的方法</li>
-              <li>让 AI 助手更好地理解你的需求</li>
+              <li>Provide specific background information</li>
+              <li>Describe what you've already tried</li>
+              <li>Help the AI understand your needs better</li>
             </ul>
           </div>
         </div>
@@ -63,6 +65,7 @@ export function MessageList({
             message={message}
             isLoading={isStreamingLastMessage}
             isStreaming={isStreamingLastMessage}
+            onFileClick={onFileClick}
           />
         )
       })}
@@ -80,10 +83,11 @@ export function MessageList({
           }}
           isLoading={false}
           isStreaming={true}
+          onFileClick={onFileClick}
         />
       )}
       
-      {/* 🧠 Thinking indicator - 等待 AI 返回第一个字时显示 */}
+      {/* 🧠 Thinking indicator - waiting for AI's first response */}
       {isThinking && (
         <div className="flex justify-start mb-4">
           <div className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-bl-sm shadow-sm">
@@ -93,7 +97,7 @@ export function MessageList({
               <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-blue-700">🧠 AI 正在思考中</span>
+              <span className="text-sm font-medium text-blue-700">🧠 AI is thinking</span>
               <span className="text-xs text-blue-500 animate-pulse">...</span>
             </div>
           </div>
@@ -109,7 +113,7 @@ export function MessageList({
               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
-            <span className="text-sm text-gray-600 ml-2">AI 正在回复...</span>
+            <span className="text-sm text-gray-600 ml-2">AI is responding...</span>
           </div>
         </div>
       )}
