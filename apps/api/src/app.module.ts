@@ -16,6 +16,7 @@ import { LoggerModule } from './common/logger/logger.module';
 import { CommonModule } from './common/common.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { AlertModule } from './alerts/alert.module';
+import { FocusModule } from './focus/focus.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { HttpCacheInterceptor } from './common/interceptors/cache.interceptor';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
@@ -56,6 +57,7 @@ import { validate } from './config/validation';
     AnalyticsModule,
     MetricsModule,
     AlertModule,
+    FocusModule,
     UploadModule,
     ChatModule,
     HealthModule,

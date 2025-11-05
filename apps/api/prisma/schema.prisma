@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ============================================
@@ -175,4 +176,49 @@ model UserDailyStat {
   @@unique([userId, date])
   @@index([userId, date])
   @@map("user_daily_stats")
+}
+
+// ============================================
+// 专注会话表
+// ============================================
+model FocusSession {
+  id                String   @id @default(uuid())
+  userId            String?
+  documentId        String?
+  conversationId    String?
+  startTime         DateTime @default(now())
+  endTime           DateTime?
+  totalDuration     Int?     // seconds
+  activeDuration    Int?     // seconds (excluding pauses)
+  pauseCount        Int      @default(0)
+  distractionCount  Int      @default(0)
+  tabSwitchCount    Int      @default(0)
+  questionsAsked    Int      @default(0)
+  focusScore        Float?   // 0-100
+  status            String   @default("active") // active, paused, completed, abandoned
+  completionProofId String?  @map("completion_proof_id")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  distractions FocusDistraction[]
+  
+  @@index([userId, status])
+  @@index([startTime])
+  @@map("focus_sessions")
+}
+
+// ============================================
+// 专注干扰记录表
+// ============================================
+model FocusDistraction {
+  id              String        @id @default(uuid())
+  sessionId       String
+  distractionType String        // tab_switch, window_blur, mouse_leave, navigation_attempt
+  timestamp       DateTime      @default(now())
+  duration        Int?          // how long distraction lasted (seconds)
+  
+  session FocusSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@index([sessionId, timestamp])
+  @@map("focus_distractions")
 }
