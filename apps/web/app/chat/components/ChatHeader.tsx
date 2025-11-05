@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { ConversationList } from './ConversationList'
 
 interface ChatHeaderProps {
@@ -28,16 +29,39 @@ export function ChatHeader({
   return (
     <header className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm flex-shrink-0">
       <div className="max-w-full mx-auto flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900">AI Learning Assistant</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Intelligent Progressive Prompting System - Helping You Think Independently
-            {messageCount > 0 && (
-              <span className="ml-2 text-xs text-gray-500">
-                ({messageCount} messages)
-              </span>
-            )}
-          </p>
+        <div className="flex items-center gap-3">
+          {/* Home Button */}
+          <Link
+            href="/"
+            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            title="返回首页"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+              />
+            </svg>
+          </Link>
+          
+          <div>
+            <h1 className="text-xl font-semibold text-gray-900">AI Learning Assistant</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Intelligent Progressive Prompting System - Helping You Think Independently
+              {messageCount > 0 && (
+                <span className="ml-2 text-xs text-gray-500">
+                  ({messageCount} messages)
+                </span>
+              )}
+            </p>
+          </div>
         </div>
 
         {/* Action Buttons */}
