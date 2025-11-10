@@ -1,7 +1,6 @@
 import {
   Injectable,
-  BadRequestException,
-  NotFoundException,
+  HttpStatus,
   Inject,
   Logger,
 } from '@nestjs/common';
@@ -18,7 +17,11 @@ import {
 } from '../analytics/analytics.service';
 import { EventName, EventCategory } from '../analytics/analytics.types';
 import { DocumentRepository } from './repositories/document.repository';
-import { FileValidatorHelper } from './helpers/file-validator.helper';
+import {
+  BusinessException,
+  ErrorCode,
+} from '../common/exceptions/business.exception';
+import { Document } from '@prisma/client';
 const fileTypeImport = require('file-type');
 
 export interface UploadResult {
@@ -29,6 +32,13 @@ export interface UploadResult {
   mimetype: string;
   documentId?: string;
   ocrStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+}
+
+interface StorageResult {
+  storageType: 'gcs' | 'local';
+  publicUrl: string;
+  gcsPath?: string | null;
+  localPath?: string | null;
 }
 
 @Injectable()
@@ -150,7 +160,11 @@ export class UploadService {
         stack: error instanceof Error ? error.stack : undefined,
         bufferLength: buffer?.length,
       });
-      throw new BadRequestException('文件类型检测失败');
+      throw new BusinessException(
+        ErrorCode.FILE_VALIDATION_FAILED,
+        'File type detection failed',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // 某些文件类型（如纯文本）没有魔数，对于这些类型只检查是否在允许列表中
@@ -182,7 +196,11 @@ export class UploadService {
         declaredMimetype,
         bufferSize: buffer.length,
       });
-      throw new BadRequestException('无法识别文件类型，请确保上传的是有效文件');
+      throw new BusinessException(
+        ErrorCode.INVALID_FILE_TYPE,
+        'Unable to detect file type. Please upload a valid document.',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     // 检查真实类型是否在允许列表中
@@ -192,10 +210,255 @@ export class UploadService {
         declared: declaredMimetype,
         actual: detected.mime,
       });
-      throw new BadRequestException(
-        `文件类型不匹配。声明类型: ${declaredMimetype}, 实际类型: ${detected.mime}`,
+      throw new BusinessException(
+        ErrorCode.INVALID_FILE_TYPE,
+        `Detected file type ${detected.mime} does not match declared type ${declaredMimetype}`,
+        HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  private async validateFileForUpload(
+    file: Express.Multer.File,
+    originalFilename: string,
+  ): Promise<void> {
+    if (this.isDangerousFile(originalFilename)) {
+      this.logger.warn('Dangerous file type detected', {
+        context: 'UploadService',
+        filename: originalFilename,
+      });
+      throw new BusinessException(
+        ErrorCode.INVALID_FILE_TYPE,
+        `Executable file type not allowed: ${extname(originalFilename)}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    await this.validateFileType(file.buffer, file.mimetype);
+
+    if (!this.isAllowedMimeType(file.mimetype)) {
+      this.logger.warn('File type not allowed', {
+        context: 'UploadService',
+        filename: originalFilename,
+        mimetype: file.mimetype,
+      });
+
+      throw new BusinessException(
+        ErrorCode.INVALID_FILE_TYPE,
+        `Unsupported MIME type: ${file.mimetype}. Allowed: PDF, text, images.`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!this.isAllowedSize(file.size)) {
+      const maxSizeMB = this.getUploadMaxSizeInMb();
+
+      this.logger.warn('File size exceeds limit', {
+        context: 'UploadService',
+        filename: originalFilename,
+        size: file.size,
+        maxSize: maxSizeMB,
+      });
+
+      throw new BusinessException(
+        ErrorCode.DOCUMENT_TOO_LARGE,
+        `File exceeds limit of ${maxSizeMB}MB`,
+        HttpStatus.PAYLOAD_TOO_LARGE,
+      );
+    }
+  }
+
+  private async uploadToPreferredStorage(
+    file: Express.Multer.File,
+    filename: string,
+    uploadId: string,
+  ): Promise<StorageResult> {
+    const useCloudStorage = Boolean(
+      this.configService.get<string>('GOOGLE_CLOUD_PROJECT_ID'),
+    );
+
+    return useCloudStorage
+      ? this.uploadToGcs(file, filename)
+      : this.uploadToLocal(file, filename, uploadId);
+  }
+
+  private async uploadToGcs(
+    file: Express.Multer.File,
+    filename: string,
+  ): Promise<StorageResult> {
+    this.logger.log('info', 'Uploading to Google Cloud Storage', {
+      context: 'UploadService',
+      filename,
+    });
+
+    const gcsResult = await this.gcsService.uploadFile(
+      file.buffer,
+      filename,
+      'uploads',
+    );
+
+    this.logger.log('info', 'File uploaded to GCS', {
+      context: 'UploadService',
+      gcsPath: gcsResult.gcsPath,
+      publicUrl: gcsResult.publicUrl,
+    });
+
+    return {
+      storageType: 'gcs',
+      gcsPath: gcsResult.gcsPath,
+      publicUrl: gcsResult.publicUrl,
+    };
+  }
+
+  private async uploadToLocal(
+    file: Express.Multer.File,
+    filename: string,
+    uploadId: string,
+  ): Promise<StorageResult> {
+    const ext = extname(filename);
+    const diskFilename = `${uploadId}${ext}`;
+    const uploadDir = this.getUploadDestination();
+    const uploadPath = join(uploadDir, diskFilename);
+
+    await fs.mkdir(uploadDir, { recursive: true });
+    await fs.writeFile(uploadPath, file.buffer);
+
+    this.logger.log('info', 'File saved to local disk', {
+      context: 'UploadService',
+      diskFilename,
+      path: uploadPath,
+    });
+
+    return {
+      storageType: 'local',
+      localPath: uploadPath,
+      publicUrl: this.buildFileUrl(diskFilename),
+    };
+  }
+
+  private async saveDocumentMetadata(
+    filename: string,
+    storageResult: StorageResult,
+    file: Express.Multer.File,
+    userId?: string,
+  ): Promise<Document> {
+    const document = await this.documentRepository.create({
+      userId,
+      filename,
+      gcsPath: storageResult.gcsPath || storageResult.localPath || undefined,
+      size: file.size,
+      ocrStatus: 'pending',
+      publicUrl: storageResult.publicUrl,
+    });
+
+    this.logger.log('info', 'Document metadata saved to database', {
+      context: 'UploadService',
+      documentId: document.id,
+    });
+
+    return document;
+  }
+
+  private triggerOcrAsync(
+    documentId: string,
+    storageResult: StorageResult,
+    fileBuffer: Buffer,
+    userId?: string,
+    sessionId?: string,
+  ): void {
+    const filePath = storageResult.gcsPath || storageResult.localPath || null;
+
+    this.triggerOCR(
+      documentId,
+      filePath,
+      fileBuffer,
+      userId,
+      sessionId,
+    ).catch((error) => {
+      this.logger.error('OCR processing failed', {
+        context: 'UploadService',
+        documentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+  }
+
+  private async trackUploadSuccess(
+    document: Document,
+    file: Express.Multer.File,
+    storageType: StorageResult['storageType'],
+    userId?: string,
+    sessionId?: string,
+  ): Promise<void> {
+    await this.trackEvent({
+      userId,
+      sessionId,
+      eventName: EventName.FILE_UPLOAD_SUCCESS,
+      eventCategory: EventCategory.DOCUMENT,
+      eventProperties: {
+        documentId: document.id,
+        filename: document.filename,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        storageType,
+      },
+    });
+  }
+
+  private async trackUploadFailure(
+    filename: string,
+    error: unknown,
+    userId?: string,
+    sessionId?: string,
+  ): Promise<void> {
+    await this.trackEvent({
+      userId,
+      sessionId,
+      eventName: EventName.FILE_UPLOAD_FAILED,
+      eventCategory: EventCategory.DOCUMENT,
+      eventProperties: {
+        filename,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
+
+  private buildUploadResult(
+    uploadId: string,
+    filename: string,
+    file: Express.Multer.File,
+    documentId: string,
+    publicUrl: string,
+  ): UploadResult {
+    const result: UploadResult = {
+      id: uploadId,
+      filename,
+      url: publicUrl,
+      size: file.size,
+      mimetype: file.mimetype,
+      documentId,
+      ocrStatus: 'pending',
+    };
+
+    this.logger.log('info', 'File upload successful', {
+      context: 'UploadService',
+      fileId: result.id,
+      documentId: result.documentId,
+      filename: result.filename,
+      size: result.size,
+    });
+
+    return result;
+  }
+
+  private getUploadMaxSizeInMb(): number {
+    const maxSize =
+      this.configService.get<number>('upload.maxSize') || 10485760;
+    return Math.round((maxSize / 1024 / 1024) * 100) / 100;
+  }
+
+  private getUploadDestination(): string {
+    return this.configService.get<string>('upload.destination') || './uploads';
   }
 
   /**
@@ -207,6 +470,7 @@ export class UploadService {
   ): Promise<UploadResult> {
     const originalFilename = file.originalname;
     const sessionId = this.generateSessionId();
+    const uploadId = randomUUID();
 
     this.logger.log('info', 'Processing file upload', {
       context: 'UploadService',
@@ -230,192 +494,61 @@ export class UploadService {
     });
 
     try {
-      // 1. 检查危险文件类型
-      if (this.isDangerousFile(originalFilename)) {
-        this.logger.warn('Dangerous file type detected', {
-          context: 'UploadService',
-          filename: originalFilename,
-        });
-        throw new BadRequestException(
-          `不允许上传可执行文件类型: ${extname(originalFilename)}`,
-        );
-      }
-
-      // 2. 清理文件名
       const sanitizedFilename = this.sanitizeFilename(originalFilename);
-      if (sanitizedFilename !== originalFilename) {
-        this.logger.log('info', 'Filename sanitized', {
-          context: 'UploadService',
-          original: originalFilename,
-          sanitized: sanitizedFilename,
-        });
-      }
+      this.logSanitizedFilename(originalFilename, sanitizedFilename);
 
-      // 3. 验证文件真实类型（魔数检查）
-      await this.validateFileType(file.buffer, file.mimetype);
+      await this.validateFileForUpload(file, originalFilename);
 
-      // 4. 验证声明的文件类型
-      if (!this.isAllowedMimeType(file.mimetype)) {
-        this.logger.warn('File type not allowed', {
-          context: 'UploadService',
-          filename: originalFilename,
-          mimetype: file.mimetype,
-        });
-
-        throw new BadRequestException(
-          `不支持的文件类型: ${file.mimetype}。允许的类型: PDF, 文本, 图片`,
-        );
-      }
-
-      // 5. 验证文件大小
-      if (!this.isAllowedSize(file.size)) {
-        const maxSizeMB =
-          (this.configService.get<number>('upload.maxSize') || 10485760) /
-          1024 /
-          1024;
-
-        this.logger.warn('File size exceeds limit', {
-          context: 'UploadService',
-          filename: originalFilename,
-          size: file.size,
-          maxSize: maxSizeMB,
-        });
-
-        throw new BadRequestException(
-          `文件大小超过限制。最大允许: ${maxSizeMB}MB`,
-        );
-      }
-
-      // 6. 上传文件（云存储或本地）
-      const uniqueId = randomUUID();
-      let fileUrl: string;
-      let gcsPath: string | null = null;
-      let localPath: string | null = null;
-
-      const useCloudStorage = this.configService.get<string>(
-        'GOOGLE_CLOUD_PROJECT_ID',
+      const storageResult = await this.uploadToPreferredStorage(
+        file,
+        sanitizedFilename,
+        uploadId,
       );
 
-      if (useCloudStorage) {
-        // 上传到 Google Cloud Storage
-        this.logger.log('info', 'Uploading to Google Cloud Storage', {
-          context: 'UploadService',
-          filename: sanitizedFilename,
-        });
-
-        const gcsResult = await this.gcsService.uploadFile(
-          file.buffer,
-          sanitizedFilename,
-          'uploads',
-        );
-
-        gcsPath = gcsResult.gcsPath;
-        fileUrl = gcsResult.publicUrl;
-
-        this.logger.log('info', 'File uploaded to GCS', {
-          context: 'UploadService',
-          gcsPath,
-          publicUrl: fileUrl,
-        });
-      } else {
-        // 本地存储（开发环境）
-        const ext = extname(sanitizedFilename);
-        const diskFilename = `${uniqueId}${ext}`;
-        const uploadDir = './uploads';
-        const uploadPath = join(uploadDir, diskFilename);
-
-        await fs.mkdir(uploadDir, { recursive: true });
-        await fs.writeFile(uploadPath, file.buffer);
-
-        localPath = uploadPath;
-        fileUrl = this.buildFileUrl(diskFilename);
-
-        this.logger.log('info', 'File saved to local disk', {
-          context: 'UploadService',
-          diskFilename,
-          path: uploadPath,
-        });
-      }
-
-      // 7. 保存文档元信息到数据库
-      const document = await this.documentRepository.create({
+      const document = await this.saveDocumentMetadata(
+        sanitizedFilename,
+        storageResult,
+        file,
         userId,
-        filename: sanitizedFilename,
-        s3Key: gcsPath || undefined, // 使用 s3Key 字段存储 GCS 路径
-        size: file.size,
-        ocrStatus: 'pending',
-        publicUrl: fileUrl,
-      });
+      );
 
-      this.logger.log('info', 'Document metadata saved to database', {
-        context: 'UploadService',
-        documentId: document.id,
-      });
-
-      // 8. 记录上传成功事件
-      await this.trackEvent({
+      this.triggerOcrAsync(document.id, storageResult, file.buffer, userId, sessionId);
+      await this.trackUploadSuccess(
+        document,
+        file,
+        storageResult.storageType,
         userId,
         sessionId,
-        eventName: EventName.FILE_UPLOAD_SUCCESS,
-        eventCategory: EventCategory.DOCUMENT,
-        eventProperties: {
-          documentId: document.id,
-          filename: sanitizedFilename,
-          fileSize: file.size,
-          mimeType: file.mimetype,
-          storageType: useCloudStorage ? 'gcs' : 'local',
-        },
-      });
+      );
 
-      // 9. 异步触发 OCR（不阻塞响应）
-      this.triggerOCR(
+      return this.buildUploadResult(
+        uploadId,
+        sanitizedFilename,
+        file,
         document.id,
-        gcsPath || localPath,
-        file.buffer,
-        userId,
-        sessionId,
-      ).catch((error) => {
-        this.logger.error('OCR processing failed', {
-          context: 'UploadService',
-          documentId: document.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-
-      const result: UploadResult = {
-        id: uniqueId,
-        filename: sanitizedFilename,
-        url: fileUrl,
-        size: file.size,
-        mimetype: file.mimetype,
-        documentId: document.id,
-        ocrStatus: 'pending',
-      };
-
-      this.logger.log('info', 'File upload successful', {
-        context: 'UploadService',
-        fileId: result.id,
-        documentId: document.id,
-        filename: result.filename,
-        size: result.size,
-      });
-
-      return result;
+        storageResult.publicUrl,
+      );
     } catch (error: unknown) {
-      // 记录上传失败事件
-      await this.trackEvent({
+      await this.trackUploadFailure(
+        originalFilename,
+        error,
         userId,
         sessionId,
-        eventName: EventName.FILE_UPLOAD_FAILED,
-        eventCategory: EventCategory.DOCUMENT,
-        eventProperties: {
-          filename: originalFilename,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      });
-
+      );
       throw error;
     }
+  }
+
+  private logSanitizedFilename(original: string, sanitized: string): void {
+    if (original === sanitized) {
+      return;
+    }
+
+    this.logger.log('info', 'Filename sanitized', {
+      context: 'UploadService',
+      original,
+      sanitized,
+    });
   }
 
   /**
@@ -475,7 +608,11 @@ export class UploadService {
           context: 'UploadService',
           fileId,
         });
-        throw new NotFoundException(`文件不存在: ${fileId}`);
+        throw new BusinessException(
+          ErrorCode.DOCUMENT_NOT_FOUND,
+          `File not found: ${fileId}`,
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       const filePath = join(uploadDir, targetFile);
@@ -492,7 +629,7 @@ export class UploadService {
 
       return content;
     } catch (error: unknown) {
-      if (error instanceof NotFoundException) {
+      if (error instanceof BusinessException) {
         throw error;
       }
 
@@ -502,7 +639,11 @@ export class UploadService {
         error: error instanceof Error ? error.message : 'Unknown error',
       });
 
-      throw new BadRequestException('无法读取文件内容');
+      throw new BusinessException(
+        ErrorCode.EXTERNAL_SERVICE_ERROR,
+        'Failed to read file content',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 
@@ -518,10 +659,14 @@ export class UploadService {
    */
   private async trackEvent(data: Partial<AnalyticsEventData>): Promise<void> {
     try {
+      const sessionId = data.sessionId || this.generateSessionId();
+      const eventName = data.eventName ?? 'custom_event';
+      const eventCategory = data.eventCategory ?? EventCategory.SYSTEM;
+
       await this.analyticsService.trackEvent({
-        sessionId: data.sessionId || this.generateSessionId(),
-        eventName: data.eventName as any,
-        eventCategory: data.eventCategory as any,
+        sessionId,
+        eventName,
+        eventCategory,
         userId: data.userId,
         eventProperties: data.eventProperties,
       });

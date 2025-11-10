@@ -23,3 +23,11 @@
 ## 5. Next Step – Assignment & Proof Lifecycle
 - [x] `apps/web/app/chat/hooks/useChatLogic.ts`, `apps/api/src/upload/upload.controller.ts`, `docs/implementation/P3_7_8_COMPLETION_REPORT.md`: link uploaded study materials and completion proofs together so assignments show their latest proof, allowing educators to validate submissions directly from the dashboard.
 > ✅ 当前所有数据库操作都假设 Supabase cloud 实例，切勿启动本地 Postgres/migrate dev；使用 `DIRECT_DATABASE_URL` 运维迁移，`DATABASE_URL` 供 Nest 运行。
+
+## 6. Refactoring Wave 1 (P0 Readiness)
+- [x] P0-1 – `apps/api/prisma/schema.prisma`, `apps/api/prisma/migrations/*`, `apps/api/src/upload/**`: normalize document/OCR column naming (snake_case), drop the misleading `s3Key`, and ensure repositories/services/docs reference the new fields.
+- [x] P0-2 – `apps/api/src/focus/focus.service.ts`, `apps/api/src/chat/chat.service.ts`, `apps/api/src/upload/upload.service.ts`: replace `any` buckets with Prisma-generated types so focus/chat/update flows remain type-safe.
+- [x] P0-3 – `apps/api/src/common/exceptions/**`, `apps/api/src/common/filters/**`, service layers: introduce `BusinessException` + standardized logging so API errors share one contract.
+- [x] P0-4 – `apps/api/src/main.ts`, controllers, DTOs: enable Swagger with module tags + DTO decorators to unblock API consumers and QA.
+- [x] P1-5 – refactor `UploadService.saveFile` into focused helpers (validation/storage/metadata/OCR/event tracking), reuse config getters for destination/max size, and keep upload logic testable.
+- [ ] Next (P1-6) – backfill repository/helper unit tests (DocumentRepository, FileValidatorHelper) so new refactors stay regression-safe.

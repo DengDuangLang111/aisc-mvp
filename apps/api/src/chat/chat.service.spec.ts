@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ChatRequestDto } from './dto/chat-request.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -9,6 +8,11 @@ import { ConversationRepository } from './repositories/conversation.repository';
 import { MessageRepository } from './repositories/message.repository';
 import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { EventName, EventCategory } from '../analytics/analytics.types';
+import {
+  BusinessException,
+  ErrorCode,
+} from '../common/exceptions/business.exception';
 
 describe('ChatService', () => {
   let service: ChatService;
@@ -748,15 +752,17 @@ describe('ChatService', () => {
       expect(result.documentId).toBe('doc-1');
     });
 
-    it('should throw NotFoundException when conversation not found', async () => {
+    it('should throw BusinessException when conversation not found', async () => {
       mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.getConversation('non-existent')).rejects.toThrow(
-        NotFoundException,
+        BusinessException,
       );
-      await expect(service.getConversation('non-existent')).rejects.toThrow(
-        'not found',
-      );
+      await expect(
+        service.getConversation('non-existent'),
+      ).rejects.toMatchObject({
+        code: ErrorCode.CONVERSATION_NOT_FOUND,
+      });
     });
   });
 
@@ -781,15 +787,15 @@ describe('ChatService', () => {
       expect(mockConversationRepo.delete).toHaveBeenCalledWith('conv-1');
     });
 
-    it('should throw NotFoundException when conversation not found', async () => {
+    it('should throw BusinessException when conversation not found', async () => {
       mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
 
       await expect(service.deleteConversation('non-existent')).rejects.toThrow(
-        NotFoundException,
+        BusinessException,
       );
     });
 
-    it('should throw BadRequestException when userId does not match', async () => {
+    it('should throw BusinessException when userId does not match', async () => {
       const mockConversation = {
         id: 'conv-1',
         userId: 'user-1',
@@ -803,10 +809,12 @@ describe('ChatService', () => {
 
       await expect(
         service.deleteConversation('conv-1', 'user-2'),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(BusinessException);
       await expect(
         service.deleteConversation('conv-1', 'user-2'),
-      ).rejects.toThrow('Unauthorized');
+      ).rejects.toMatchObject({
+        code: ErrorCode.UNAUTHORIZED_ACCESS,
+      });
     });
 
     it('should allow deletion without userId check', async () => {
@@ -1039,7 +1047,7 @@ describe('ChatService', () => {
   });
 
   describe('error scenarios', () => {
-    it('should throw NotFoundException for non-existent conversation', async () => {
+    it('should throw BusinessException for non-existent conversation', async () => {
       mockConversationRepo.findById = jest.fn().mockResolvedValue(null);
 
       await expect(
@@ -1047,7 +1055,9 @@ describe('ChatService', () => {
           message: 'Hello',
           conversationId: 'non-existent-conv',
         }),
-      ).rejects.toThrow('Conversation non-existent-conv not found');
+      ).rejects.toMatchObject({
+        code: ErrorCode.CONVERSATION_NOT_FOUND,
+      });
     });
 
     it('should handle conversation creation failure', async () => {

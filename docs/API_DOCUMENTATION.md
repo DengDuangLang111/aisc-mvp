@@ -56,6 +56,11 @@ API 按照功能模块分组：
   - GET `/analytics/event-stats` - 事件统计
   - GET `/analytics/system-usage` - 系统使用情况
 
+- **Focus** (`/focus`): 专注会话接口
+  - POST `/focus/sessions` (需 JWT) - 创建会话
+  - PUT `/focus/sessions/:id` (需 JWT) - 更新/完成会话
+  - GET `/focus/sessions/:id/analytics` (需 JWT) - 获取分析报告
+
 - **Health** (`/health`): 健康检查接口
   - GET `/health` - 系统健康状态
 
@@ -106,12 +111,27 @@ curl http://localhost:4000/analytics/active-users?minutes=30
 ```typescript
 const swaggerConfig = new DocumentBuilder()
   .setTitle('Study Oasis API')
-  .setDescription('AI 学习助手 API 文档')
+  .setDescription('AI 学习助手 API 文档，覆盖上传/聊天/专注/提醒/监控等模块')
   .setVersion('1.0.0')
+  .addBearerAuth(
+    {
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT',
+      description: 'Supabase 访问令牌 (`Authorization: Bearer <token>`)',
+    },
+    'JWT',
+  )
+  .addTag('auth', '认证与诊断接口')
   .addTag('chat', '聊天相关接口')
   .addTag('upload', '文件上传接口')
+  .addTag('focus', '专注会话 & 分析')
+  .addTag('analytics', '使用分析与成本洞察')
+  .addTag('gamification', '徽章、streak 与留存')
+  .addTag('notifications', '跨页面提醒横幅')
   .addTag('health', '健康检查接口')
   .addServer('http://localhost:4000', '本地开发环境')
+  .addServer('http://localhost:3001', '备用端口')
   .build();
 ```
 
@@ -156,6 +176,27 @@ http://localhost:4000/api-docs-yaml
 ```bash
 curl http://localhost:4000/api-docs-yaml > openapi.yaml
 ```
+
+## ❗ 统一错误响应 (BusinessException)
+
+所有业务错误都会通过 `BusinessException` 返回一致的数据结构，方便前端基于 `code` 做分支处理：
+
+```json
+{
+  "statusCode": 404,
+  "code": "DOCUMENT_NOT_FOUND",
+  "message": "Document doc-123 not found",
+  "details": { "documentId": "doc-123" },
+  "timestamp": "2025-11-10T12:34:56.789Z",
+  "path": "/upload/documents/doc-123"
+}
+```
+
+- `code`: 机器可读的错误枚举，如 `INVALID_FILE_TYPE`, `SESSION_NOT_FOUND`
+- `details`: 可选调试信息（documentId、用户 ID、上下文等）
+- `statusCode`: 与 HTTP 状态保持一致
+
+统一结构已在 `AllExceptionsFilter` 中注册，并自动体现在 Swagger 文档里。
 
 ## 🎨 装饰器使用示例
 

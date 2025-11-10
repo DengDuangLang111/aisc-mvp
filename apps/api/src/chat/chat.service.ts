@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  Inject,
-  Logger,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, Inject, Logger, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import axios from 'axios';
@@ -26,6 +20,10 @@ import {
 } from '../common/dto/pagination.dto';
 import { ChatPromptBuilder } from './helpers/chat-prompt.builder';
 import { ChatMessageHelper } from './helpers/chat-message.helper';
+import {
+  BusinessException,
+  ErrorCode,
+} from '../common/exceptions/business.exception';
 
 /**
  * DeepSeek API 响应类型
@@ -88,6 +86,33 @@ interface ConversationListItem {
     messages: number;
   };
   messages: DbMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ConversationSummary {
+  id: string;
+  title: string | null;
+  documentId: string | null;
+  messageCount: number;
+  lastMessage: string | null;
+  lastMessageAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ConversationDetail {
+  id: string;
+  title: string | null;
+  userId: string | null;
+  documentId: string | null;
+  messages: Array<{
+    id: string;
+    role: string;
+    content: string;
+    tokensUsed: number | null;
+    createdAt: Date;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -170,8 +195,10 @@ export class ChatService {
           await this.conversationRepo.findById(conversationId);
 
         if (!existingConv) {
-          throw new NotFoundException(
+          throw new BusinessException(
+            ErrorCode.CONVERSATION_NOT_FOUND,
             `Conversation ${conversationId} not found`,
+            HttpStatus.NOT_FOUND,
           );
         }
 
@@ -307,7 +334,7 @@ export class ChatService {
   async getConversations(
     userId?: string,
     pagination: PaginationDto = new PaginationDto(),
-  ): Promise<PaginatedResponse<any>> {
+  ): Promise<PaginatedResponse<ConversationSummary>> {
     // 获取总数
     const total = await this.conversationRepo.count({ userId });
 
@@ -319,16 +346,18 @@ export class ChatService {
       orderBy: { updatedAt: 'desc' },
     });
 
-    const data = conversations.map((conv: ConversationListItem) => ({
-      id: conv.id,
-      title: conv.title,
-      documentId: conv.documentId,
-      messageCount: conv._count.messages,
-      lastMessage: conv.messages[0]?.content || null,
-      lastMessageAt: conv.messages[0]?.createdAt || conv.createdAt,
-      createdAt: conv.createdAt,
-      updatedAt: conv.updatedAt,
-    }));
+    const data: ConversationSummary[] = conversations.map(
+      (conv: ConversationListItem) => ({
+        id: conv.id,
+        title: conv.title,
+        documentId: conv.documentId,
+        messageCount: conv._count.messages,
+        lastMessage: conv.messages[0]?.content || null,
+        lastMessageAt: conv.messages[0]?.createdAt || conv.createdAt,
+        createdAt: conv.createdAt,
+        updatedAt: conv.updatedAt,
+      }),
+    );
 
     return createPaginatedResponse(
       data,
@@ -341,14 +370,18 @@ export class ChatService {
   /**
    * 获取对话详情（包含所有消息）
    */
-  async getConversation(conversationId: string): Promise<any> {
+  async getConversation(conversationId: string): Promise<ConversationDetail> {
     const conversation = await this.conversationRepo.findById(conversationId);
 
     if (!conversation) {
-      throw new NotFoundException(`Conversation ${conversationId} not found`);
+      throw new BusinessException(
+        ErrorCode.CONVERSATION_NOT_FOUND,
+        `Conversation ${conversationId} not found`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
-    return {
+    const conversationDetail: ConversationDetail = {
       id: conversation.id,
       title: conversation.title,
       userId: conversation.userId,
@@ -363,6 +396,8 @@ export class ChatService {
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     };
+
+    return conversationDetail;
   }
 
   /**
@@ -375,12 +410,20 @@ export class ChatService {
     const conversation = await this.conversationRepo.findById(conversationId);
 
     if (!conversation) {
-      throw new NotFoundException(`Conversation ${conversationId} not found`);
+      throw new BusinessException(
+        ErrorCode.CONVERSATION_NOT_FOUND,
+        `Conversation ${conversationId} not found`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     // 验证用户权限（如果提供了 userId）
     if (userId && conversation.userId !== userId) {
-      throw new BadRequestException('Unauthorized to delete this conversation');
+      throw new BusinessException(
+        ErrorCode.UNAUTHORIZED_ACCESS,
+        'You do not have permission to delete this conversation',
+        HttpStatus.FORBIDDEN,
+      );
     }
 
     // 删除对话（Repository 内部会处理级联删除）

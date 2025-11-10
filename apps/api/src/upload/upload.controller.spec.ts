@@ -4,7 +4,10 @@ import { UploadService } from './upload.service';
 import { VisionService } from '../ocr/vision.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BusinessException,
+  ErrorCode,
+} from '../common/exceptions/business.exception';
 
 describe('UploadController', () => {
   let controller: UploadController;
@@ -108,9 +111,9 @@ describe('UploadController', () => {
       expect(uploadService.saveFile).toHaveBeenCalledWith(mockFile, 'user-123');
     });
 
-    it('should throw BadRequestException if no file provided', async () => {
+    it('should throw BusinessException if no file provided', async () => {
       await expect(controller.uploadFile(undefined as any)).rejects.toThrow(
-        BadRequestException,
+        BusinessException,
       );
     });
   });
@@ -205,7 +208,7 @@ describe('UploadController', () => {
       mockPrismaService.document.findUnique.mockResolvedValue(null);
 
       await expect(controller.getDocumentInfo('non-existent')).rejects.toThrow(
-        NotFoundException,
+        BusinessException,
       );
     });
 
@@ -246,11 +249,11 @@ describe('UploadController', () => {
       expect(visionService.getOcrResult).toHaveBeenCalledWith('file-123');
     });
 
-    it('should throw NotFoundException if OCR result not available', async () => {
+    it('should throw BusinessException if OCR result not available', async () => {
       mockVisionService.getOcrResult.mockResolvedValue(null);
 
       await expect(controller.getOcrResult('file-123')).rejects.toThrow(
-        NotFoundException,
+        BusinessException,
       );
     });
   });
@@ -481,7 +484,7 @@ describe('UploadController', () => {
   });
 
   describe('downloadFile - Enhanced', () => {
-    it('should throw NotFoundException if file does not exist', async () => {
+    it('should throw BusinessException if file does not exist', async () => {
       mockUploadService.getFileInfo.mockResolvedValue(null);
 
       const mockRes = {
@@ -491,7 +494,7 @@ describe('UploadController', () => {
 
       await expect(
         controller.downloadFile('non-existent', mockRes as any),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(BusinessException);
     });
 
     it('should set correct headers for file download', async () => {

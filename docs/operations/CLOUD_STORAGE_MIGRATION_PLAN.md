@@ -1,5 +1,8 @@
 # 云存储迁移方案
 
+> [!NOTE]
+> 2025-11-10 更新：生产环境已经全面切换到 Google Cloud Storage，并使用 `gcsPath` 字段记录对象路径。下文保留 AWS S3 方案供历史参考或多云容灾之用。
+
 ## 📦 方案对比
 
 ### 方案 A: AWS S3 (推荐)
@@ -108,7 +111,7 @@ export class UploadService {
       data: {
         id: uniqueId,
         filename: sanitizedFilename,
-        s3Key: key,  // 存储 S3 key
+        gcsPath: key,  // 复用 gcsPath 字段存储对象路径
         mimeType: file.mimetype,
         size: file.size,
       },
@@ -133,7 +136,7 @@ export class UploadService {
     }
 
     // 生成新的预签名 URL（1小时有效）
-    return this.s3Service.getSignedUrl(document.s3Key, 3600);
+    return this.s3Service.getSignedUrl(document.gcsPath, 3600);
   }
 }
 ```

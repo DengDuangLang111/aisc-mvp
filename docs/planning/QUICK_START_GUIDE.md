@@ -289,7 +289,6 @@ model Document {
   id          String   @id @default(uuid())
   userId      String?
   filename    String
-  s3Key       String?   // AWS S3 路径
   gcsPath     String?   // Google Cloud Storage 路径
   mimeType    String
   size        Int

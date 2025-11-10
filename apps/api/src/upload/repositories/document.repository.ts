@@ -17,7 +17,6 @@ export class DocumentRepository {
     filename: string;
     originalName?: string;
     gcsPath?: string;
-    s3Key?: string;
     mimeType?: string;
     size: number;
     userId?: string;
@@ -29,7 +28,6 @@ export class DocumentRepository {
         filename: data.filename,
         originalName: data.originalName || null,
         gcsPath: data.gcsPath || null,
-        s3Key: data.s3Key || null,
         publicUrl: data.publicUrl || null,
         mimeType: data.mimeType || null,
         size: data.size,

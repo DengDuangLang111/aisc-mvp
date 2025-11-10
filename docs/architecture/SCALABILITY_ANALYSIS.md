@@ -226,7 +226,7 @@ model Conversation {
 model Document {
   id       String   @id
   userId   String   // 上传者
-  s3Key    String   // AWS S3 存储路径
+  gcsPath  String   // Google Cloud Storage 路径
   filename String
   
   ocrResult OcrResult?  // OCR 提取的文本

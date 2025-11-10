@@ -2,6 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HttpException, HttpStatus, ArgumentsHost } from '@nestjs/common';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import {
+  BusinessException,
+  ErrorCode,
+} from '../exceptions/business.exception';
 
 describe('AllExceptionsFilter', () => {
   let filter: AllExceptionsFilter;
@@ -77,6 +81,7 @@ describe('AllExceptionsFilter', () => {
       expect(response.status).toHaveBeenCalledWith(400);
       expect(response.json).toHaveBeenCalledWith({
         statusCode: 400,
+        code: 'BAD_REQUEST',
         message: 'Bad request',
         timestamp: expect.any(String),
         path: '/upload',
@@ -93,6 +98,7 @@ describe('AllExceptionsFilter', () => {
       expect(response.status).toHaveBeenCalledWith(404);
       expect(response.json).toHaveBeenCalledWith({
         statusCode: 404,
+        code: 'NOT_FOUND',
         message: 'Not found',
         timestamp: expect.any(String),
         path: '/api/missing',
@@ -148,7 +154,9 @@ describe('AllExceptionsFilter', () => {
       expect(response.status).toHaveBeenCalledWith(500);
       expect(response.json).toHaveBeenCalledWith({
         statusCode: 500,
-        message: 'Internal server error',
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Database connection failed',
+        details: undefined,
         timestamp: expect.any(String),
         path: '/data',
       });
@@ -166,7 +174,8 @@ describe('AllExceptionsFilter', () => {
         '[Exception Filter]',
         expect.objectContaining({
           status: 500,
-          message: 'Internal server error',
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Cannot read property of undefined',
           stack: expect.any(String),
         }),
       );
@@ -183,9 +192,35 @@ describe('AllExceptionsFilter', () => {
       expect(response.json).toHaveBeenCalledWith(
         expect.objectContaining({
           statusCode: 500,
+          code: 'INTERNAL_SERVER_ERROR',
           message: 'Internal server error',
         }),
       );
+    });
+  });
+
+  describe('BusinessException handling', () => {
+    it('should format BusinessException with custom code and details', () => {
+      const exception = new BusinessException(
+        ErrorCode.DOCUMENT_NOT_FOUND,
+        'Document missing',
+        HttpStatus.NOT_FOUND,
+        { documentId: 'doc-123' },
+      );
+      const host = createMockArgumentsHost('/documents/doc-123', 'GET');
+      const response = host.switchToHttp().getResponse();
+
+      filter.catch(exception, host);
+
+      expect(response.status).toHaveBeenCalledWith(404);
+      expect(response.json).toHaveBeenCalledWith({
+        statusCode: 404,
+        code: ErrorCode.DOCUMENT_NOT_FOUND,
+        message: 'Document missing',
+        details: { documentId: 'doc-123' },
+        timestamp: expect.any(String),
+        path: '/documents/doc-123',
+      });
     });
   });
 
@@ -218,7 +253,8 @@ describe('AllExceptionsFilter', () => {
         '[Exception Filter]',
         expect.objectContaining({
           status: 500,
-          message: 'Internal server error',
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Critical error',
           stack: expect.stringContaining('Critical error'),
         }),
       );
@@ -248,10 +284,12 @@ describe('AllExceptionsFilter', () => {
       filter.catch(exception, host);
 
       expect(response.json).toHaveBeenCalledWith({
-        statusCode: expect.any(Number),
-        message: expect.any(String),
+        statusCode: 400,
+        code: 'BAD_REQUEST',
+        message: 'Test',
+        details: undefined,
         timestamp: expect.any(String),
-        path: expect.any(String),
+        path: '/api/test',
       });
     });
 

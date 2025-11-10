@@ -55,7 +55,7 @@ model Document {
   id          String   @id @default(uuid())
   userId      String?
   filename    String
-  s3Key       String   // AWS S3 / OSS 存储路径
+  gcsPath     String   // Google Cloud Storage 路径
   mimeType    String
   size        Int
   uploadedAt  DateTime @default(now())
@@ -282,19 +282,22 @@ import { PrismaService } from '../prisma/prisma.service';
 export class UploadService {
   constructor(
     private prisma: PrismaService,
-    private s3Service: S3Service,
+    private gcsService: GcsService,
   ) {}
 
   async saveFile(file: Express.Multer.File): Promise<UploadResult> {
-    // 1. 上传到 S3
-    const { url, key } = await this.s3Service.uploadFile(file, key);
+    // 1. 上传到 GCS
+    const { publicUrl, gcsPath } = await this.gcsService.uploadFile(
+      file,
+      sanitizedFilename,
+    );
 
     // 2. 保存到数据库
     const document = await this.prisma.document.create({
       data: {
         id: uuidv4(),
         filename: sanitizedFilename,
-        s3Key: key,
+        gcsPath,
         mimeType: file.mimetype,
         size: file.size,
       },
@@ -303,7 +306,7 @@ export class UploadService {
     return {
       id: document.id,
       filename: document.filename,
-      url,
+      url: publicUrl,
       size: document.size,
       mimetype: document.mimeType,
     };
@@ -320,7 +323,7 @@ export class UploadService {
     }
 
     // 生成新的预签名 URL
-    const url = await this.s3Service.getSignedUrl(document.s3Key);
+    const url = await this.gcsService.getSignedUrl(document.gcsPath);
 
     return {
       id: document.id,

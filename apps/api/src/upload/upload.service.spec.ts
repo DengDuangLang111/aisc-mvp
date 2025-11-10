@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { UploadService } from './upload.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,6 +7,10 @@ import { DocumentRepository } from './repositories/document.repository';
 import { GcsService } from '../storage/gcs.service';
 import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import {
+  BusinessException,
+  ErrorCode,
+} from '../common/exceptions/business.exception';
 import {
   createMockPrismaService,
   createMockDocument,
@@ -132,9 +135,9 @@ describe('UploadService', () => {
 
     it('should reject dangerous files', async () => {
       const dangerousFile = { ...mockFile, originalname: 'malware.exe' };
-      await expect(service.saveFile(dangerousFile)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(service.saveFile(dangerousFile)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_FILE_TYPE,
+      });
     });
 
     it('should handle files without userId', async () => {
@@ -165,12 +168,9 @@ describe('UploadService', () => {
         mime: 'application/x-msdownload',
       });
 
-      await expect(service.saveFile(invalidFile)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.saveFile(invalidFile)).rejects.toThrow(
-        '文件类型不匹配',
-      );
+      await expect(service.saveFile(invalidFile)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_FILE_TYPE,
+      });
     });
 
     it('should reject file that is too large', async () => {
@@ -179,12 +179,9 @@ describe('UploadService', () => {
         size: 20 * 1024 * 1024, // 20MB, exceeds 10MB limit
       };
 
-      await expect(service.saveFile(largeFile)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.saveFile(largeFile)).rejects.toThrow(
-        '文件大小超过限制',
-      );
+      await expect(service.saveFile(largeFile)).rejects.toMatchObject({
+        code: ErrorCode.DOCUMENT_TOO_LARGE,
+      });
     });
 
     it('should reject file with mismatched declared and actual MIME type', async () => {
@@ -197,12 +194,9 @@ describe('UploadService', () => {
       // But actual file content is PNG
       fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'image/png' });
 
-      await expect(service.saveFile(spoofedFile)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.saveFile(spoofedFile)).rejects.toThrow(
-        '文件类型不匹配',
-      );
+      await expect(service.saveFile(spoofedFile)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_FILE_TYPE,
+      });
     });
 
     it('should accept valid PDF file', async () => {
@@ -381,14 +375,14 @@ describe('UploadService', () => {
       expect(fs.readFile).toHaveBeenCalled();
     });
 
-    it('should throw NotFoundException for non-existent file', async () => {
+    it('should throw BusinessException for non-existent file', async () => {
       (fs.readdir as jest.Mock).mockResolvedValue([
         'other-file.txt',
         'another-file.pdf',
       ] as any);
 
       await expect(service.readFileContent('non-existent')).rejects.toThrow(
-        NotFoundException,
+        BusinessException,
       );
     });
 
@@ -398,7 +392,9 @@ describe('UploadService', () => {
         new Error('Permission denied'),
       );
 
-      await expect(service.readFileContent('doc-error')).rejects.toThrow();
+      await expect(service.readFileContent('doc-error')).rejects.toMatchObject({
+        code: ErrorCode.EXTERNAL_SERVICE_ERROR,
+      });
     });
 
     it('should handle empty file content', async () => {

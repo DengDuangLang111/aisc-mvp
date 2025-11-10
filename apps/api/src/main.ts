@@ -67,11 +67,28 @@ async function bootstrap() {
   // Swagger API Documentation
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Study Oasis API')
-    .setDescription('AI 学习助手 API 文档 - 支持文件上传和智能对话功能')
+    .setDescription(
+      'AI 学习助手 API 文档，覆盖上传、聊天、专注、通知、游戏化、监控等模块',
+    )
     .setVersion('1.0.0')
-    .addTag('chat', '聊天相关接口 - 与 AI 助手进行对话')
-    .addTag('upload', '文件上传接口 - 上传学习资料')
-    .addTag('health', '健康检查接口 - 系统状态监控')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Supabase access token (`Authorization: Bearer <token>`)',
+      },
+      'JWT',
+    )
+    .addTag('auth', 'Authentication & session diagnostics')
+    .addTag('chat', 'AI conversations and streaming replies')
+    .addTag('upload', 'Document upload & OCR pipeline')
+    .addTag('ocr', 'Vision OCR callbacks and utilities')
+    .addTag('focus', 'Focus session tracking & analytics')
+    .addTag('analytics', 'Usage metrics, costs, and insights')
+    .addTag('gamification', 'Streaks, badges, and retention nudges')
+    .addTag('notifications', 'Cross-app reminder banners')
+    .addTag('health', 'Health checks & platform diagnostics')
     .addServer('http://localhost:4000', '本地开发环境')
     .addServer('http://localhost:3001', '备用端口')
     .build();

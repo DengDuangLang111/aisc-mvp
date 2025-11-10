@@ -30,16 +30,15 @@ model User {
 // ============================================
 model Document {
   id           String   @id @default(uuid())
-  userId       String?  @map("userid")
+  userId       String?  @map("user_id")
   filename     String
-  originalName String?  @map("originalname")
-  s3Key        String?  @map("s3key")
-  gcsPath      String?  @map("gcspath")
+  originalName String?  @map("original_name")
+  gcsPath      String?  @map("gcs_path")
   publicUrl    String?  @map("public_url")
-  mimeType     String?  @map("mimetype")
+  mimeType     String?  @map("mime_type")
   size         Int
-  ocrStatus    String   @default("pending") @map("ocrstatus")
-  uploadedAt   DateTime @default(now()) @map("uploadedat")
+  ocrStatus    String   @default("pending") @map("ocr_status")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
   
   user          User?         @relation(fields: [userId], references: [id])
   ocrResult     OcrResult?

@@ -6,10 +6,9 @@ import {
   UploadedFile,
   UseInterceptors,
   UseGuards,
-  BadRequestException,
   Res,
-  NotFoundException,
   Query,
+  HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -29,6 +28,10 @@ import { memoryStorage } from 'multer';
 import { UploadService } from './upload.service';
 import { VisionService } from '../ocr/vision.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  BusinessException,
+  ErrorCode,
+} from '../common/exceptions/business.exception';
 
 @ApiTags('upload')
 @Controller('upload')
@@ -90,7 +93,11 @@ export class UploadController {
     @Query('userId') userId?: string,
   ) {
     if (!file) {
-      throw new BadRequestException('请上传文件');
+      throw new BusinessException(
+        ErrorCode.INVALID_FILE_TYPE,
+        '请上传文件',
+        HttpStatus.BAD_REQUEST,
+      );
     }
     return this.uploadService.saveFile(file, userId);
   }
@@ -128,7 +135,11 @@ export class UploadController {
     const fileInfo = await this.uploadService.getFileInfo(fileId);
 
     if (!fileInfo) {
-      throw new NotFoundException(`文件不存在: ${fileId}`);
+      throw new BusinessException(
+        ErrorCode.DOCUMENT_NOT_FOUND,
+        `文件不存在: ${fileId}`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     // 设置Content-Disposition头以触发下载
@@ -218,7 +229,11 @@ export class UploadController {
     });
 
     if (!document) {
-      throw new NotFoundException(`文档不存在: ${documentId}`);
+      throw new BusinessException(
+        ErrorCode.DOCUMENT_NOT_FOUND,
+        `文档不存在: ${documentId}`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     return {
@@ -264,7 +279,11 @@ export class UploadController {
     const ocrResult = await this.visionService.getOcrResult(documentId);
 
     if (!ocrResult) {
-      throw new NotFoundException(`OCR 结果不存在或尚未完成: ${documentId}`);
+      throw new BusinessException(
+        ErrorCode.OCR_NOT_READY,
+        `OCR 结果不存在或尚未完成: ${documentId}`,
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     return ocrResult;

@@ -25,8 +25,7 @@
 ```prisma
 // 文档表 - 支持多云存储
 model Document {
-  s3Key       String?   // AWS S3
-  gcsPath     String?   // Google Cloud Storage
+  gcsPath     String?   // Google Cloud Storage 标准路径
   // ...
 }
 

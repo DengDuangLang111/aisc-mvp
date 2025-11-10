@@ -7,7 +7,7 @@ import { AnalyticsService } from './analytics.service';
  *
  * 提供数据分析和统计查询接口
  */
-@ApiTags('Analytics')
+@ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}

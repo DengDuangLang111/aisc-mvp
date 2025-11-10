@@ -1,4 +1,5 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
+import { Prisma, FocusSession } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateFocusSessionDto,
@@ -6,6 +7,14 @@ import {
   LogDistractionDto,
   FocusSessionAnalytics,
 } from './dto';
+import {
+  FOCUS_INSIGHT_THRESHOLDS,
+  FOCUS_SCORE_CONFIG,
+} from './constants/focus-score.constants';
+import {
+  BusinessException,
+  ErrorCode,
+} from '../common/exceptions/business.exception';
 
 @Injectable()
 export class FocusService {
@@ -45,18 +54,24 @@ export class FocusService {
     });
 
     if (!session) {
-      throw new NotFoundException('Focus session not found');
+      throw new BusinessException(
+        ErrorCode.SESSION_NOT_FOUND,
+        'Focus session not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     // 权限检查：只允许会话所有者修改
     if (session.userId !== userId) {
-      throw new ForbiddenException(
+      throw new BusinessException(
+        ErrorCode.UNAUTHORIZED_ACCESS,
         'You do not have permission to update this session',
+        HttpStatus.FORBIDDEN,
       );
     }
 
     const now = new Date();
-    const updates: any = {
+    const updates: Prisma.FocusSessionUpdateInput = {
       updatedAt: now,
     };
 
@@ -113,12 +128,18 @@ export class FocusService {
     });
 
     if (!session) {
-      throw new NotFoundException('Focus session not found');
+      throw new BusinessException(
+        ErrorCode.SESSION_NOT_FOUND,
+        'Focus session not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     if (session.userId !== userId) {
-      throw new ForbiddenException(
+      throw new BusinessException(
+        ErrorCode.UNAUTHORIZED_ACCESS,
         'You do not have permission to record distractions for this session',
+        HttpStatus.FORBIDDEN,
       );
     }
 
@@ -162,12 +183,18 @@ export class FocusService {
     });
 
     if (!session) {
-      throw new NotFoundException('Focus session not found');
+      throw new BusinessException(
+        ErrorCode.SESSION_NOT_FOUND,
+        'Focus session not found',
+        HttpStatus.NOT_FOUND,
+      );
     }
 
     if (session.userId !== userId) {
-      throw new ForbiddenException(
+      throw new BusinessException(
+        ErrorCode.UNAUTHORIZED_ACCESS,
         'You do not have permission to view this session',
+        HttpStatus.FORBIDDEN,
       );
     }
 
@@ -187,7 +214,7 @@ export class FocusService {
   ) {
     const { limit = 20, offset = 0, status } = options || {};
 
-    const where: any = { userId };
+    const where: Prisma.FocusSessionWhereInput = { userId };
     if (status) {
       where.status = status;
     }
@@ -287,34 +314,42 @@ export class FocusService {
    * 计算专注分数 (0-100)
    * 基于干扰次数、暂停次数、会话时长等因素
    */
-  private calculateFocusScore(session: any): number {
+  private calculateFocusScore(session: FocusSession): number {
     const duration = session.totalDuration || 0;
     const activeDuration = session.activeDuration || duration;
     
     // 如果会话太短，返回较低分数
-    if (duration < 60) {
+    if (duration < FOCUS_SCORE_CONFIG.MIN_DURATION_SECONDS) {
       return 50;
     }
 
-    // 基础分数 100
-    let score = 100;
+    let score = FOCUS_SCORE_CONFIG.BASE_SCORE;
 
-    // 根据干扰次数扣分（每次干扰扣2分，最多扣40分）
-    const distractionPenalty = Math.min(session.distractionCount * 2, 40);
+    const distractionPenalty = Math.min(
+      session.distractionCount * FOCUS_SCORE_CONFIG.PENALTIES.DISTRACTION_PER_COUNT,
+      FOCUS_SCORE_CONFIG.PENALTIES.DISTRACTION_MAX,
+    );
     score -= distractionPenalty;
 
-    // 根据暂停次数扣分（每次暂停扣5分，最多扣20分）
-    const pausePenalty = Math.min(session.pauseCount * 5, 20);
+    const pausePenalty = Math.min(
+      session.pauseCount * FOCUS_SCORE_CONFIG.PENALTIES.PAUSE_PER_COUNT,
+      FOCUS_SCORE_CONFIG.PENALTIES.PAUSE_MAX,
+    );
     score -= pausePenalty;
 
-    // 根据活跃时长比例加分/扣分
     const activeRatio = activeDuration / duration;
-    if (activeRatio < 0.7) {
-      score -= (0.7 - activeRatio) * 50; // 最多扣15分
+    if (activeRatio < FOCUS_SCORE_CONFIG.ACTIVE_RATIO_THRESHOLD) {
+      score -=
+        (FOCUS_SCORE_CONFIG.ACTIVE_RATIO_THRESHOLD - activeRatio) *
+        FOCUS_SCORE_CONFIG.ACTIVE_RATIO_MULTIPLIER;
     }
 
-    // 根据标签切换次数扣分（每5次扣2分，最多扣10分）
-    const tabSwitchPenalty = Math.min(Math.floor(session.tabSwitchCount / 5) * 2, 10);
+    const tabSwitchPenalty = Math.min(
+      Math.floor(
+        session.tabSwitchCount / FOCUS_SCORE_CONFIG.PENALTIES.TAB_SWITCH_DIVISOR,
+      ) * FOCUS_SCORE_CONFIG.PENALTIES.TAB_SWITCH_PENALTY,
+      FOCUS_SCORE_CONFIG.PENALTIES.TAB_SWITCH_MAX,
+    );
     score -= tabSwitchPenalty;
 
     // 确保分数在 0-100 范围内
@@ -325,44 +360,47 @@ export class FocusService {
    * 获取成绩等级
    */
   private getGrade(score: number): string {
-    if (score >= 90) return 'A';
-    if (score >= 80) return 'B';
-    if (score >= 70) return 'C';
-    if (score >= 60) return 'D';
+    if (score >= FOCUS_SCORE_CONFIG.GRADES.A) return 'A';
+    if (score >= FOCUS_SCORE_CONFIG.GRADES.B) return 'B';
+    if (score >= FOCUS_SCORE_CONFIG.GRADES.C) return 'C';
+    if (score >= FOCUS_SCORE_CONFIG.GRADES.D) return 'D';
     return 'F';
   }
 
   /**
    * 生成个性化建议
    */
-  private generateInsights(session: any): string[] {
+  private generateInsights(session: FocusSession): string[] {
     const insights: string[] = [];
     const score = session.focusScore || 0;
 
-    if (score >= 90) {
+    if (score >= FOCUS_INSIGHT_THRESHOLDS.EXCELLENT_SCORE) {
       insights.push('🎉 太棒了！你保持了极高的专注度！');
-    } else if (score >= 70) {
+    } else if (score >= FOCUS_INSIGHT_THRESHOLDS.GOOD_SCORE) {
       insights.push('👍 不错的专注表现，继续保持！');
     } else {
       insights.push('💪 还有提升空间，试着减少干扰源。');
     }
 
-    if (session.distractionCount > 10) {
+    if (session.distractionCount > FOCUS_INSIGHT_THRESHOLDS.HIGH_DISTRACTION_COUNT) {
       insights.push('⚠️ 干扰次数较多，建议关闭不必要的通知和标签页。');
     }
 
-    if (session.tabSwitchCount > 15) {
+    if (session.tabSwitchCount > FOCUS_INSIGHT_THRESHOLDS.HIGH_TAB_SWITCH_COUNT) {
       insights.push('🔄 频繁切换标签会影响专注力，试着一次只打开必要的页面。');
     }
 
-    if (session.pauseCount > 5) {
+    if (session.pauseCount > FOCUS_INSIGHT_THRESHOLDS.HIGH_PAUSE_COUNT) {
       insights.push('⏸️ 暂停次数较多，建议在开始前做好准备工作。');
     }
 
     const duration = session.totalDuration || 0;
-    if (duration > 0 && duration < 300) {
+    if (
+      duration > 0 &&
+      duration < FOCUS_INSIGHT_THRESHOLDS.SHORT_SESSION_SECONDS
+    ) {
       insights.push('⏱️ 会话时长较短，建议至少保持15分钟的专注学习。');
-    } else if (duration > 3600) {
+    } else if (duration > FOCUS_INSIGHT_THRESHOLDS.LONG_SESSION_SECONDS) {
       insights.push('🎯 长时间保持专注！记得适当休息避免疲劳。');
     }
 
