@@ -21,13 +21,17 @@ export class FocusService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * 创建新的专注会话
+   * Creates a new focus session for the given user.
+   * @param userId Owner of the session
+   * @param documentId Optional document associated with the session
+   * @param conversationId Optional chat conversation to link
+   * @returns The created `FocusSession` entity
    */
   async createSession(
     userId: string,
     documentId?: string,
     conversationId?: string,
-  ) {
+  ): Promise<FocusSession> {
     return this.prisma.focusSession.create({
       data: {
         userId,
@@ -40,14 +44,14 @@ export class FocusService {
   }
 
   /**
-   * 更新会话状态 (pause/resume/complete/abandon)
-   * @throws ForbiddenException 如果用户不是会话所有者
+   * Updates status, counters, and metadata for a focus session.
+   * @throws BusinessException when the session is missing or belongs to another user
    */
   async updateSession(
     sessionId: string,
     updateDto: UpdateFocusSessionDto,
     userId: string,
-  ) {
+  ): Promise<FocusSession> {
     const session = await this.prisma.focusSession.findUnique({
       where: { id: sessionId },
       include: { distractions: true },
@@ -114,8 +118,8 @@ export class FocusService {
   }
 
   /**
-   * 记录干扰事件
-   * @throws ForbiddenException 如果用户不是会话所有者
+   * Persists a distraction event and increments counters on the session.
+   * @throws BusinessException when the session is invalid or owned by another user
    */
   async logDistraction(
     sessionId: string,
@@ -169,10 +173,10 @@ export class FocusService {
   }
 
   /**
-   * 获取会话详情
-   * @throws ForbiddenException 如果用户不是会话所有者
+   * Retrieves a focus session with distraction history.
+   * @throws BusinessException when not found or unauthorized
    */
-  async getSession(sessionId: string, userId: string) {
+  async getSession(sessionId: string, userId: string): Promise<FocusSession> {
     const session = await this.prisma.focusSession.findUnique({
       where: { id: sessionId },
       include: {
@@ -202,7 +206,7 @@ export class FocusService {
   }
 
   /**
-   * 获取用户的会话列表
+   * Returns a paginated list of focus sessions for the user.
    */
   async getUserSessions(
     userId: string,
@@ -211,7 +215,12 @@ export class FocusService {
       offset?: number;
       status?: string;
     },
-  ) {
+  ): Promise<{
+    data: FocusSession[];
+    total: number;
+    limit: number;
+    offset: number;
+  }> {
     const { limit = 20, offset = 0, status } = options || {};
 
     const where: Prisma.FocusSessionWhereInput = { userId };
@@ -247,8 +256,9 @@ export class FocusService {
   }
 
   /**
-   * 获取会话分析数据
-   * @throws ForbiddenException 如果用户不是会话所有者
+   * Returns analytics details for the requested session.
+   * @param sessionId Focus session identifier
+   * @param userId Owning user identifier
    */
   async getSessionAnalytics(
     sessionId: string,
@@ -357,7 +367,7 @@ export class FocusService {
   }
 
   /**
-   * 获取成绩等级
+   * Converts a numeric score to a letter grade.
    */
   private getGrade(score: number): string {
     if (score >= FOCUS_SCORE_CONFIG.GRADES.A) return 'A';
@@ -368,7 +378,7 @@ export class FocusService {
   }
 
   /**
-   * 生成个性化建议
+   * Builds personalized insights based on focus session metrics.
    */
   private generateInsights(session: FocusSession): string[] {
     const insights: string[] = [];

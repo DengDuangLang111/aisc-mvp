@@ -30,4 +30,6 @@
 - [x] P0-3 – `apps/api/src/common/exceptions/**`, `apps/api/src/common/filters/**`, service layers: introduce `BusinessException` + standardized logging so API errors share one contract.
 - [x] P0-4 – `apps/api/src/main.ts`, controllers, DTOs: enable Swagger with module tags + DTO decorators to unblock API consumers and QA.
 - [x] P1-5 – refactor `UploadService.saveFile` into focused helpers (validation/storage/metadata/OCR/event tracking), reuse config getters for destination/max size, and keep upload logic testable.
-- [ ] Next (P1-6) – backfill repository/helper unit tests (DocumentRepository, FileValidatorHelper) so new refactors stay regression-safe.
+- [x] P1-6 – backfill repository/helper unit tests (DocumentRepository, ConversationRepository, MessageRepository, FileValidatorHelper) so new refactors stay regression-safe.
+- [x] P1-7 – extract focus score “magic numbers” into `focus/constants/focus-score.constants.ts` and reuse across scoring + insight generation.
+- [x] P1-8 – normalize service-level JSDoc (English summaries, `@param/@returns`) for focus/chat/upload surfaces to unblock API consumers and QA automation.

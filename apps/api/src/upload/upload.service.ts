@@ -462,7 +462,9 @@ export class UploadService {
   }
 
   /**
-   * 处理文件上传
+   * Orchestrates secure file uploads, storage, metadata persistence, OCR, and analytics.
+   * @param file Uploaded file payload from Multer
+   * @param userId Optional owner identifier
    */
   async saveFile(
     file: Express.Multer.File,
@@ -552,9 +554,8 @@ export class UploadService {
   }
 
   /**
-   * 获取文件信息
-   * @param fileId 文件ID（不含扩展名）
-   * @returns 文件信息
+   * Returns stored file metadata by id (for download helpers).
+   * @param fileId File identifier without extension
    */
   async getFileInfo(
     fileId: string,
@@ -585,9 +586,8 @@ export class UploadService {
   }
 
   /**
-   * 读取上传文件的内容
-   * @param fileId 文件ID（不含扩展名）
-   * @returns 文件内容字符串
+   * Reads text file content from disk storage.
+   * @param fileId File identifier without extension
    */
   async readFileContent(fileId: string): Promise<string> {
     this.logger.log('info', 'Reading file content', {

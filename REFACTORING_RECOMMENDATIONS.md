@@ -2048,9 +2048,9 @@ CacheModule.registerAsync({
 
 ### P1 - 1-2周内
 - [x] P1-5: 拆分 UploadService.saveFile 方法
-- [ ] P1-6: 补全 Repository 单元测试
-- [ ] P1-7: 提取魔法数字为配置常量
-- [ ] P1-8: 规范 JSDoc 注释（英文 + 标准标签）
+- [x] P1-6: 补全 Repository 单元测试
+- [x] P1-7: 提取魔法数字为配置常量
+- [x] P1-8: 规范 JSDoc 注释（英文 + 标准标签）
 
 ### P2 - 1个月内
 - [ ] P2-9: 引入 BullMQ 队列处理 OCR

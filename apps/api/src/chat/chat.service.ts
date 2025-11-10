@@ -152,15 +152,8 @@ export class ChatService {
   ) {}
 
   /**
-   * 处理聊天请求（重构版）
-   *
-   * 流程：
-   * 1. 创建或获取对话
-   * 2. 加载文档上下文（如果有 documentId）
-   * 3. 构建提示词（系统提示 + 文档上下文 + 对话历史）
-   * 4. 调用 DeepSeek API
-   * 5. 保存消息到数据库
-   * 6. 记录事件
+   * Sends a chat message to the AI assistant and persists both sides of the conversation.
+   * @param request Incoming chat DTO containing the user message + context hints.
    */
   async chat(request: ChatRequestDto): Promise<ChatResponse> {
     const { message, conversationId, documentId, userId } = request;
@@ -329,7 +322,7 @@ export class ChatService {
   }
 
   /**
-   * 获取对话历史
+   * Lists conversations and includes the latest message preview.
    */
   async getConversations(
     userId?: string,
@@ -368,7 +361,7 @@ export class ChatService {
   }
 
   /**
-   * 获取对话详情（包含所有消息）
+   * Retrieves the full detail of a single conversation.
    */
   async getConversation(conversationId: string): Promise<ConversationDetail> {
     const conversation = await this.conversationRepo.findById(conversationId);
@@ -401,7 +394,7 @@ export class ChatService {
   }
 
   /**
-   * 删除对话
+   * Removes a conversation (optionally validated against the owner).
    */
   async deleteConversation(
     conversationId: string,
