@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth/AuthProvider'
-import { apiFetch } from '@/lib/api/auth'
+import { apiFetch } from '@/lib/api/auth-client'
 
 interface Banner {
   id: string

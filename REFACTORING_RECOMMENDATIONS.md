@@ -1812,11 +1812,12 @@ export default function ChatPage() {
 ```
 
 **修改文件清单**:
-- [ ] 创建 `apps/web/stores/chat.store.ts`
-- [ ] 创建 `apps/web/stores/upload.store.ts`
-- [ ] 创建 `apps/web/stores/focus.store.ts`
-- [ ] 重构 `apps/web/app/chat/page.tsx`
-- [ ] 重构 `apps/web/app/chat/hooks/useChatLogic.ts`
+- [x] 创建 `apps/web/stores/chat.store.ts`
+- [x] 创建 `apps/web/stores/upload.store.ts`
+- [x] 创建 `apps/web/stores/focus.store.ts`
+- [x] 更新 `apps/web/app/chat/hooks/useChatLogic.ts`、`apps/web/app/upload/hooks/useUploadLogic.ts`、`apps/web/hooks/useFocusSession.ts` 以消费 store
+
+> ✅ 2025-11-10：Zustand stores 已上线，chat/upload/focus 逻辑通过共享 store 提供状态，组件只消费 selectors，避免 prop drilling。
 
 ---
 
@@ -2053,8 +2054,8 @@ CacheModule.registerAsync({
 - [x] P1-8: 规范 JSDoc 注释（英文 + 标准标签）
 
 ### P2 - 1个月内
-- [ ] P2-9: 引入 BullMQ 队列处理 OCR
-- [ ] P2-10: 添加 Zustand 状态管理
+- [x] P2-9: 引入 BullMQ 队列处理 OCR
+- [x] P2-10: 添加 Zustand 状态管理（apps/web/stores + chat/upload/focus hooks）
 - [ ] P2-11: 添加前端错误边界
 - [ ] P2-12: 解决 N+1 查询问题
 

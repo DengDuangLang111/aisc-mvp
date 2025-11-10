@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { BullModule } from '@nestjs/bull';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UploadModule } from './upload/upload.module';
@@ -26,6 +27,7 @@ import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import configuration from './config/configuration';
 import { validate } from './config/validation';
+import { OcrQueueModule } from './ocr/ocr-queue.module';
 
 @Module({
   imports: [
@@ -52,11 +54,22 @@ import { validate } from './config/validation';
         isGlobal: true,
       }),
     }),
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        redis: {
+          host: configService.get<string>('redis.host') || 'localhost',
+          port: configService.get<number>('redis.port') || 6379,
+          password: configService.get<string>('redis.password'),
+        },
+      }),
+    }),
     LoggerModule,
     CommonModule,
     PrismaModule,
     StorageModule,
     OcrModule,
+    OcrQueueModule,
     AnalyticsModule,
     MetricsModule,
     AlertModule,

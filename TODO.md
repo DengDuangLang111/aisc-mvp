@@ -33,3 +33,7 @@
 - [x] P1-6 – backfill repository/helper unit tests (DocumentRepository, ConversationRepository, MessageRepository, FileValidatorHelper) so new refactors stay regression-safe.
 - [x] P1-7 – extract focus score “magic numbers” into `focus/constants/focus-score.constants.ts` and reuse across scoring + insight generation.
 - [x] P1-8 – normalize service-level JSDoc (English summaries, `@param/@returns`) for focus/chat/upload surfaces to unblock API consumers and QA automation.
+
+## 7. Refactoring Wave 2 (P2 Reliability Boost)
+- [x] P2-9 – move OCR execution onto a BullMQ queue (`apps/api/src/ocr/ocr.processor.ts`, `apps/api/src/upload/upload.service.ts`) so uploads return immediately and OCR retries are centralized.
+- [x] P2-10 – introduce a shared Zustand store for chat/focus state on the web app (`apps/web/stores/*.ts`, chat/upload/focus hooks) so cross-component updates don’t rely on prop drilling.

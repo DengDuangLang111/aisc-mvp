@@ -10,7 +10,6 @@ import { extname, join } from 'path';
 import { promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
 import { GcsService } from '../storage/gcs.service';
-import { VisionService } from '../ocr/vision.service';
 import {
   AnalyticsService,
   AnalyticsEventData,
@@ -21,6 +20,8 @@ import {
   BusinessException,
   ErrorCode,
 } from '../common/exceptions/business.exception';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 import { Document } from '@prisma/client';
 const fileTypeImport = require('file-type');
 
@@ -66,9 +67,9 @@ export class UploadService {
   constructor(
     private configService: ConfigService,
     private gcsService: GcsService,
-    private visionService: VisionService,
     private analyticsService: AnalyticsService,
     private documentRepository: DocumentRepository,
+    @InjectQueue('ocr') private readonly ocrQueue: Queue,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {
     // 检查是否启用云存储
@@ -359,30 +360,6 @@ export class UploadService {
     return document;
   }
 
-  private triggerOcrAsync(
-    documentId: string,
-    storageResult: StorageResult,
-    fileBuffer: Buffer,
-    userId?: string,
-    sessionId?: string,
-  ): void {
-    const filePath = storageResult.gcsPath || storageResult.localPath || null;
-
-    this.triggerOCR(
-      documentId,
-      filePath,
-      fileBuffer,
-      userId,
-      sessionId,
-    ).catch((error) => {
-      this.logger.error('OCR processing failed', {
-        context: 'UploadService',
-        documentId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }
-
   private async trackUploadSuccess(
     document: Document,
     file: Express.Multer.File,
@@ -514,7 +491,7 @@ export class UploadService {
         userId,
       );
 
-      this.triggerOcrAsync(document.id, storageResult, file.buffer, userId, sessionId);
+      await this.enqueueOcrJob(document.id, storageResult, userId);
       await this.trackUploadSuccess(
         document,
         file,
@@ -679,153 +656,16 @@ export class UploadService {
     }
   }
 
-  /**
-   * 异步触发 OCR 处理
-   */
-  private async triggerOCR(
+  private async enqueueOcrJob(
     documentId: string,
-    filePath: string | null,
-    fileBuffer: Buffer,
+    storageResult: StorageResult,
     userId?: string,
-    sessionId?: string,
   ): Promise<void> {
-    const sid = sessionId || this.generateSessionId();
-
-    // 记录 OCR 开始
-    await this.trackEvent({
+    await this.ocrQueue.add('extract-text', {
+      documentId,
+      gcsPath: storageResult.gcsPath,
+      localPath: storageResult.localPath,
       userId,
-      sessionId: sid,
-      eventName: EventName.OCR_START,
-      eventCategory: EventCategory.DOCUMENT,
-      eventProperties: { documentId },
     });
-
-    try {
-      let ocrResult;
-      let lastError: Error | null = null;
-
-      // 优先尝试使用原始文件 Buffer，避免 GCS PDF 同步识别失败
-      if (fileBuffer && fileBuffer.length > 0) {
-        try {
-          this.logger.log('info', 'Starting OCR from buffer', {
-            context: 'UploadService',
-            documentId,
-            bufferSize: fileBuffer.length,
-          });
-
-          ocrResult = await this.visionService.extractTextFromBuffer(
-            fileBuffer,
-            documentId,
-          );
-        } catch (error: unknown) {
-          lastError = error instanceof Error ? error : new Error(String(error));
-          this.logger.warn(
-            'Buffer OCR attempt failed, will retry with storage path if available',
-            {
-              context: 'UploadService',
-              documentId,
-              error: lastError.message,
-            },
-          );
-        }
-      }
-
-      // 如果 Buffer 识别失败且存在存储路径，则尝试使用 GCS 路径
-      if (!ocrResult && filePath && filePath.startsWith('gs://')) {
-        try {
-          this.logger.log('info', 'Starting OCR from GCS', {
-            context: 'UploadService',
-            documentId,
-            gcsPath: filePath,
-          });
-
-          ocrResult = await this.visionService.extractTextFromGcs(
-            filePath,
-            documentId,
-          );
-        } catch (error: unknown) {
-          lastError = error instanceof Error ? error : new Error(String(error));
-          this.logger.error('GCS OCR attempt failed', {
-            context: 'UploadService',
-            documentId,
-            gcsPath: filePath,
-            error: lastError.message,
-          });
-        }
-      }
-
-      if (!ocrResult && filePath && !filePath.startsWith('gs://')) {
-        try {
-          this.logger.log('info', 'Starting OCR from local file path', {
-            context: 'UploadService',
-            documentId,
-            filePath,
-          });
-
-          const buffer = await fs.readFile(filePath);
-          ocrResult = await this.visionService.extractTextFromBuffer(
-            buffer,
-            documentId,
-          );
-        } catch (error: unknown) {
-          lastError = error instanceof Error ? error : new Error(String(error));
-          this.logger.error('Local file OCR attempt failed', {
-            context: 'UploadService',
-            documentId,
-            filePath,
-            error: lastError.message,
-          });
-        }
-      }
-
-      if (!ocrResult) {
-        if (lastError) {
-          throw lastError;
-        }
-        throw new Error('OCR failed: Unable to extract text from document');
-      }
-
-      // 记录 OCR 成功
-      await this.trackEvent({
-        userId,
-        sessionId: sid,
-        eventName: EventName.OCR_SUCCESS,
-        eventCategory: EventCategory.DOCUMENT,
-        eventProperties: {
-          documentId,
-          pageCount: ocrResult.pageCount,
-          confidence: ocrResult.confidence,
-          textLength: ocrResult.fullText.length,
-        },
-      });
-
-      this.logger.log('info', 'OCR completed successfully', {
-        context: 'UploadService',
-        documentId,
-        pageCount: ocrResult.pageCount,
-        confidence: ocrResult.confidence,
-      });
-    } catch (error: unknown) {
-      // 记录 OCR 失败
-      await this.trackEvent({
-        userId,
-        sessionId: sid,
-        eventName: EventName.OCR_FAILED,
-        eventCategory: EventCategory.DOCUMENT,
-        eventProperties: {
-          documentId,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      });
-
-      this.logger.error('OCR processing failed', {
-        context: 'UploadService',
-        documentId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-
-      throw error;
-    }
   }
 }

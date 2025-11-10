@@ -37,6 +37,18 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   AI_MODEL?: string;
+
+  @IsOptional()
+  @IsString()
+  REDIS_HOST?: string;
+
+  @IsOptional()
+  @IsNumber()
+  REDIS_PORT?: number;
+
+  @IsOptional()
+  @IsString()
+  REDIS_PASSWORD?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

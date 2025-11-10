@@ -31,6 +31,22 @@
 $ pnpm install
 ```
 
+### Redis (BullMQ queue)
+
+OCR is now processed asynchronously via BullMQ, so a Redis instance must be available:
+
+```bash
+# start redis locally
+$ redis-server
+
+# configure connection (defaults shown)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+# REDIS_PASSWORD=...
+```
+
+Without Redis the API will boot, but OCR jobs will remain queued and never run.
+
 ## Compile and run the project
 
 ```bash

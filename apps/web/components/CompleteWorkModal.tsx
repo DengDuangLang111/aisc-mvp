@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { apiFetch } from '@/lib/api/auth'
+import { apiFetch } from '@/lib/api/auth-client'
 import { useAuth } from '@/lib/auth/AuthProvider'
 
 interface CompleteWorkModalProps {

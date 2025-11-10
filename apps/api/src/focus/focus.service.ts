@@ -176,7 +176,10 @@ export class FocusService {
    * Retrieves a focus session with distraction history.
    * @throws BusinessException when not found or unauthorized
    */
-  async getSession(sessionId: string, userId: string): Promise<FocusSession> {
+  async getSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<FocusSession & { distractions: any[] }> {
     const session = await this.prisma.focusSession.findUnique({
       where: { id: sessionId },
       include: {
@@ -267,10 +270,13 @@ export class FocusService {
     const session = await this.getSession(sessionId, userId);
 
     // 计算各类统计数据
-    const distractionsByType = session.distractions.reduce((acc, d) => {
-      acc[d.distractionType] = (acc[d.distractionType] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const distractionsByType = (session.distractions || []).reduce(
+      (acc: Record<string, number>, d: { distractionType: string }) => {
+        acc[d.distractionType] = (acc[d.distractionType] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
 
     const totalDuration = session.totalDuration || 0;
     const activeDuration = session.activeDuration || totalDuration;
@@ -279,13 +285,6 @@ export class FocusService {
     const completionProof = session.completionProofId
       ? await this.prisma.document.findUnique({
           where: { id: session.completionProofId },
-          select: {
-            id: true,
-            filename: true,
-            mimeType: true,
-            publicUrl: true,
-            uploadedAt: true,
-          },
         })
       : null;
 
@@ -313,7 +312,7 @@ export class FocusService {
             id: completionProof.id,
             filename: completionProof.filename,
             mimeType: completionProof.mimeType,
-            downloadUrl: completionProof.publicUrl,
+            downloadUrl: completionProof.publicUrl || completionProof.gcsPath || '',
             uploadedAt: completionProof.uploadedAt,
           }
         : undefined,

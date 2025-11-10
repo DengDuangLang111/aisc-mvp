@@ -2,20 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { UploadService } from './upload.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { DocumentRepository } from './repositories/document.repository';
 import { GcsService } from '../storage/gcs.service';
-import { VisionService } from '../ocr/vision.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { getQueueToken } from '@nestjs/bull';
 import {
   BusinessException,
   ErrorCode,
 } from '../common/exceptions/business.exception';
-import {
-  createMockPrismaService,
-  createMockDocument,
-  createMockOcrResult,
-} from '../../test/helpers/prisma.mock';
+import { createMockDocument } from '../../test/helpers/prisma.mock';
 import { promises as fs } from 'fs';
 
 // Mock fs functions
@@ -30,14 +25,14 @@ const fileTypeMock = require('file-type');
 
 describe('UploadService', () => {
   let service: UploadService;
-  // let prisma: any; // 不再需要
   let documentRepository: any;
   let gcsService: any;
   let analyticsService: any;
   let configService: any;
+  let ocrQueue: { add: jest.Mock };
 
   beforeEach(async () => {
-    // const mockPrismaService = createMockPrismaService(); // 不再需要，使用 DocumentRepository
+    ocrQueue = { add: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -52,7 +47,6 @@ describe('UploadService', () => {
           },
         },
         { provide: GcsService, useValue: { uploadFile: jest.fn() } },
-        { provide: VisionService, useValue: { extractTextFromGcs: jest.fn() } },
         {
           provide: AnalyticsService,
           useValue: { trackEvent: jest.fn().mockResolvedValue(undefined) },
@@ -86,15 +80,19 @@ describe('UploadService', () => {
             info: jest.fn(),
           },
         },
+        {
+          provide: getQueueToken('ocr'),
+          useValue: ocrQueue,
+        },
       ],
     }).compile();
 
     service = module.get<UploadService>(UploadService);
     documentRepository = module.get<DocumentRepository>(DocumentRepository);
-    // prisma = module.get<PrismaService>(PrismaService); // 不再需要
     gcsService = module.get<GcsService>(GcsService);
     analyticsService = module.get<AnalyticsService>(AnalyticsService);
     configService = module.get<ConfigService>(ConfigService);
+    ocrQueue = module.get(getQueueToken('ocr'));
 
     fileTypeMock.fromBuffer.mockResolvedValue({ mime: 'application/pdf' });
   });
@@ -131,6 +129,12 @@ describe('UploadService', () => {
 
       expect(gcsService.uploadFile).toHaveBeenCalled();
       expect(result.documentId).toBe('doc-123');
+      expect(ocrQueue.add).toHaveBeenCalledWith(
+        'extract-text',
+        expect.objectContaining({
+          documentId: 'doc-123',
+        }),
+      );
     });
 
     it('should reject dangerous files', async () => {

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useFocusSession } from '@/hooks/useFocusSession'
 import type { FocusSession } from '@/types/focus'
-import { apiFetch } from '@/lib/api/auth'
+import { apiFetch } from '@/lib/api/auth-client'
 
 // 禁用静态生成，使用动态路由
 export const dynamic = 'force-dynamic'
