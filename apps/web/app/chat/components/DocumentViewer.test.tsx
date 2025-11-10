@@ -8,15 +8,15 @@ describe('DocumentViewer', () => {
     it('显示空状态当没有 fileUrl 时', () => {
       render(<DocumentViewer />)
       
-      expect(screen.getByText('没有文档')).toBeInTheDocument()
-      expect(screen.getByText('上传文件后可以在这里查看')).toBeInTheDocument()
-      expect(screen.getByText('上传文档')).toBeInTheDocument()
+      expect(screen.getByText('No Document')).toBeInTheDocument()
+      expect(screen.getByText('Upload a file to view it here')).toBeInTheDocument()
+      expect(screen.getByText('Upload Document')).toBeInTheDocument()
     })
 
     it('空状态包含跳转到上传页面的链接', () => {
       render(<DocumentViewer />)
       
-      const uploadLink = screen.getByRole('link', { name: '上传文档' })
+      const uploadLink = screen.getByRole('link', { name: 'Upload Document' })
       expect(uploadLink).toHaveAttribute('href', '/upload')
     })
   })

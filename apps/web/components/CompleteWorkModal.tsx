@@ -1,29 +1,37 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useFocusSession } from '@/hooks/useFocusSession'
+import { apiFetch } from '@/lib/api/auth'
+import { useAuth } from '@/lib/auth/AuthProvider'
 
 interface CompleteWorkModalProps {
   isOpen: boolean
   sessionId: string
   onClose: () => void
-  onSuccess?: () => void
+  onSubmit: (payload: {
+    completionProofId: string
+    mood?: string | null
+    notes?: string
+    fileUrl?: string
+    originalFilename: string
+  }) => Promise<void>
 }
 
 export function CompleteWorkModal({
   isOpen,
   sessionId,
   onClose,
-  onSuccess
+  onSubmit,
 }: CompleteWorkModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { completeSession, loading, error, clearError } = useFocusSession()
-  
+  const { user } = useAuth()
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [mood, setMood] = useState<'excellent' | 'good' | 'okay' | 'difficult' | null>(null)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   const moodOptions = [
     { value: 'excellent', emoji: '😄', label: 'Excellent' },
@@ -49,7 +57,7 @@ export function CompleteWorkModal({
       }
       
       setSelectedFile(file)
-      clearError()
+      setError(null)
     }
   }
 
@@ -63,30 +71,47 @@ export function CompleteWorkModal({
 
     try {
       setSubmitting(true)
-      
-      // Create FormData with file
+
       const formData = new FormData()
       formData.append('file', selectedFile)
       if (mood) formData.append('mood', mood)
       if (notes) formData.append('notes', notes)
-      
-      // For now, we'll just use the file name as completionProofId
-      // In a real app, you'd upload the file first and get back a file ID
-      const completionProofId = `proof-${Date.now()}`
-      
-      // TODO: Upload file to storage service
-      // const fileId = await uploadFile(formData)
-      
-      // Call completeSession
-      await completeSession(sessionId, completionProofId)
-      
+
+      const query = user?.id ? `?userId=${encodeURIComponent(user.id)}` : ''
+      const uploadResponse = await apiFetch<{
+        documentId?: string
+        id?: string
+        filename: string
+        url?: string
+      }>(`/upload${query}`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const completionProofId =
+        uploadResponse.documentId || uploadResponse.id
+
+      if (!completionProofId) {
+        throw new Error('Upload response missing documentId')
+      }
+
+      await onSubmit({
+        completionProofId,
+        mood,
+        notes,
+        fileUrl: uploadResponse.url,
+        originalFilename: uploadResponse.filename,
+      })
+
       setSuccessMessage('✅ Session completed successfully!')
       setTimeout(() => {
-        onSuccess?.()
         handleClose()
-      }, 2000)
+      }, 1500)
     } catch (err) {
       console.error('Error completing session:', err)
+      setError(
+        err instanceof Error ? err.message : 'Failed to submit completion proof'
+      )
     } finally {
       setSubmitting(false)
     }
@@ -97,7 +122,7 @@ export function CompleteWorkModal({
     setMood(null)
     setNotes('')
     setSuccessMessage('')
-    clearError()
+    setError(null)
     onClose()
   }
 
@@ -223,6 +248,7 @@ export function CompleteWorkModal({
               disabled={submitting}
               placeholder="Any challenges faced, areas to improve, or questions asked..."
               rows={4}
+              maxLength={500}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none disabled:opacity-50"
             />
             <p className="text-xs text-gray-500 mt-1">

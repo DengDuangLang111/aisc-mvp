@@ -39,20 +39,34 @@ pnpm add elastic-apm-node
 import { WinstonModule, utilities as nestWinstonModuleUtilities } from 'nest-winston';
 import * as winston from 'winston';
 import 'winston-daily-rotate-file';
+import LokiTransport from 'winston-loki';
 
 export const createLoggerConfig = (env: string) => {
   const logLevel = env === 'production' ? 'info' : 'debug';
+  const serviceMetadataFormat = winston.format((info) => {
+    info.service = 'study-oasis-api';
+    info.environment = env;
+    info.hostname = process.env.HOSTNAME;
+    return info;
+  });
 
   // 控制台传输
   const consoleTransport = new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.ms(),
-      nestWinstonModuleUtilities.format.nestLike('StudyOasis', {
-        colors: true,
-        prettyPrint: true,
-      }),
-    ),
+    format:
+      env === 'production'
+        ? winston.format.combine(
+            serviceMetadataFormat(),
+            winston.format.timestamp(),
+            winston.format.json(),
+          )
+        : winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.ms(),
+            nestWinstonModuleUtilities.format.nestLike('StudyOasis', {
+              colors: true,
+              prettyPrint: true,
+            }),
+          ),
   });
 
   // 文件传输 - 错误日志
@@ -93,6 +107,17 @@ export const createLoggerConfig = (env: string) => {
     ),
   });
 
+  const lokiTransport =
+    process.env.LOKI_URL && env !== 'test'
+      ? new LokiTransport({
+          host: process.env.LOKI_URL,
+          basicAuth: process.env.LOKI_BASIC_AUTH,
+          labels: { service: 'study-oasis-api', environment: env },
+          json: true,
+          replaceTimestamp: true,
+        })
+      : null;
+
   return WinstonModule.createLogger({
     level: logLevel,
     transports: [
@@ -100,6 +125,7 @@ export const createLoggerConfig = (env: string) => {
       errorFileTransport,
       combinedFileTransport,
       performanceTransport,
+      ...(lokiTransport ? [lokiTransport] : []),
     ],
     exceptionHandlers: [
       new winston.transports.File({ filename: 'logs/exceptions.log' }),
@@ -107,6 +133,11 @@ export const createLoggerConfig = (env: string) => {
     rejectionHandlers: [
       new winston.transports.File({ filename: 'logs/rejections.log' }),
     ],
+    format: winston.format.combine(
+      serviceMetadataFormat(),
+      winston.format.timestamp(),
+      winston.format.json(),
+    ),
   });
 };
 ```
@@ -130,6 +161,17 @@ async function bootstrap() {
   // ...
 }
 ```
+
+### 3. 推送日志到 Grafana Loki
+
+1. 安装依赖：`pnpm --filter api add winston-loki`
+2. 配置 `.env`：
+   ```bash
+   LOKI_URL=http://loki:3100
+   # 可选
+   LOKI_BASIC_AUTH=admin:admin
+   ```
+3. 生产环境会自动将结构化 JSON 日志推送到 Loki，Grafana 通过 Loki 数据源即可查询 `service=study-oasis-api` 的日志。
 
 ## 📊 Sentry 错误追踪
 
@@ -562,6 +604,16 @@ volumes:
   grafana_data:
 ```
 
+### Study Oasis API Dashboard
+
+- 仪表板 JSON：`monitoring/grafana/dashboards/study-oasis-api.json`
+- 指标覆盖：
+  - `sum(rate(http_requests_total[5m]))` → 请求速率
+  - `histogram_quantile(0.95, …http_request_duration_seconds_bucket…)` → p95 延迟
+  - `active_connections`, `chat_requests_total` → 并发会话 & 聊天吞吐
+  - `file_uploads_total`, `ocr_requests_total` → 上传 / OCR 成功率
+- 把该 JSON 放入 Grafana provision 目录后即可在 “Study Oasis API Overview” 中查看。
+
 ### Prometheus 配置
 
 ```yaml
@@ -631,6 +683,7 @@ export class HealthController {
 - [ ] 实现 Prometheus 指标
 - [ ] 创建告警服务
 - [ ] 配置 Grafana 仪表板
+- [ ] 接入 Grafana Loki 日志
 - [ ] 增强健康检查
 - [ ] 设置日志轮转
 - [ ] 配置告警通知（Slack/Email）

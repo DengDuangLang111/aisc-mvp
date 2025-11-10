@@ -1,18 +1,24 @@
-'use client'
+import { createClient as createBrowserSupabaseClient } from '@/lib/supabase/client'
 
-import { createClient } from '@/lib/supabase/client'
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4001'
 
-/**
- * 获取当前用户的认证 token（JWT）
- * 用于 API 请求中的 Authorization header
- */
-export async function getAuthToken(): Promise<string | null> {
+let browserSupabase: ReturnType<
+  typeof createBrowserSupabaseClient
+> | null = null
+
+const isBrowser = typeof window !== 'undefined'
+
+async function getBrowserAuthToken(): Promise<string | null> {
   try {
-    const supabase = createClient()
+    if (!browserSupabase) {
+      browserSupabase = createBrowserSupabaseClient()
+    }
+
     const {
       data: { session },
       error,
-    } = await supabase.auth.getSession()
+    } = await browserSupabase.auth.getSession()
 
     if (error || !session) {
       console.warn('No active session or session error:', error?.message)
@@ -21,9 +27,38 @@ export async function getAuthToken(): Promise<string | null> {
 
     return session.access_token
   } catch (err) {
-    console.error('Failed to get auth token:', err)
+    console.error('Failed to get browser auth token:', err)
     return null
   }
+}
+
+async function getServerAuthToken(): Promise<string | null> {
+  try {
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession()
+
+    if (error || !session) {
+      console.warn('Server session unavailable:', error?.message)
+      return null
+    }
+
+    return session.access_token
+  } catch (err) {
+    console.error('Failed to get server auth token:', err)
+    return null
+  }
+}
+
+/**
+ * 获取当前用户的认证 token（JWT）
+ * 用于 API 请求中的 Authorization header
+ */
+export async function getAuthToken(): Promise<string | null> {
+  return isBrowser ? getBrowserAuthToken() : getServerAuthToken()
 }
 
 /**
@@ -39,21 +74,38 @@ export async function apiFetch<T = any>(
     throw new Error('Not authenticated')
   }
 
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-    Authorization: `Bearer ${token}`,
+  const headers = new Headers(options.headers || {})
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body instanceof FormData
+
+  if (!headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+  if (!isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4001'}${url}`, {
+  const response = await fetch(`${API_BASE_URL}${url}`, {
     ...options,
     headers,
   })
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}))
-    throw new Error(error.message || `API error: ${response.status}`)
+    const errorPayload = await response
+      .json()
+      .catch(async () => ({ message: await response.text() }))
+    throw new Error(errorPayload.message || `API error: ${response.status}`)
   }
 
-  return response.json() as Promise<T>
+  if (response.status === 204) {
+    return undefined as T
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return response.json() as Promise<T>
+  }
+
+  const text = await response.text()
+  return text as unknown as T
 }

@@ -59,6 +59,16 @@ API 按照功能模块分组：
 - **Health** (`/health`): 健康检查接口
   - GET `/health` - 系统健康状态
 
+- **Auth** (`/auth`): 认证与诊断接口
+  - GET `/auth/health` - Supabase 凭证 & 连通性检测
+  - GET `/auth/session` (需要 JWT) - 返回当前用户的会话信息，用于 SSR/调试
+
+- **Gamification** (`/gamification`): 进度与徽章
+  - GET `/gamification/progress` (需要 JWT) - 返回当前用户的 streak、平均得分与徽章。
+
+- **Notifications** (`/notifications`): 提醒 & 勾选
+  - GET `/notifications/banners` (需要 JWT) - 提供 streak/active session/completion proof 提醒横幅列表。
+
 ## 📝 使用示例
 
 ### 1. 测试聊天接口

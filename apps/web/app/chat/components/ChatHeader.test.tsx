@@ -20,8 +20,8 @@ describe('ChatHeader', () => {
       />
     );
 
-    expect(screen.getByText('AI 学习助手')).toBeInTheDocument();
-    expect(screen.getByText(/智能渐进式提示系统/)).toBeInTheDocument();
+    expect(screen.getByText('AI Learning Assistant')).toBeInTheDocument();
+    expect(screen.getByText(/Intelligent Progressive Prompting System/)).toBeInTheDocument();
   });
 
   it('should display message count when messages exist', () => {
@@ -35,7 +35,7 @@ describe('ChatHeader', () => {
       />
     );
 
-    expect(screen.getByText('(5 条消息)')).toBeInTheDocument();
+    expect(screen.getByText('(5 messages)')).toBeInTheDocument();
   });
 
   it('should not display message count when no messages', () => {
@@ -49,7 +49,7 @@ describe('ChatHeader', () => {
       />
     );
 
-    expect(screen.queryByText(/条消息/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/messages/)).not.toBeInTheDocument();
   });
 
   it('should show clear chat button when messages exist', () => {
@@ -63,7 +63,7 @@ describe('ChatHeader', () => {
       />
     );
 
-    const clearButton = screen.getByTitle('清空对话');
+    const clearButton = screen.getByTitle('Clear chat');
     expect(clearButton).toBeInTheDocument();
   });
 
@@ -78,7 +78,7 @@ describe('ChatHeader', () => {
       />
     );
 
-    expect(screen.queryByTitle('清空对话')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Clear chat')).not.toBeInTheDocument();
   });
 
   it('should call onClearChat when clear button clicked', () => {
@@ -92,7 +92,7 @@ describe('ChatHeader', () => {
       />
     );
 
-    const clearButton = screen.getByTitle('清空对话');
+    const clearButton = screen.getByTitle('Clear chat');
     fireEvent.click(clearButton);
 
     expect(mockOnClearChat).toHaveBeenCalledTimes(1);

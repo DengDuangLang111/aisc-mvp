@@ -344,6 +344,7 @@ export class UploadService {
         s3Key: gcsPath || undefined, // 使用 s3Key 字段存储 GCS 路径
         size: file.size,
         ocrStatus: 'pending',
+        publicUrl: fileUrl,
       });
 
       this.logger.log('info', 'Document metadata saved to database', {

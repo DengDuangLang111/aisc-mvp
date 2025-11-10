@@ -22,6 +22,7 @@ export class DocumentRepository {
     size: number;
     userId?: string;
     ocrStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+    publicUrl?: string;
   }): Promise<Document> {
     return this.prisma.document.create({
       data: {
@@ -29,6 +30,7 @@ export class DocumentRepository {
         originalName: data.originalName || null,
         gcsPath: data.gcsPath || null,
         s3Key: data.s3Key || null,
+        publicUrl: data.publicUrl || null,
         mimeType: data.mimeType || null,
         size: data.size,
         userId: data.userId || null,

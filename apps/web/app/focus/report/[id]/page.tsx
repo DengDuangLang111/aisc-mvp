@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useFocusSession } from '@/hooks/useFocusSession'
 import type { FocusSession } from '@/types/focus'
+import { apiFetch } from '@/lib/api/auth'
 
 // 禁用静态生成，使用动态路由
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,14 @@ interface SessionAnalytics {
   insights: string[]
 }
 
+interface ProofDocument {
+  id: string
+  filename: string
+  mimeType?: string
+  downloadUrl?: string
+  uploadedAt?: string
+}
+
 export default function SessionReportPage() {
   const params = useParams()
   const sessionId = params.id as string
@@ -40,6 +49,9 @@ export default function SessionReportPage() {
   const [analytics, setAnalytics] = useState<SessionAnalytics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [proof, setProof] = useState<ProofDocument | null>(null)
+  const [proofLoading, setProofLoading] = useState(false)
+  const [proofError, setProofError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadSessionData = async () => {
@@ -68,6 +80,40 @@ export default function SessionReportPage() {
       loadSessionData()
     }
   }, [sessionId, getSession, getSessionAnalytics])
+
+  useEffect(() => {
+    if (!session?.completionProofId) {
+      setProof(null)
+      setProofError(null)
+      setProofLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setProofLoading(true)
+    setProofError(null)
+
+    apiFetch<ProofDocument>(`/upload/documents/${session.completionProofId}`)
+      .then((data) => {
+        if (!cancelled) {
+          setProof(data)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProofError(err?.message || 'Failed to load completion proof')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setProofLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [session?.completionProofId])
 
   if (loading) {
     return (
@@ -99,9 +145,20 @@ export default function SessionReportPage() {
     )
   }
 
-  const grade = getSessionGrade(session.focusScore)
-  const focusQuality = getFocusQuality(session.focusScore)
+  const mergedFocusScore = analytics?.focusScore ?? session.focusScore ?? 0
+  const grade = analytics?.grade ?? getSessionGrade(mergedFocusScore)
+  const focusQuality = getFocusQuality(mergedFocusScore)
   const { date, time } = formatDateTime(session.startTime)
+  const totalDuration = analytics?.totalDuration ?? session.totalDuration ?? 0
+  const activeDuration = analytics?.activeDuration ?? session.activeDuration ?? totalDuration
+  const metrics = {
+    totalDistractions: analytics?.metrics.totalDistractions ?? session.distractionCount ?? 0,
+    tabSwitches: analytics?.metrics.tabSwitches ?? session.tabSwitchCount ?? 0,
+    pauses: analytics?.metrics.pauses ?? session.pauseCount ?? 0,
+    questionsAsked: analytics?.metrics.questionsAsked ?? session.questionsAsked ?? 0,
+    distractionsByType: analytics?.metrics.distractionsByType ?? {},
+  }
+  const insightsList = analytics?.insights?.length ? analytics.insights : getInsights(session)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
@@ -126,15 +183,15 @@ export default function SessionReportPage() {
           
           <div className="grid grid-cols-3 gap-6 text-center">
             <div>
-              <div className="text-3xl font-bold">{session.focusScore ? Math.round(session.focusScore) : 0}%</div>
+              <div className="text-3xl font-bold">{Math.round(mergedFocusScore)}%</div>
               <div className="text-sm opacity-90">Focus Score</div>
             </div>
             <div>
-              <div className="text-3xl font-bold">{formatDuration(session.totalDuration)}</div>
+              <div className="text-3xl font-bold">{formatDuration(totalDuration)}</div>
               <div className="text-sm opacity-90">Total Duration</div>
             </div>
             <div>
-              <div className="text-3xl font-bold">{session.distractionCount || 0}</div>
+              <div className="text-3xl font-bold">{metrics.totalDistractions}</div>
               <div className="text-sm opacity-90">Distractions</div>
             </div>
           </div>
@@ -153,21 +210,21 @@ export default function SessionReportPage() {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Total Duration</span>
-                <span className="font-semibold text-gray-900">{formatDuration(session.totalDuration)}</span>
+                <span className="font-semibold text-gray-900">{formatDuration(totalDuration)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Active Time</span>
-                <span className="font-semibold text-gray-900">{formatDuration(session.activeDuration)}</span>
+                <span className="font-semibold text-gray-900">{formatDuration(activeDuration)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Paused Time</span>
                 <span className="font-semibold text-gray-900">
-                  {formatDuration((session.totalDuration || 0) - (session.activeDuration || 0))}
+                  {formatDuration(totalDuration - activeDuration)}
                 </span>
               </div>
               <div className="flex justify-between items-center pt-3 border-t border-gray-200">
                 <span className="text-gray-600">Pause Count</span>
-                <span className="font-semibold text-gray-900">{session.pauseCount || 0}x</span>
+                <span className="font-semibold text-gray-900">{metrics.pauses}x</span>
               </div>
             </div>
           </div>
@@ -178,23 +235,23 @@ export default function SessionReportPage() {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Total Distractions</span>
-                <span className="font-semibold text-gray-900">{session.distractionCount || 0}</span>
+                <span className="font-semibold text-gray-900">{metrics.totalDistractions}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Tab Switches</span>
-                <span className="font-semibold text-gray-900">{session.tabSwitchCount || 0}</span>
+                <span className="font-semibold text-gray-900">{metrics.tabSwitches}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Window Blurs</span>
                 <span className="font-semibold text-gray-900">
-                  {(session.distractionCount || 0) - (session.tabSwitchCount || 0)}
+                  {metrics.totalDistractions - metrics.tabSwitches}
                 </span>
               </div>
               <div className="flex justify-between items-center pt-3 border-t border-gray-200">
                 <span className="text-gray-600">Distraction Rate</span>
                 <span className="font-semibold text-gray-900">
-                  {session.totalDuration ? 
-                    ((session.distractionCount || 0) / (session.totalDuration / 60)).toFixed(1) 
+                  {totalDuration ? 
+                    (metrics.totalDistractions / (totalDuration / 60)).toFixed(1) 
                     : '0'} per min
                 </span>
               </div>
@@ -207,7 +264,7 @@ export default function SessionReportPage() {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Questions Asked</span>
-                <span className="font-semibold text-gray-900">{session.questionsAsked || 0}</span>
+                <span className="font-semibold text-gray-900">{metrics.questionsAsked}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Hint Levels Used</span>
@@ -216,8 +273,8 @@ export default function SessionReportPage() {
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Avg Questions/Hour</span>
                 <span className="font-semibold text-gray-900">
-                  {session.totalDuration && session.questionsAsked
-                    ? ((session.questionsAsked / session.totalDuration) * 3600).toFixed(1)
+                  {totalDuration && metrics.questionsAsked
+                    ? ((metrics.questionsAsked / totalDuration) * 3600).toFixed(1)
                     : '0'}
                 </span>
               </div>
@@ -242,12 +299,12 @@ export default function SessionReportPage() {
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-gray-600">Focus Score</span>
-                  <span className="text-sm font-semibold text-gray-900">{Math.round(session.focusScore || 0)}/100</span>
+                  <span className="text-sm font-semibold text-gray-900">{Math.round(mergedFocusScore)}/100</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-gradient-to-r from-indigo-500 to-purple-600 h-2 rounded-full transition-all"
-                    style={{ width: `${session.focusScore || 0}%` }}
+                    style={{ width: `${mergedFocusScore}%` }}
                   ></div>
                 </div>
               </div>
@@ -266,13 +323,88 @@ export default function SessionReportPage() {
               </div>
             </div>
           </div>
+
+          {/* Distraction Breakdown */}
+          <div className="bg-white rounded-lg shadow-md p-6 md:col-span-2">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">🔍 Distraction Breakdown</h3>
+            {Object.keys(metrics.distractionsByType).length === 0 ? (
+              <p className="text-gray-500 text-sm">No distraction breakdown recorded for this session.</p>
+            ) : (
+              <div className="space-y-3">
+                {Object.entries(metrics.distractionsByType).map(([type, count]) => (
+                  <div key={type} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <span className="text-lg">{getDistractionEmoji(type)}</span>
+                      <span className="capitalize">{type.replace('_', ' ')}</span>
+                    </div>
+                    <span className="font-semibold text-gray-900">{count}x</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Completion Proof */}
+        {session.completionProofId && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6 md:col-span-2">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-900">📁 Completion Proof</h3>
+              {proofLoading && (
+                <span className="text-xs text-gray-500">Loading proof info...</span>
+              )}
+            </div>
+
+            {proof ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Filename</span>
+                  <span className="font-medium text-gray-900">{proof.filename}</span>
+                </div>
+                {proof.mimeType && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Type</span>
+                    <span className="font-medium text-gray-900">{proof.mimeType}</span>
+                  </div>
+                )}
+                {proof.uploadedAt && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Uploaded</span>
+                    <span className="font-medium text-gray-900">
+                      {new Date(proof.uploadedAt).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {proof.downloadUrl ? (
+                  <a
+                    href={proof.downloadUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center mt-2 px-3 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    View / Download Proof
+                  </a>
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    Completion proof metadata is recorded but no download URL is available.
+                  </p>
+                )}
+              </div>
+            ) : proofError ? (
+              <p className="text-sm text-red-500">{proofError}</p>
+            ) : (
+              <p className="text-sm text-gray-500">
+                Completion proof metadata is being prepared...
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Insights */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
           <h3 className="text-lg font-semibold text-blue-900 mb-4">💡 Insights & Suggestions</h3>
           <ul className="space-y-2">
-            {getInsights(session).map((insight, idx) => (
+            {insightsList.map((insight, idx) => (
               <li key={idx} className="flex items-start gap-3">
                 <span className="text-blue-600 mt-1">→</span>
                 <span className="text-blue-900">{insight}</span>
@@ -381,6 +513,21 @@ function getAchievementDescription(duration?: number | null): string {
   if (duration >= 1800) return 'You maintained focus for 30+ minutes. Excellent!'
   if (duration >= 900) return 'You completed a 15-minute focused session.'
   return 'You started your focus journey today.'
+}
+
+function getDistractionEmoji(type: string) {
+  switch (type) {
+    case 'tab_switch':
+      return '🪟'
+    case 'window_blur':
+      return '🙈'
+    case 'mouse_leave':
+      return '🖱️'
+    case 'navigation_attempt':
+      return '🧭'
+    default:
+      return '⚠️'
+  }
 }
 
 function getInsights(session: FocusSession): string[] {

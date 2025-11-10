@@ -24,6 +24,8 @@
 
 ## 🚀 Setup Instructions
 
+> 本指南假设你已在 Supabase 上创建好项目（cloud Postgres），而不是本地数据库。接下来所有 `DATABASE_URL`/`DIRECT_DATABASE_URL` 均指向 Supabase 实例（pgbouncer + 直连），确保部署和本地开发保持一致。
+
 ### Step 1: Create Supabase Project
 
 1. Go to [https://supabase.com](https://supabase.com)
@@ -104,6 +106,27 @@ In Supabase dashboard, **Authentication** → **Providers**:
 4. Try logging in with email/password
 
 5. Try "Sign in with Google" (if you configured OAuth)
+
+---
+
+### Step 8: 运行时诊断 & SSR Token 透传
+
+1. **验证 Supabase 凭证**
+   ```bash
+   curl http://localhost:4001/auth/health
+   # => { "ok": true, "timestamp": "...", ... }
+   ```
+   - 用于 CI/CD 与运维的健康检查；如果 env 配置错误会立即返回 `ok: false` 与详细错误。
+
+2. **校验当前会话**
+   ```bash
+   curl -H "Authorization: Bearer <access_token>" http://localhost:4001/auth/session
+   ```
+   - 返回 Supabase 用户基础信息，便于 SSR/调试同步状态。
+
+3. **SSR 访问后端**
+   - `apps/web/lib/api/auth.ts` 现在会在 Server Components 中通过 `@/lib/supabase/server` 自动读取 cookies 并附带 `Authorization` header。
+   - 无需再写 `fetch` 代理，`apiFetch` 即可在 `server.tsx`/Route Handler 内调用 Nest API。
 
 ---
 

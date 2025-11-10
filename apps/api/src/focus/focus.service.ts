@@ -239,6 +239,19 @@ export class FocusService {
     const activeDuration = session.activeDuration || totalDuration;
     const distractionTime = totalDuration - activeDuration;
 
+    const completionProof = session.completionProofId
+      ? await this.prisma.document.findUnique({
+          where: { id: session.completionProofId },
+          select: {
+            id: true,
+            filename: true,
+            mimeType: true,
+            publicUrl: true,
+            uploadedAt: true,
+          },
+        })
+      : null;
+
     return {
       sessionId: session.id,
       userId: session.userId,
@@ -258,6 +271,15 @@ export class FocusService {
       },
       grade: this.getGrade(session.focusScore || 0),
       insights: this.generateInsights(session),
+      completionProof: completionProof
+        ? {
+            id: completionProof.id,
+            filename: completionProof.filename,
+            mimeType: completionProof.mimeType,
+            downloadUrl: completionProof.publicUrl,
+            uploadedAt: completionProof.uploadedAt,
+          }
+        : undefined,
     };
   }
 

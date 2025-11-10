@@ -4,23 +4,37 @@ import {
 } from 'nest-winston';
 import * as winston from 'winston';
 import 'winston-daily-rotate-file';
+import LokiTransport from 'winston-loki';
 
 export const createLoggerConfig = (
   env: string = process.env.NODE_ENV || 'development',
 ) => {
   const logLevel = env === 'production' ? 'info' : 'debug';
   const logDir = 'logs';
+  const serviceMetadataFormat = winston.format((info) => {
+    info.service = 'study-oasis-api';
+    info.environment = env;
+    info.hostname = info.hostname || process.env.HOSTNAME;
+    return info;
+  });
 
   // 控制台传输
   const consoleTransport = new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.ms(),
-      nestWinstonModuleUtilities.format.nestLike('StudyOasis', {
-        colors: true,
-        prettyPrint: true,
-      }),
-    ),
+    format:
+      env === 'production'
+        ? winston.format.combine(
+            serviceMetadataFormat(),
+            winston.format.timestamp(),
+            winston.format.json(),
+          )
+        : winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.ms(),
+            nestWinstonModuleUtilities.format.nestLike('StudyOasis', {
+              colors: true,
+              prettyPrint: true,
+            }),
+          ),
   });
 
   // 错误日志文件（按天轮转）
@@ -62,6 +76,18 @@ export const createLoggerConfig = (
     ),
   });
 
+  const lokiTransport =
+    process.env.LOKI_URL && env !== 'test'
+      ? new LokiTransport({
+          host: process.env.LOKI_URL,
+          labels: { service: 'study-oasis-api', environment: env },
+          json: true,
+          replaceTimestamp: true,
+          interval: 5,
+          basicAuth: process.env.LOKI_BASIC_AUTH,
+        })
+      : null;
+
   // 开发环境只使用控制台
   const transports =
     env === 'production'
@@ -70,12 +96,14 @@ export const createLoggerConfig = (
           errorFileTransport,
           combinedFileTransport,
           performanceTransport,
+          ...(lokiTransport ? [lokiTransport] : []),
         ]
       : [consoleTransport];
 
   return WinstonModule.createLogger({
     level: logLevel,
     format: winston.format.combine(
+      serviceMetadataFormat(),
       winston.format.timestamp(),
       winston.format.errors({ stack: true }),
       winston.format.json(),

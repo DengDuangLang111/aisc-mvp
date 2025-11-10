@@ -71,6 +71,16 @@
 - ✅ 实时 AI 对话界面
 - ✅ 对话历史侧边栏
 - ✅ Markdown 渲染支持
+- ✅ Focus Mode 顶栏内置暂停/完成流，并支持上传完成证明
+- ✅ Reminder banner 在顶部提示 streak/专注/完成证明状态，助手会引导你重新打开 Focus Mode 或补充完成证据
+
+#### 6. 认证与会话保障
+- ✅ `/auth/health` Supabase 诊断端点，部署前快速验证凭证和外部依赖
+- ✅ `/auth/session` 受保护接口，SSR 与客户端共享同一用户上下文
+- ✅ SSR `apiFetch` 自动回收 Supabase Access Token，Server Component 能直接访问 Nest API
+
+#### 7. 游戏化与进度
+- ✅ 提供 `/gamification/progress`，返回 streak、平均分、最近完成会话与徽章，帮助学生持续追踪专注表现
 
 ### 🔜 计划功能
 
@@ -147,6 +157,20 @@
 - PostgreSQL 15+ (或 Supabase 账号)
 - Google Cloud 账号（用于 Storage 和 Vision API）
 - DeepSeek API Key
+### 云数据库（Supabase）说明
+
+- 本项目默认连接 Supabase Postgres，无需在本地搭建数据库。
+- 使用 Supabase 控制台获取 `DATABASE_URL`（pgbouncer）和 `DIRECT_DATABASE_URL`，填写到 `apps/api/.env` 中。
+- `apps/api/prisma/migrations` 已按照 Prisma 目录结构重构，可直接执行 `cd apps/api && npx prisma migrate deploy` 同步 schema。
+- 如果库里已有历史数据，请依次执行 `npx prisma migrate resolve --applied <migration_name>` 进行 baseline，例如：
+  ```bash
+  cd apps/api
+  npx prisma migrate resolve --applied 20240101000000_init
+  npx prisma migrate resolve --applied 20240301000000_add_focus_sessions
+  npx prisma migrate resolve --applied 20240401000000_fix_completion_proof_id
+  ```
+  然后再运行 `npx prisma migrate deploy` 让 Prisma 管理后续迁移。
+- 线上部署可共享同一 Supabase 项目，确保 `.env` 中 `DATABASE_URL` 指向 Supabase pooler 地址，而 `DIRECT_DATABASE_URL` 指向直连（用于 Prisma CLI）。
 
 ### 环境变量配置
 
@@ -160,6 +184,12 @@ DATABASE_URL="postgresql://user:password@host:5432/dbname"
 GOOGLE_CLOUD_PROJECT_ID="your-project-id"
 GOOGLE_APPLICATION_CREDENTIALS="./google-cloud-key.json"
 GCS_BUCKET_NAME="your-bucket-name"
+
+# 日志 / 监控（可选）
+# Loki 地址（docker-compose.monitoring.yml 中的 loki:3100）
+LOKI_URL="http://localhost:3100"
+# 如果 Loki 启用了 Basic Auth，可选
+LOKI_BASIC_AUTH="admin:admin"
 
 # DeepSeek API
 DEEPSEEK_API_KEY="your-deepseek-api-key"

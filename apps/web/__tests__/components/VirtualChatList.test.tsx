@@ -2,6 +2,25 @@ import { render, screen } from '@testing-library/react';
 import { VirtualChatList } from '@/components/VirtualChatList';
 import type { Message } from '@/components';
 
+jest.mock('@tanstack/react-virtual', () => {
+  return {
+    useVirtualizer: ({ count }: { count: number }) => {
+      const visibleCount = Math.min(count, 8);
+      return {
+        getVirtualItems: () =>
+          Array.from({ length: visibleCount }, (_, index) => ({
+            key: index,
+            index,
+            size: 100,
+            start: index * 100,
+          })),
+        getTotalSize: () => count * 100,
+        scrollToIndex: jest.fn(),
+      };
+    },
+  };
+});
+
 describe('VirtualChatList', () => {
   const mockMessages: Message[] = Array.from({ length: 1000 }, (_, i) => ({
     id: `msg-${i}`,
@@ -32,7 +51,7 @@ describe('VirtualChatList', () => {
       />
     );
 
-    expect(screen.getByText('暂无消息')).toBeInTheDocument();
+    expect(screen.getByText('No messages yet')).toBeInTheDocument();
   });
 
   it('should render only visible items for performance', () => {
@@ -45,7 +64,7 @@ describe('VirtualChatList', () => {
     );
 
     // 只渲染可见区域的消息（约 6-7 个 + overscan 5 个）
-    const renderedMessages = container.querySelectorAll('.message-row');
+    const renderedMessages = container.querySelectorAll('.virtual-chat-message');
     expect(renderedMessages.length).toBeLessThan(50);
     expect(renderedMessages.length).toBeGreaterThan(0);
   });

@@ -84,4 +84,11 @@ export interface FocusSessionAnalytics {
   };
   grade: string;
   insights: string[];
+  completionProof?: {
+    id: string;
+    filename: string;
+    mimeType?: string | null;
+    downloadUrl?: string | null;
+    uploadedAt?: Date | null;
+  };
 }

@@ -130,19 +130,8 @@ Authorization: Bearer <JWT_TOKEN>
 
 ## 下一步
 
-1. **前端 UI 集成**
-   - 在 `/app/chat/page.tsx` 中集成 `useFocusSession` hook
-   - 添加 "开始专注会话"、"记录干扰"、"完成会话" 按钮
-   - 显示会话列表和分析报告
-
-2. **Work Completion Flow**
-   - 创建完成证明上传组件（文件/截图）
-   - 关联到 `focus_sessions.completionProofId`
-
-3. **Session Report 页面**
-   - 创建 `/app/focus/report/[sessionId]/page.tsx`
-   - 显示分数、等级、建议、时间线图表
-
-4. **监控和日志**
-   - 记录用户的会话创建/完成事件
-   - 生成每日/每周的专注统计
+- [x] **前端 UI 集成**：Chat 页的 Focus Mode 顶栏已经调用 `useFocusSession`，并将 pause/resume/completion 同步到 API。
+- [x] **Work Completion Flow**：`CompleteWorkModal` 上传完成证明并把 `completionProofId` 传回 Focus Session。
+- [x] **Session Report 页面**：`/app/focus/report/[id]` 读取 Analytics API，展示分数、等级、干扰拆解及建议。
+- [ ] **监控和日志**：补充 session 事件的可观测性（Prometheus + Grafana Dashboard）与周报。
+- [x] **Reminder 横幅**：页面头部提示 streak、活动会话和缺失完成证明，并提供回到 Chat / Report 的快捷链接。

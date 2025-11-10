@@ -35,6 +35,7 @@ model Document {
   originalName String?  @map("originalname")
   s3Key        String?  @map("s3key")
   gcsPath      String?  @map("gcspath")
+  publicUrl    String?  @map("public_url")
   mimeType     String?  @map("mimetype")
   size         Int
   ocrStatus    String   @default("pending") @map("ocrstatus")

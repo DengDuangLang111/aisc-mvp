@@ -64,6 +64,8 @@ The following **high-priority PRD features are missing**:
 
 **Estimated Effort:** 1-2 weeks (40-80 hours)
 
+**Latest Update (2025-11-10):** `/auth/health` + `/auth/session` endpoints已接入 Nest 层，前端 `apiFetch` 共享 Supabase token（含 SSR），解决了“部署后一直 401/SSR 无法取 token”的顽固问题，后续任务可直接在此基础上扩展用户资料和角色。
+
 ---
 
 #### Gap #2: Focus Mode (Screen Lock)
@@ -110,6 +112,10 @@ GET /focus/sessions/:id/analytics - Get session analytics
 **User Impact:** HIGH - Core value proposition of distraction-free studying
 
 **Estimated Effort:** 1 week (40 hours)
+
+**Latest Update (2025-11-10):** Chat Focus Mode 已将 pause/resume/complete 状态实时写入 API，完成证明直接走 Upload → FocusSession `completionProofId`，报告页也渲染了后端 analytics（分数、干扰类型、洞察）。接下来需要把 session 锁屏/提醒等剩余需求补完。
+
+**Reminder/Dash Update:** 新增 `/notifications/banners`，头部横幅会提醒 streak、未完成的 focus session 和缺失证明，直接响应 PRD 中的提醒场景，让用户快速跳转到对应页面处理。
 
 ---
 

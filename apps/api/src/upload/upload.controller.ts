@@ -227,6 +227,7 @@ export class UploadController {
       mimeType: document.mimeType,
       size: document.size,
       uploadedAt: document.uploadedAt,
+      downloadUrl: document.publicUrl,
       ocrStatus: document.ocrResult ? 'completed' : 'pending',
       ocrResult: document.ocrResult
         ? {
@@ -313,13 +314,14 @@ export class UploadController {
       take: limitNum,
     });
 
-    return documents.map((doc: any) => ({
-      id: doc.id,
-      filename: doc.filename,
-      mimeType: doc.mimeType,
-      size: doc.size,
-      uploadedAt: doc.uploadedAt,
-      ocrStatus: doc.ocrResult ? 'completed' : 'pending',
+      return documents.map((doc: any) => ({
+        id: doc.id,
+        filename: doc.filename,
+        mimeType: doc.mimeType,
+        size: doc.size,
+        uploadedAt: doc.uploadedAt,
+        downloadUrl: doc.publicUrl,
+        ocrStatus: doc.ocrResult ? 'completed' : 'pending',
       ocrConfidence: doc.ocrResult?.confidence,
       ocrPageCount: doc.ocrResult?.pageCount,
     }));

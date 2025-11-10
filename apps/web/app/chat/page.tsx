@@ -42,7 +42,9 @@ function ChatPageContent() {
       {/* Focus Mode Bar (fixed at top when active) */}
       <FocusMode 
         isActive={focusModeActive} 
-        onToggle={() => setFocusModeActive(false)} 
+        onToggle={() => setFocusModeActive(false)}
+        documentId={uploadId || undefined}
+        conversationId={conversationId || undefined}
       />
       
       {/* Header */}

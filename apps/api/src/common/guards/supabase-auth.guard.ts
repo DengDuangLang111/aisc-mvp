@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Supabase JWT 验证 Guard
@@ -18,6 +18,23 @@ export class SupabaseAuthGuard implements CanActivate {
   private readonly logger = new Logger(SupabaseAuthGuard.name);
   private readonly supabaseUrl = process.env.SUPABASE_URL;
   private readonly supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  private readonly supabase: SupabaseClient | null;
+
+  constructor() {
+    if (!this.supabaseUrl || !this.supabaseServiceKey) {
+      this.logger.error(
+        'Supabase credentials are missing. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.',
+      );
+      this.supabase = null;
+    } else {
+      this.supabase = createClient(this.supabaseUrl, this.supabaseServiceKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+        },
+      });
+    }
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -28,25 +45,22 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing authorization token');
     }
 
+    if (!this.supabase) {
+      throw new UnauthorizedException('Authentication service not available');
+    }
+
     try {
-      // 初始化 Supabase 客户端（使用服务角色密钥可访问 auth 信息）
-      const supabase = createClient(this.supabaseUrl!, this.supabaseServiceKey!);
+      // 调用 Supabase Auth 验证 token，有效则返回用户信息
+      const { data, error } = await this.supabase.auth.getUser(token);
 
-      // 验证 JWT token
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.admin.getUserById(
-        // 先从 token 中解码 user id（token 格式：JWT，sub claim 是 user id）
-        this.extractUserIdFromToken(token),
-      );
-
-      if (error || !user) {
+      if (error || !data?.user) {
         this.logger.warn(`Failed to verify token: ${error?.message}`);
         throw new UnauthorizedException('Invalid or expired token');
       }
 
-      // 将用户信息注入到请求对象
+      const user = data.user;
+
+      // 将经过 Supabase 验证的用户信息注入请求，供后续 handler 使用
       request.user = {
         sub: user.id, // Supabase user id
         email: user.email,
@@ -79,34 +93,6 @@ export class SupabaseAuthGuard implements CanActivate {
     return parts[1];
   }
 
-  /**
-   * 从 JWT token 中解码并提取 user id（sub claim）
-   * 注意：这里只做基础解码，真正的验证由 Supabase 服务完成
-   */
-  private extractUserIdFromToken(token: string): string {
-    try {
-      // JWT 格式：header.payload.signature
-      const parts = token.split('.');
-      if (parts.length !== 3) {
-        throw new Error('Invalid JWT format');
-      }
-
-      // base64 decode payload
-      const payload = JSON.parse(
-        Buffer.from(parts[1], 'base64').toString('utf-8'),
-      );
-      const userId = payload.sub;
-
-      if (!userId) {
-        throw new Error('No sub claim in JWT');
-      }
-
-      return userId;
-    } catch (err) {
-      this.logger.error(`Failed to extract user id from token: ${err}`);
-      throw new UnauthorizedException('Invalid token format');
-    }
-  }
 }
 
 /**

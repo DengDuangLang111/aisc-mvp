@@ -17,6 +17,9 @@ import { CommonModule } from './common/common.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { AlertModule } from './alerts/alert.module';
 import { FocusModule } from './focus/focus.module';
+import { AuthModule } from './auth/auth.module';
+import { GamificationModule } from './gamification/gamification.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { HttpCacheInterceptor } from './common/interceptors/cache.interceptor';
 import { MetricsInterceptor } from './common/interceptors/metrics.interceptor';
@@ -61,6 +64,9 @@ import { validate } from './config/validation';
     UploadModule,
     ChatModule,
     HealthModule,
+    AuthModule,
+    GamificationModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

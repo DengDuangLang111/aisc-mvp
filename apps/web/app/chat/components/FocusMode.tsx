@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useFocusSession } from '@/hooks/useFocusSession'
+import { CompleteWorkModal } from '@/components/CompleteWorkModal'
 
 interface FocusModeProps {
   isActive: boolean
@@ -11,15 +12,28 @@ interface FocusModeProps {
 }
 
 export function FocusMode({ isActive, onToggle, documentId, conversationId }: FocusModeProps) {
-  const { createSession, logDistraction, completeSession, currentSession, error, loading } = useFocusSession()
+  const {
+    createSession,
+    logDistraction,
+    completeSession,
+    updateSession,
+    currentSession,
+    error,
+    loading,
+  } = useFocusSession()
   
   const [startTime, setStartTime] = useState<number | null>(null)
   const [elapsedTime, setElapsedTime] = useState(0)
+  const [totalElapsedTime, setTotalElapsedTime] = useState(0)
   const [distractions, setDistractions] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
   const [sessionStarted, setSessionStarted] = useState(false)
+  const [showCompletionModal, setShowCompletionModal] = useState(false)
   const sessionIdRef = useRef<string | null>(null)
   const lastVisibilityChangeRef = useRef<number>(0)
+  const pausedDurationRef = useRef(0)
+  const pauseStartedAtRef = useRef<number | null>(null)
+  const finalizingRef = useRef(false)
 
   // 初始化专注会话
   useEffect(() => {
@@ -27,7 +41,7 @@ export function FocusMode({ isActive, onToggle, documentId, conversationId }: Fo
       initializeSession()
     }
     if (!isActive && sessionStarted) {
-      handleSessionEnd()
+      finalizeSession('abandoned')
     }
   }, [isActive, sessionStarted])
 
@@ -37,29 +51,63 @@ export function FocusMode({ isActive, onToggle, documentId, conversationId }: Fo
       sessionIdRef.current = session.id
       setSessionStarted(true)
       setStartTime(Date.now())
+      setTotalElapsedTime(0)
+      pausedDurationRef.current = 0
+      pauseStartedAtRef.current = null
     } catch (err) {
       console.error('Failed to create focus session:', err)
     }
-  }
-
-  const handleSessionEnd = async () => {
-    if (sessionIdRef.current) {
-      try {
-        await completeSession(sessionIdRef.current)
-      } catch (err) {
-        console.error('Failed to complete session:', err)
-      }
-    }
-    resetSession()
   }
 
   const resetSession = () => {
     setSessionStarted(false)
     setStartTime(null)
     setElapsedTime(0)
+    setTotalElapsedTime(0)
     setDistractions(0)
     setIsPaused(false)
+    setShowCompletionModal(false)
     sessionIdRef.current = null
+    pausedDurationRef.current = 0
+    pauseStartedAtRef.current = null
+  }
+
+  const getActiveDurationSeconds = () => {
+    if (!startTime) return 0
+    const now = Date.now()
+    const pausedTime =
+      pausedDurationRef.current +
+      (isPaused && pauseStartedAtRef.current
+        ? now - pauseStartedAtRef.current
+        : 0)
+    return Math.max(0, Math.floor((now - startTime - pausedTime) / 1000))
+  }
+
+  const finalizeSession = async (
+    status: 'completed' | 'abandoned',
+    options?: { completionProofId?: string },
+  ) => {
+    if (!sessionIdRef.current || finalizingRef.current) return
+    finalizingRef.current = true
+
+    try {
+      const activeDuration = getActiveDurationSeconds()
+
+      if (status === 'completed') {
+        await updateSession(sessionIdRef.current, { activeDuration })
+        await completeSession(sessionIdRef.current, options?.completionProofId)
+      } else {
+        await updateSession(sessionIdRef.current, {
+          status: 'abandoned',
+          activeDuration,
+        })
+      }
+    } catch (err) {
+      console.error('Failed to finalize session:', err)
+    } finally {
+      finalizingRef.current = false
+      resetSession()
+    }
   }
 
   // 页面可见性检测 - 记录干扰
@@ -98,6 +146,17 @@ export function FocusMode({ isActive, onToggle, documentId, conversationId }: Fo
     return () => clearInterval(interval)
   }, [isActive, isPaused, startTime])
 
+  // 总时长（包含暂停）
+  useEffect(() => {
+    if (!isActive || !startTime) return
+
+    const interval = setInterval(() => {
+      setTotalElapsedTime(Date.now() - startTime)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [isActive, startTime])
+
   // 防止刷新/离开页面
   useEffect(() => {
     if (!isActive || !sessionStarted) return
@@ -123,25 +182,37 @@ export function FocusMode({ isActive, onToggle, documentId, conversationId }: Fo
   const handlePauseResume = async () => {
     if (sessionIdRef.current) {
       try {
-        setIsPaused(!isPaused)
-        // 可选：同步暂停状态到后端
-        // await updateSession(sessionIdRef.current, { status: isPaused ? 'active' : 'paused' })
+        if (!isPaused) {
+          pauseStartedAtRef.current = Date.now()
+          await updateSession(sessionIdRef.current, {
+            status: 'paused',
+            pauseCount: (currentSession?.pauseCount || 0) + 1,
+            activeDuration: getActiveDurationSeconds(),
+          })
+          setIsPaused(true)
+        } else {
+          if (pauseStartedAtRef.current) {
+            pausedDurationRef.current += Date.now() - pauseStartedAtRef.current
+            pauseStartedAtRef.current = null
+          }
+          await updateSession(sessionIdRef.current, {
+            status: 'active',
+            activeDuration: getActiveDurationSeconds(),
+          })
+          setIsPaused(false)
+        }
       } catch (err) {
         console.error('Failed to pause/resume:', err)
       }
     }
   }
 
-  const handleComplete = async () => {
-    if (confirm('Are you sure you want to complete this focus session?')) {
-      try {
-        await handleSessionEnd()
-        onToggle()
-      } catch (err) {
-        console.error('Failed to complete session:', err)
-      }
-    }
+  const handleComplete = () => {
+    setShowCompletionModal(true)
   }
+
+  const totalElapsedDisplay = useMemo(() => formatTime(totalElapsedTime), [totalElapsedTime])
+  const activeElapsedDisplay = useMemo(() => formatTime(elapsedTime), [elapsedTime])
 
   if (!isActive) return null
 
@@ -168,7 +239,7 @@ export function FocusMode({ isActive, onToggle, documentId, conversationId }: Fo
             <div className="h-4 w-px bg-white opacity-30"></div>
             
             <div className="font-mono text-lg font-bold">
-              {formatTime(elapsedTime)}
+              {activeElapsedDisplay}
             </div>
           </div>
 
@@ -177,6 +248,10 @@ export function FocusMode({ isActive, onToggle, documentId, conversationId }: Fo
             <div className="flex items-center gap-2">
               <span className="opacity-80">Distractions:</span>
               <span className="font-bold">{distractions}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="opacity-80">Total time:</span>
+              <span className="font-bold">{totalElapsedDisplay}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="opacity-80">Session:</span>
@@ -211,11 +286,26 @@ export function FocusMode({ isActive, onToggle, documentId, conversationId }: Fo
             <span className="font-bold">{distractions}</span>
           </div>
           <div>
+            <span className="opacity-70">Total: </span>
+            <span className="font-bold">{totalElapsedDisplay}</span>
+          </div>
+          <div>
             <span className="opacity-70">Status: </span>
             <span className="font-bold">{sessionStarted ? 'Active' : 'Init...'}</span>
           </div>
         </div>
       </div>
+
+      <CompleteWorkModal
+        isOpen={showCompletionModal}
+        sessionId={sessionIdRef.current || ''}
+        onClose={() => setShowCompletionModal(false)}
+        onSubmit={async ({ completionProofId }) => {
+          await finalizeSession('completed', { completionProofId })
+          setShowCompletionModal(false)
+          onToggle()
+        }}
+      />
     </>
   )
 }
