@@ -78,7 +78,7 @@ export class MetricsService implements OnModuleInit {
   }
 
   onModuleInit() {
-    console.log('✅ Metrics service initialized');
+    // Metrics service initialized
   }
 
   // 记录 HTTP 请求

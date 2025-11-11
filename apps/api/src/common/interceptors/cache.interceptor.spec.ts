@@ -21,6 +21,10 @@ describe('HttpCacheInterceptor', () => {
           provide: CACHE_MANAGER,
           useValue: cacheManager,
         },
+        {
+          provide: require('@nestjs/config').ConfigService,
+          useValue: { get: jest.fn().mockReturnValue(60000) },
+        },
       ],
     }).compile();
 

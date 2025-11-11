@@ -243,7 +243,8 @@ export class ChatService {
       }
 
       // 4. 计算提示等级（基于对话轮次）
-      const userMessageCount = conversation.messages.filter(
+      const messages = conversation.messages || [];
+      const userMessageCount = messages.filter(
         (msg: DbMessage) => msg.role === 'user',
       ).length;
       const hintLevel = ChatPromptBuilder.calculateHintLevel(userMessageCount);

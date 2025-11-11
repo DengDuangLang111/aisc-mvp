@@ -333,14 +333,14 @@ export class UploadController {
       take: limitNum,
     });
 
-      return documents.map((doc: any) => ({
-        id: doc.id,
-        filename: doc.filename,
-        mimeType: doc.mimeType,
-        size: doc.size,
-        uploadedAt: doc.uploadedAt,
-        downloadUrl: doc.publicUrl,
-        ocrStatus: doc.ocrResult ? 'completed' : 'pending',
+    return documents.map((doc) => ({
+      id: doc.id,
+      filename: doc.filename,
+      mimeType: doc.mimeType,
+      size: doc.size,
+      uploadedAt: doc.uploadedAt,
+      downloadUrl: doc.publicUrl,
+      ocrStatus: doc.ocrResult ? 'completed' : 'pending',
       ocrConfidence: doc.ocrResult?.confidence,
       ocrPageCount: doc.ocrResult?.pageCount,
     }));

@@ -75,11 +75,11 @@ export class UploadService {
       'GOOGLE_CLOUD_PROJECT_ID',
     );
     if (useCloudStorage) {
-      this.logger.log('Cloud storage enabled (GCS)', {
+      this.logger.log('info', 'Cloud storage enabled (GCS)', {
         context: 'UploadService',
       });
     } else {
-      this.logger.log('Using local storage', { context: 'UploadService' });
+      this.logger.log('info', 'Using local storage', { context: 'UploadService' });
     }
 
     const queueFlag = this.configService.get<boolean>('ocr.useQueue');
@@ -704,7 +704,7 @@ export class UploadService {
       }
 
       await this.documentRepository.updateOcrStatus(documentId, 'completed');
-      this.logger.log('Inline OCR completed', {
+      this.logger.log('info', 'Inline OCR completed', {
         context: 'UploadService',
         documentId,
       });

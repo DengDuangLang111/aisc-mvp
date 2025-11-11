@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -12,10 +12,16 @@ import * as fs from 'fs';
  * 2. 文件路径（本地开发）
  * 3. 默认应用凭据（gcloud auth）
  */
-@Injectable()
+export interface GoogleCredentials {
+  project_id?: string;
+  private_key?: string;
+  client_email?: string;
+  [key: string]: unknown;
+}
+
 export class GoogleCredentialsProvider {
   private readonly logger = new Logger(GoogleCredentialsProvider.name);
-  private credentials: any;
+  private credentials: GoogleCredentials | undefined;
 
   constructor(private configService: ConfigService) {
     this.credentials = this.loadCredentials();
@@ -24,7 +30,7 @@ export class GoogleCredentialsProvider {
   /**
    * 获取 Google 认证凭据
    */
-  getCredentials(): any {
+  getCredentials(): GoogleCredentials | undefined {
     return this.credentials;
   }
 
@@ -45,7 +51,7 @@ export class GoogleCredentialsProvider {
   /**
    * 加载凭据
    */
-  private loadCredentials(): any {
+  private loadCredentials(): GoogleCredentials | undefined {
     // 方法 1: Base64 编码的凭据（Railway 部署）
     const base64Creds = this.configService.get<string>(
       'GOOGLE_CREDENTIALS_BASE64',
@@ -105,7 +111,9 @@ export class GoogleCredentialsProvider {
     }
 
     const required = ['project_id', 'private_key', 'client_email'];
-    const missing = required.filter((key) => !this.credentials[key]);
+    const missing = this.credentials
+      ? required.filter((key) => !this.credentials?.[key])
+      : [];
 
     if (missing.length > 0) {
       this.logger.error(

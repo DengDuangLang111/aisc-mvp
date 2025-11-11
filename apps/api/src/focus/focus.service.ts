@@ -179,7 +179,7 @@ export class FocusService {
   async getSession(
     sessionId: string,
     userId: string,
-  ): Promise<FocusSession & { distractions: any[] }> {
+  ): Promise<FocusSession & { distractions: { id: string; distractionType: string; timestamp: Date }[] }> {
     const session = await this.prisma.focusSession.findUnique({
       where: { id: sessionId },
       include: {

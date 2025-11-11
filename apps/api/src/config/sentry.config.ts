@@ -60,5 +60,4 @@ export function initSentry() {
     },
   });
 
-  console.log('✅ Sentry initialized');
 }

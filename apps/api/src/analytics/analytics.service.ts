@@ -5,12 +5,16 @@ import { EventName, EventCategory, DeviceType } from './analytics.types';
 /**
  * 事件数据接口
  */
+export interface AnalyticsEventProperties {
+  [key: string]: string | number | boolean | null;
+}
+
 export interface AnalyticsEventData {
   userId?: string;
   sessionId: string;
   eventName: EventName | string;
   eventCategory: EventCategory | string;
-  eventProperties?: Record<string, any>;
+  eventProperties?: AnalyticsEventProperties;
   pageUrl?: string;
   referrer?: string;
   userAgent?: string;
@@ -22,6 +26,13 @@ export interface AnalyticsEventData {
 /**
  * API 使用日志数据接口
  */
+export interface ExternalApiCallMetrics {
+  name: string;
+  count: number;
+  totalLatencyMs?: number;
+  [key: string]: string | number | boolean | null | undefined;
+}
+
 export interface ApiUsageData {
   userId?: string;
   endpoint: string;
@@ -30,7 +41,7 @@ export interface ApiUsageData {
   responseTimeMs?: number;
   requestSizeBytes?: number;
   responseSizeBytes?: number;
-  externalApiCalls?: Record<string, any>;
+  externalApiCalls?: Record<string, ExternalApiCallMetrics>;
   errorMessage?: string;
   errorStack?: string;
 }
@@ -145,7 +156,7 @@ export class AnalyticsService {
   /**
    * 获取事件统计（按事件名称分组）
    */
-  async getEventStats(startDate: Date, endDate: Date): Promise<any[]> {
+  async getEventStats(startDate: Date, endDate: Date): Promise<EventStatsItem[]> {
     const result = await this.prisma.analyticsEvent.groupBy({
       by: ['eventName'],
       _count: {
@@ -264,7 +275,10 @@ export class AnalyticsService {
   /**
    * 获取用户每日统计
    */
-  async getUserDailyStats(userId: string, date: Date): Promise<any> {
+  async getUserDailyStats(
+    userId: string,
+    date: Date,
+  ): Promise<UserDailyStatsSummary | null> {
     const stats = await this.prisma.userDailyStat.findUnique({
       where: {
         userId_date: {
@@ -274,7 +288,26 @@ export class AnalyticsService {
       },
     });
 
-    return stats;
+    if (!stats) {
+      return null;
+    }
+
+    return {
+      userId: stats.userId ?? userId,
+      date: stats.date,
+      filesUploaded: stats.filesUploaded,
+      ocrPagesProcessed: stats.ocrPagesProcessed,
+      chatMessagesSent: stats.chatMessagesSent,
+      chatSessions: stats.chatSessions,
+      apiRequestsTotal: stats.apiRequestsTotal,
+      apiRequestsSuccess: stats.apiRequestsSuccess,
+      apiRequestsFailed: stats.apiRequestsFailed,
+      googleVisionCost: Number(stats.googleVisionCost ?? 0) || null,
+      deepseekCost: Number(stats.deepseekCost ?? 0) || null,
+      storageCost: Number(stats.storageCost ?? 0) || null,
+      totalCost: Number(stats.totalCost ?? 0) || null,
+      activeTimeMinutes: stats.activeTimeMinutes,
+    };
   }
 
   /**
@@ -322,7 +355,7 @@ export class AnalyticsService {
   /**
    * 获取最热门的功能（最近 7 天）
    */
-  async getTopFeatures(limit: number = 10): Promise<any[]> {
+  async getTopFeatures(limit: number = 10): Promise<TopFeatureItem[]> {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const result = await this.prisma.analyticsEvent.groupBy({
@@ -386,4 +419,31 @@ export class AnalyticsService {
 
     return (activeToday.length / activeOnTargetDate.length) * 100;
   }
+}
+
+interface EventStatsItem {
+  eventName: string;
+  count: number;
+}
+
+interface TopFeatureItem {
+  feature: string;
+  usageCount: number;
+}
+
+interface UserDailyStatsSummary {
+  userId: string;
+  date: Date;
+  filesUploaded?: number | null;
+  ocrPagesProcessed?: number | null;
+  chatMessagesSent?: number | null;
+  chatSessions?: number | null;
+  apiRequestsTotal?: number | null;
+  apiRequestsSuccess?: number | null;
+  apiRequestsFailed?: number | null;
+  googleVisionCost?: number | null;
+  deepseekCost?: number | null;
+  storageCost?: number | null;
+  totalCost?: number | null;
+  activeTimeMinutes?: number | null;
 }

@@ -5,6 +5,7 @@ import { UploadService } from './upload.service';
 import { DocumentRepository } from './repositories/document.repository';
 import { GcsService } from '../storage/gcs.service';
 import { AnalyticsService } from '../analytics/analytics.service';
+import { VisionService } from '../ocr/vision.service';
 import { getQueueToken } from '@nestjs/bull';
 import {
   BusinessException,
@@ -30,9 +31,14 @@ describe('UploadService', () => {
   let analyticsService: any;
   let configService: any;
   let ocrQueue: { add: jest.Mock };
+  let visionService: any;
 
   beforeEach(async () => {
     ocrQueue = { add: jest.fn().mockResolvedValue(undefined) };
+    visionService = {
+      extractTextFromBuffer: jest.fn(),
+      extractTextFromGcs: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -69,6 +75,10 @@ describe('UploadService', () => {
               return config[key];
             }),
           },
+        },
+        {
+          provide: VisionService,
+          useValue: visionService,
         },
         {
           provide: WINSTON_MODULE_PROVIDER,

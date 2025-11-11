@@ -123,7 +123,24 @@ describe('VisionService', () => {
         VisionService,
         {
           provide: PrismaService,
-          useValue: createMockPrismaService(),
+          useValue: {
+            $transaction: jest.fn(async (ops: any[]) => {
+              for (const op of ops) {
+                if (typeof op === 'function') {
+                  await op();
+                }
+              }
+            }),
+            ocrResult: {
+              upsert: jest.fn(),
+              deleteMany: jest.fn(),
+              findUnique: jest.fn(),
+            },
+            ocrPage: {
+              deleteMany: jest.fn(),
+              createMany: jest.fn(),
+            },
+          },
         },
         {
           provide: ConfigService,
