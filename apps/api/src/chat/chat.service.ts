@@ -20,6 +20,7 @@ import {
 } from '../common/dto/pagination.dto';
 import { ChatPromptBuilder } from './helpers/chat-prompt.builder';
 import { ChatMessageHelper } from './helpers/chat-message.helper';
+import { DocumentContextHelper } from './helpers/document-context.helper';
 import {
   BusinessException,
   ErrorCode,
@@ -82,10 +83,12 @@ interface ConversationListItem {
   title: string | null;
   userId: string | null;
   documentId: string | null;
-  _count: {
-    messages: number;
-  };
-  messages: DbMessage[];
+  messageCount: number;
+  lastMessage: {
+    id: string;
+    content: string;
+    createdAt: Date;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -220,14 +223,18 @@ export class ChatService {
       }
 
       // 3. 加载文档上下文（如果有）
-      let documentContext = '';
+      let documentContext: string | undefined;
       if (documentId || conversation.documentId) {
         const docId = documentId || conversation.documentId;
-        const ocrResult = await this.visionService.getOcrResult(docId!);
+        const contextPayload =
+          await this.visionService.getDocumentContext(docId!);
+        documentContext = DocumentContextHelper.buildContext(
+          contextPayload,
+          message,
+        );
 
-        if (ocrResult) {
-          documentContext = ocrResult.fullText;
-          this.logger.log('info', 'Loaded document context', {
+        if (documentContext) {
+          this.logger.log('info', 'Loaded enriched document context', {
             context: 'ChatService',
             documentId: docId,
             contextLength: documentContext.length,
@@ -344,9 +351,9 @@ export class ChatService {
         id: conv.id,
         title: conv.title,
         documentId: conv.documentId,
-        messageCount: conv._count.messages,
-        lastMessage: conv.messages[0]?.content || null,
-        lastMessageAt: conv.messages[0]?.createdAt || conv.createdAt,
+        messageCount: conv.messageCount,
+        lastMessage: conv.lastMessage?.content || null,
+        lastMessageAt: conv.lastMessage?.createdAt || conv.createdAt,
         createdAt: conv.createdAt,
         updatedAt: conv.updatedAt,
       }),
@@ -596,13 +603,15 @@ export class ChatService {
       }
 
       // 2. 加载文档上下文
-      let documentContext = '';
+      let documentContext: string | undefined;
       if (documentId || conversation.documentId) {
         const docId = documentId || conversation.documentId;
-        const ocrResult = await this.visionService.getOcrResult(docId!);
-        if (ocrResult) {
-          documentContext = ocrResult.fullText;
-        }
+        const contextPayload =
+          await this.visionService.getDocumentContext(docId!);
+        documentContext = DocumentContextHelper.buildContext(
+          contextPayload,
+          message,
+        );
       }
 
       // 3. 计算提示等级

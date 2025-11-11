@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ImageAnnotatorClient } from '@google-cloud/vision';
-import * as path from 'path';
+import axios from 'axios';
 import * as fs from 'fs';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleCredentialsProvider } from '../common/providers/google-credentials.provider';
 
@@ -96,6 +97,24 @@ interface StructuredData {
   pages: StructuredPage[];
 }
 
+interface PageContent {
+  pageNumber: number;
+  content: string;
+}
+
+export interface DocumentContextRecord {
+  fullText?: string;
+  summary?: string | null;
+  faq?: DocumentFaqItem[];
+  pages: PageContent[];
+}
+
+export interface DocumentFaqItem {
+  question: string;
+  answer: string;
+  pages?: number[];
+}
+
 /**
  * Google Cloud Vision OCR 服务
  *
@@ -108,6 +127,8 @@ interface StructuredData {
 @Injectable()
 export class VisionService {
   private readonly logger = new Logger(VisionService.name);
+  private readonly insightModel: string;
+  private readonly deepSeekApiUrl = 'https://api.deepseek.com/v1/chat/completions';
   private client: ImageAnnotatorClient;
 
   constructor(
@@ -120,6 +141,8 @@ export class VisionService {
     this.client = new ImageAnnotatorClient({
       credentials,
     });
+    this.insightModel =
+      this.configService.get<string>('DEEPSEEK_MODEL') || 'deepseek-chat';
 
     this.logger.log('Google Vision API client initialized');
   }
@@ -155,18 +178,19 @@ export class VisionService {
       }
 
       const fullText = fullTextAnnotation.text;
-      const pages = fullTextAnnotation.pages || [];
-      const pageCount = pages.length || 1;
+      const pages = (fullTextAnnotation.pages || []) as VisionPage[];
+      const pageContents = this.buildPageContents(pages);
+      const pageCount = pageContents.length || pages.length || 1;
 
-      const confidence = this.calculateConfidence(pages as VisionPage[]);
-      const language = this.detectLanguage(pages as VisionPage[]);
+      const confidence = this.calculateConfidence(pages);
+      const language = this.detectLanguage(pages);
 
-      // 保存到数据库
-      await this.saveOcrResult(documentId, {
+      await this.persistOcrArtifacts(documentId, {
         fullText,
         confidence,
         language,
         pageCount,
+        pages: pageContents,
       });
 
       this.logger.log(
@@ -182,6 +206,38 @@ export class VisionService {
     } catch (error) {
       this.logger.error(`OCR failed for document ${documentId}:`, error);
       throw new Error(`OCR failed: ${error.message}`);
+    }
+  }
+
+  private async saveOcrPages(
+    documentId: string,
+    pages: PageContent[],
+  ): Promise<void> {
+    try {
+      await this.prisma.$transaction([
+        this.prisma.ocrPage.deleteMany({ where: { documentId } }),
+        ...(pages.length
+          ? [
+              this.prisma.ocrPage.createMany({
+                data: pages.map((page) => ({
+                  documentId,
+                  pageNumber: page.pageNumber,
+                  content: page.content,
+                })),
+              }),
+            ]
+          : []),
+      ]);
+
+      this.logger.log(
+        `OCR page slices saved for document ${documentId}: ${pages.length}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to persist OCR pages for document ${documentId}:`,
+        error,
+      );
+      throw error;
     }
   }
 
@@ -252,28 +308,47 @@ export class VisionService {
         throw new Error('No OCR output files found');
       }
 
-      // 读取第一个输出文件
-      const [content] = await files[0].download();
-      const outputJson = JSON.parse(content.toString());
+      const sortedFiles = files
+        .slice()
+        .sort((a: { name: string }, b: { name: string }) =>
+          a.name.localeCompare(b.name),
+        );
 
-      // 提取文本
       let fullText = '';
       let totalPages = 0;
       let totalConfidence = 0;
       let confidenceCount = 0;
+      const pageContents: PageContent[] = [];
+      let nextPageNumber = 1;
 
-      for (const response of outputJson.responses) {
-        if (response.fullTextAnnotation) {
-          fullText += response.fullTextAnnotation.text + '\n';
-          const pages = response.fullTextAnnotation.pages || [];
+      for (const file of sortedFiles) {
+        const [content] = await file.download();
+        const outputJson = JSON.parse(content.toString());
+
+        for (const response of outputJson.responses || []) {
+          if (!response.fullTextAnnotation) {
+            continue;
+          }
+
+          if (response.fullTextAnnotation.text) {
+            fullText += response.fullTextAnnotation.text.trim() + '\n';
+          }
+
+          const pages = (response.fullTextAnnotation.pages ||
+            []) as VisionPage[];
           totalPages += pages.length;
 
-          // 计算置信度
           for (const page of pages) {
             if (page.confidence) {
               totalConfidence += page.confidence;
               confidenceCount++;
             }
+
+            const pageText = this.extractPageText(page);
+            pageContents.push({
+              pageNumber: nextPageNumber++,
+              content: pageText || response.fullTextAnnotation.text || '',
+            });
           }
         }
       }
@@ -285,14 +360,14 @@ export class VisionService {
       const confidence =
         confidenceCount > 0 ? totalConfidence / confidenceCount : 0.9;
       const language = this.detectLanguageFromText(fullText);
-      const pageCount = totalPages || 1;
+      const pageCount = pageContents.length || totalPages || 1;
 
-      // 保存到数据库
-      await this.saveOcrResult(documentId, {
+      await this.persistOcrArtifacts(documentId, {
         fullText: fullText.trim(),
         confidence,
         language,
         pageCount,
+        pages: pageContents,
       });
 
       // 清理临时文件
@@ -349,18 +424,19 @@ export class VisionService {
       }
 
       const fullText = fullTextAnnotation.text;
-      const pages = fullTextAnnotation.pages || [];
-      const pageCount = pages.length;
+      const pages = (fullTextAnnotation.pages || []) as VisionPage[];
+      const pageContents = this.buildPageContents(pages);
+      const pageCount = pageContents.length || pages.length || 1;
 
-      const confidence = this.calculateConfidence(pages as VisionPage[]);
-      const language = this.detectLanguage(pages as VisionPage[]);
+      const confidence = this.calculateConfidence(pages);
+      const language = this.detectLanguage(pages);
 
-      // 保存到数据库
-      await this.saveOcrResult(documentId, {
+      await this.persistOcrArtifacts(documentId, {
         fullText,
         confidence,
         language,
         pageCount,
+        pages: pageContents,
       });
 
       this.logger.log(
@@ -411,6 +487,40 @@ export class VisionService {
   }
 
   /**
+   * 获取完整的文档上下文（全文、分页面、洞察）
+   */
+  async getDocumentContext(
+    documentId: string,
+  ): Promise<DocumentContextRecord | null> {
+    const [ocrResult, pages, insight] = await Promise.all([
+      this.prisma.ocrResult.findUnique({
+        where: { documentId },
+      }),
+      this.prisma.ocrPage.findMany({
+        where: { documentId },
+        orderBy: { pageNumber: 'asc' },
+      }),
+      this.prisma.documentInsight.findUnique({
+        where: { documentId },
+      }),
+    ]);
+
+    if (!ocrResult && pages.length === 0 && !insight) {
+      return null;
+    }
+
+    return {
+      fullText: ocrResult?.fullText,
+      summary: insight?.summary ?? null,
+      faq: this.normalizeFaq(insight?.faq),
+      pages: pages.map((page) => ({
+        pageNumber: page.pageNumber,
+        content: page.content,
+      })),
+    };
+  }
+
+  /**
    * 保存 OCR 结果到数据库
    */
   private async saveOcrResult(
@@ -443,6 +553,67 @@ export class VisionService {
       );
       throw error;
     }
+  }
+
+  private async persistOcrArtifacts(
+    documentId: string,
+    result: OcrResult & { pages?: PageContent[] },
+  ): Promise<void> {
+    const normalizedPages = result.pages ?? [];
+
+    await this.saveOcrResult(documentId, {
+      fullText: result.fullText,
+      confidence: result.confidence,
+      language: result.language,
+      pageCount: normalizedPages.length || result.pageCount,
+    });
+
+    await this.saveOcrPages(documentId, normalizedPages);
+
+    if (!result.fullText) {
+      return;
+    }
+
+    try {
+      await this.generateDocumentInsights(
+        documentId,
+        result.fullText,
+        normalizedPages,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Failed to generate document insights for ${documentId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private buildPageContents(pages: VisionPage[]): PageContent[] {
+    if (!pages || pages.length === 0) {
+      return [];
+    }
+
+    return pages.map((page, index) => ({
+      pageNumber: index + 1,
+      content: this.extractPageText(page),
+    }));
+  }
+
+  private extractPageText(page: VisionPage): string {
+    if (!page.blocks || page.blocks.length === 0) {
+      return '';
+    }
+
+    const blockTexts = (page.blocks || []).map((block: VisionBlock) => {
+      const paragraphTexts = (block.paragraphs || []).map(
+        (paragraph: VisionParagraph) =>
+          this.extractText(paragraph.words || []).trim(),
+      );
+      return paragraphTexts.filter(Boolean).join('\n');
+    });
+
+    return blockTexts.filter(Boolean).join('\n\n').trim();
   }
 
   /**
@@ -567,5 +738,240 @@ export class VisionService {
         return word.symbols.map((symbol: VisionSymbol) => symbol.text).join('');
       })
       .join(' ');
+  }
+
+  private normalizeFaq(
+    faqValue: Prisma.JsonValue | null | undefined,
+  ): DocumentFaqItem[] {
+    if (!faqValue || !Array.isArray(faqValue)) {
+      return [];
+    }
+
+    const items: DocumentFaqItem[] = [];
+
+    for (const raw of faqValue) {
+      if (
+        !raw ||
+        typeof raw !== 'object' ||
+        !('question' in raw) ||
+        !('answer' in raw)
+      ) {
+        continue;
+      }
+
+      const question = String((raw as Record<string, unknown>).question || '')
+        .trim()
+        .slice(0, 300);
+      const answer = String((raw as Record<string, unknown>).answer || '')
+        .trim()
+        .slice(0, 800);
+
+      if (!question || !answer) {
+        continue;
+      }
+
+      let pages: number[] | undefined;
+      const rawPages = (raw as Record<string, unknown>).pages;
+      if (Array.isArray(rawPages)) {
+        pages = rawPages
+          .map((page) => Number(page))
+          .filter((page) => Number.isInteger(page) && page > 0);
+        if (pages.length === 0) {
+          pages = undefined;
+        }
+      }
+
+      items.push({ question, answer, pages });
+    }
+
+    return items;
+  }
+
+  private async generateDocumentInsights(
+    documentId: string,
+    fullText: string,
+    pages: PageContent[],
+  ): Promise<void> {
+    const apiKey = this.configService.get<string>('DEEPSEEK_API_KEY');
+
+    if (!apiKey) {
+      this.logger.warn(
+        `DEEPSEEK_API_KEY is not configured, skip insight generation for ${documentId}`,
+      );
+      return;
+    }
+
+    const normalized = fullText.trim();
+    if (normalized.length < 40) {
+      this.logger.debug('Document too short for insights, skipping', {
+        documentId,
+      });
+      return;
+    }
+
+    const excerpt = normalized.slice(0, 9000);
+    const pageHints =
+      pages.length > 0
+        ? pages
+            .slice(0, 10)
+            .map(
+              (page) =>
+                `第${page.pageNumber}页: ${page.content
+                  .replace(/\s+/g, ' ')
+                  .slice(0, 240)}`,
+            )
+            .join('\n')
+        : '（无分页内容）';
+
+    const prompt = `你是一个文档理解助手。请阅读以下 OCR 文本和按页摘要，输出 JSON，必须包含：
+{
+  "summary": "用中文写的200字以内的摘要",
+  "faq": [
+    {
+      "question": "用户可能会问的问题",
+      "answer": "基于文档的回答，必要时引用页码",
+      "pages": [1,2]
+    }
+  ]
+}
+
+如果无法提取 FAQ，则返回空数组。`;
+
+    try {
+      const response = await axios.post(
+        this.deepSeekApiUrl,
+        {
+          model: this.insightModel,
+          messages: [
+            { role: 'system', content: prompt },
+            {
+              role: 'user',
+              content: `文档节选：
+${excerpt}
+
+分页线索：
+${pageHints}`,
+            },
+          ],
+          temperature: 0.4,
+          max_tokens: 1200,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 45000,
+        },
+      );
+
+      const rawContent =
+        response.data?.choices?.[0]?.message?.content?.trim() || '';
+      if (!rawContent) {
+        this.logger.warn('Insight response empty', { documentId });
+        return;
+      }
+
+      const { summary, faq } = this.parseInsightResponse(rawContent, documentId);
+
+      if (!summary && faq.length === 0) {
+        return;
+      }
+
+      const faqPayload: Prisma.InputJsonValue =
+        faq.length > 0
+          ? ((faq as unknown) as Prisma.InputJsonValue)
+          : ((Prisma.JsonNull as unknown) as Prisma.InputJsonValue);
+
+      await this.prisma.documentInsight.upsert({
+        where: { documentId },
+        create: {
+          documentId,
+          summary,
+          faq: faqPayload,
+        },
+        update: {
+          summary,
+          faq: faqPayload,
+        },
+      });
+
+      this.logger.log('Document insights updated', {
+        documentId,
+        faqCount: faq.length,
+      });
+    } catch (error) {
+      this.logger.warn('Failed to call DeepSeek for document insights', {
+        documentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private parseInsightResponse(
+    content: string,
+    documentId: string,
+  ): { summary: string | null; faq: DocumentFaqItem[] } {
+    let normalized = content.trim();
+    const codeBlockMatch = normalized.match(/```json([\s\S]*?)```/i);
+    if (codeBlockMatch) {
+      normalized = codeBlockMatch[1];
+    }
+
+    try {
+      const parsed = JSON.parse(normalized);
+      const summary =
+        typeof parsed.summary === 'string'
+          ? parsed.summary.trim().slice(0, 1200)
+          : null;
+
+      const faqItems: DocumentFaqItem[] = [];
+      if (Array.isArray(parsed.faq)) {
+        for (const raw of parsed.faq) {
+          if (
+            !raw ||
+            typeof raw !== 'object' ||
+            !('question' in raw) ||
+            !('answer' in raw)
+          ) {
+            continue;
+          }
+
+          const question = String(
+            (raw as Record<string, unknown>).question || '',
+          )
+            .trim()
+            .slice(0, 300);
+          const answer = String(
+            (raw as Record<string, unknown>).answer || '',
+          )
+            .trim()
+            .slice(0, 1200);
+
+          if (!question || !answer) continue;
+
+          let pages: number[] | undefined;
+          const rawPages = (raw as Record<string, unknown>).pages;
+          if (Array.isArray(rawPages)) {
+            pages = rawPages
+              .map((page) => Number(page))
+              .filter((page) => Number.isInteger(page) && page > 0);
+            if (pages.length === 0) {
+              pages = undefined;
+            }
+          }
+
+          faqItems.push({ question, answer, pages });
+        }
+      }
+
+      return { summary, faq: faqItems };
+    } catch (error) {
+      this.logger.warn('Failed to parse insight JSON', {
+        documentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return { summary: null, faq: [] };
+    }
   }
 }

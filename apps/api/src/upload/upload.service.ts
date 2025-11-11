@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  HttpStatus,
-  Inject,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, HttpStatus, Inject, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { extname, join } from 'path';
@@ -23,6 +18,7 @@ import {
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { Document } from '@prisma/client';
+import { VisionService } from '../ocr/vision.service';
 const fileTypeImport = require('file-type');
 
 export interface UploadResult {
@@ -63,12 +59,14 @@ export class UploadService {
     '.ps1',
     '.psm1',
   ];
+  private readonly useOcrQueue: boolean;
 
   constructor(
     private configService: ConfigService,
     private gcsService: GcsService,
     private analyticsService: AnalyticsService,
     private documentRepository: DocumentRepository,
+    private readonly visionService: VisionService,
     @InjectQueue('ocr') private readonly ocrQueue: Queue,
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {
@@ -83,6 +81,9 @@ export class UploadService {
     } else {
       this.logger.log('Using local storage', { context: 'UploadService' });
     }
+
+    const queueFlag = this.configService.get<boolean>('ocr.useQueue');
+    this.useOcrQueue = queueFlag !== false;
   }
 
   /**
@@ -661,11 +662,60 @@ export class UploadService {
     storageResult: StorageResult,
     userId?: string,
   ): Promise<void> {
-    await this.ocrQueue.add('extract-text', {
-      documentId,
-      gcsPath: storageResult.gcsPath,
-      localPath: storageResult.localPath,
-      userId,
-    });
+    if (!this.useOcrQueue) {
+      await this.processOcrInline(documentId, storageResult);
+      return;
+    }
+
+    try {
+      await this.ocrQueue.add('extract-text', {
+        documentId,
+        gcsPath: storageResult.gcsPath,
+        localPath: storageResult.localPath,
+        userId,
+      });
+    } catch (error) {
+      this.logger.warn('Failed to enqueue OCR job, processing inline', {
+        context: 'UploadService',
+        documentId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.processOcrInline(documentId, storageResult);
+    }
+  }
+
+  private async processOcrInline(
+    documentId: string,
+    storageResult: StorageResult,
+  ): Promise<void> {
+    try {
+      await this.documentRepository.updateOcrStatus(documentId, 'processing');
+
+      if (storageResult.localPath) {
+        const buffer = await fs.readFile(storageResult.localPath);
+        await this.visionService.extractTextFromBuffer(buffer, documentId);
+      } else if (storageResult.gcsPath) {
+        await this.visionService.extractTextFromGcs(
+          storageResult.gcsPath,
+          documentId,
+        );
+      } else {
+        throw new Error('No OCR source provided');
+      }
+
+      await this.documentRepository.updateOcrStatus(documentId, 'completed');
+      this.logger.log('Inline OCR completed', {
+        context: 'UploadService',
+        documentId,
+      });
+    } catch (error) {
+      await this.documentRepository.updateOcrStatus(documentId, 'failed');
+      this.logger.error('Inline OCR failed', {
+        context: 'UploadService',
+        documentId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      throw error;
+    }
   }
 }

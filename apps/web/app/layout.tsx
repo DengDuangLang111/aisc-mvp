@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { NotificationBanner } from "@/components/NotificationBanner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,10 +31,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AuthProvider>
-          <div className="relative min-h-screen">
-            <NotificationBanner />
-            {children}
-          </div>
+          <ErrorBoundary>
+            <div className="relative min-h-screen">
+              <NotificationBanner />
+              {children}
+            </div>
+          </ErrorBoundary>
         </AuthProvider>
       </body>
     </html>

@@ -4,6 +4,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { BullModule } from '@nestjs/bull';
+import { redisStore } from 'cache-manager-redis-store';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UploadModule } from './upload/upload.module';
@@ -47,12 +48,24 @@ import { OcrQueueModule } from './ocr/ocr-queue.module';
       ],
     }),
     CacheModule.registerAsync({
+      isGlobal: true,
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        ttl: configService.get<number>('cache.ttl') || 60000,
-        max: configService.get<number>('cache.max') || 100,
-        isGlobal: true,
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const redisConfig = configService.get('redis');
+        const store = await redisStore({
+          socket: {
+            host: redisConfig?.host || 'localhost',
+            port: redisConfig?.port || 6379,
+          },
+          password: redisConfig?.password,
+        });
+
+        return {
+          store,
+          ttl: configService.get<number>('cache.ttl') || 60000,
+          max: configService.get<number>('cache.max') || 100,
+        };
+      },
     }),
     BullModule.forRootAsync({
       inject: [ConfigService],

@@ -62,6 +62,7 @@ interface ChatStoreActions {
   clearAllConversationsState: () => void
   selectConversation: (sessionId: string) => void
   abortActiveRequest: () => void
+  startNewConversation: (options?: { preserveDocument?: boolean }) => void
 }
 
 export type ChatStore = ChatStoreState & ChatStoreActions
@@ -89,6 +90,26 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   setShowDocument: (value: boolean) => set({ showDocument: value }),
   toggleDocument: () => set(state => ({ showDocument: !state.showDocument })),
   setError: (value: string | null) => set({ error: value }),
+  startNewConversation: (options?: { preserveDocument?: boolean }) => {
+    get().abortActiveRequest()
+    const preserveDocument = options?.preserveDocument ?? true
+    set(() => ({
+      messages: [],
+      conversationId: null,
+      error: null,
+      streamingContent: '',
+      isStreaming: false,
+      isThinking: false,
+      ...(preserveDocument
+        ? {}
+        : {
+            currentDocumentId: null,
+            uploadId: null,
+            documentFilename: undefined,
+            documentUrl: undefined,
+          }),
+    }))
+  },
 
   loadSessionFromStorage: (documentId?: string | null) => {
     if (get().sessionLoaded) return
@@ -322,6 +343,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       logger.info('开始上传文件', { filename: file.name })
       const uploadResponse = await ApiClient.uploadFile(file)
       const newDocumentId = (uploadResponse as any).documentId || uploadResponse.id
+
+      get().startNewConversation({ preserveDocument: false })
 
       set({
         uploadId: newDocumentId,

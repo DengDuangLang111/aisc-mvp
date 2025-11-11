@@ -57,7 +57,19 @@ describe('ConversationRepository', () => {
   });
 
   it('returns paginated conversations with counts', async () => {
-    const mockResult = [{ id: 'conv-1', _count: { messages: 1 }, messages: [] }];
+    const now = new Date();
+    const mockResult = [
+      {
+        id: 'conv-1',
+        title: 'Demo',
+        userId: 'user-1',
+        documentId: 'doc-1',
+        createdAt: now,
+        updatedAt: now,
+        _count: { messages: 3 },
+        messages: [{ id: 'msg-1', content: 'Hello', createdAt: now }],
+      },
+    ];
     conversationDelegate.findMany.mockResolvedValue(mockResult);
 
     const result = await repository.findMany({
@@ -69,15 +81,36 @@ describe('ConversationRepository', () => {
 
     expect(conversationDelegate.findMany).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        userId: true,
+        documentId: true,
+        createdAt: true,
+        updatedAt: true,
         _count: { select: { messages: true } },
-        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { id: true, content: true, createdAt: true },
+        },
       },
       orderBy: { updatedAt: 'asc' },
       take: 5,
       skip: 10,
     });
-    expect(result).toEqual(mockResult);
+    expect(result).toEqual([
+      {
+        id: 'conv-1',
+        title: 'Demo',
+        userId: 'user-1',
+        documentId: 'doc-1',
+        createdAt: now,
+        updatedAt: now,
+        messageCount: 3,
+        lastMessage: mockResult[0].messages[0],
+      },
+    ]);
   });
 
   it('counts conversations by user', async () => {

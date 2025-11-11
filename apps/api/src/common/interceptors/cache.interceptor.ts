@@ -10,6 +10,7 @@ import { tap } from 'rxjs/operators';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import type { Cache } from 'cache-manager';
 import { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * 自定义缓存拦截器
@@ -17,7 +18,14 @@ import { Request } from 'express';
  */
 @Injectable()
 export class HttpCacheInterceptor implements NestInterceptor {
-  constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
+  private readonly cacheTtl: number;
+
+  constructor(
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly configService: ConfigService,
+  ) {
+    this.cacheTtl = this.configService.get<number>('cache.ttl') || 60000;
+  }
 
   async intercept(
     context: ExecutionContext,
@@ -45,7 +53,7 @@ export class HttpCacheInterceptor implements NestInterceptor {
       tap(async (response) => {
         // 只缓存成功的响应
         if (response && typeof response === 'object') {
-          await this.cacheManager.set(cacheKey, response, 60000); // 缓存 60 秒
+          await this.cacheManager.set(cacheKey, response, this.cacheTtl);
         }
       }),
     );

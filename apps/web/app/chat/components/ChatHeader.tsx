@@ -13,6 +13,7 @@ interface ChatHeaderProps {
   onToggleFocusMode: () => void;
   onSelectConversation?: (sessionId: string) => void;
   onClearAllConversations?: () => void;
+  onNewConversation?: () => void;
 }
 
 export function ChatHeader({
@@ -25,6 +26,7 @@ export function ChatHeader({
   onToggleFocusMode,
   onSelectConversation,
   onClearAllConversations,
+  onNewConversation,
 }: ChatHeaderProps) {
   return (
     <header className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm flex-shrink-0">
@@ -66,6 +68,16 @@ export function ChatHeader({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
+          {onNewConversation && (
+            <button
+              onClick={onNewConversation}
+              className="inline-flex items-center px-4 py-2 border border-blue-500 text-blue-600 bg-blue-50 hover:bg-blue-100 text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <span className="mr-2 text-base">+</span>
+              新建对话
+            </button>
+          )}
+
           {/* Focus Mode Toggle */}
           <button
             onClick={onToggleFocusMode}

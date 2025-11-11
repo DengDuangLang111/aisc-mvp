@@ -49,6 +49,10 @@ class EnvironmentVariables {
   @IsOptional()
   @IsString()
   REDIS_PASSWORD?: string;
+
+  @IsOptional()
+  @IsString()
+  ENABLE_OCR_QUEUE?: string;
 }
 
 export function validate(config: Record<string, unknown>) {

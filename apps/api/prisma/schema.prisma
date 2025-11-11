@@ -39,11 +39,13 @@ model Document {
   size         Int
   ocrStatus    String   @default("pending") @map("ocr_status")
   uploadedAt   DateTime @default(now()) @map("uploaded_at")
-  
+
   user          User?         @relation(fields: [userId], references: [id])
   ocrResult     OcrResult?
+  ocrPages      OcrPage[]
+  insights      DocumentInsight?
   conversations Conversation[]
-  
+
   @@index([userId])
   @@map("documents")
 }
@@ -62,8 +64,36 @@ model OcrResult {
   processedAt    DateTime @map("processed_at") @default(now())
   
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  
+
   @@map("ocr_results")
+}
+
+model OcrPage {
+  id          String   @id @default(uuid())
+  documentId  String   @map("document_id")
+  pageNumber  Int      @map("page_number")
+  content     String   @db.Text
+  summary     String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, pageNumber])
+  @@map("ocr_pages")
+}
+
+model DocumentInsight {
+  id         String   @id @default(uuid())
+  documentId String   @unique @map("document_id")
+  summary    String?  @db.Text
+  faq        Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_insights")
 }
 
 // ============================================

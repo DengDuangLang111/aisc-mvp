@@ -37,3 +37,4 @@
 ## 7. Refactoring Wave 2 (P2 Reliability Boost)
 - [x] P2-9 – move OCR execution onto a BullMQ queue (`apps/api/src/ocr/ocr.processor.ts`, `apps/api/src/upload/upload.service.ts`) so uploads return immediately and OCR retries are centralized.
 - [x] P2-10 – introduce a shared Zustand store for chat/focus state on the web app (`apps/web/stores/*.ts`, chat/upload/focus hooks) so cross-component updates don’t rely on prop drilling.
+- [x] P2-11 – add a top-level error boundary (`apps/web/components/ErrorBoundary.tsx`, layout wiring) so unexpected runtime failures show a friendly recovery UI instead of a blank screen.

@@ -6,11 +6,19 @@ export interface ConversationWithMessages extends Conversation {
   messages: Message[];
 }
 
-export interface ConversationWithCount extends Conversation {
-  _count: {
-    messages: number;
-  };
-  messages: Message[];
+export interface ConversationListPreview {
+  id: string;
+  title: string | null;
+  userId: string | null;
+  documentId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  messageCount: number;
+  lastMessage: {
+    id: string;
+    content: string;
+    createdAt: Date;
+  } | null;
 }
 
 @Injectable()
@@ -56,24 +64,46 @@ export class ConversationRepository {
     limit?: number;
     offset?: number;
     orderBy?: Prisma.ConversationOrderByWithRelationInput;
-  }): Promise<ConversationWithCount[]> {
+  }): Promise<ConversationListPreview[]> {
     const { userId, limit = 20, offset = 0, orderBy } = params;
 
-    return this.prisma.conversation.findMany({
+    const conversations = await this.prisma.conversation.findMany({
       where: userId ? { userId } : {},
-      include: {
+      select: {
+        id: true,
+        title: true,
+        userId: true,
+        documentId: true,
+        createdAt: true,
+        updatedAt: true,
         _count: {
           select: { messages: true },
         },
         messages: {
           orderBy: { createdAt: 'desc' },
-          take: 1, // 只获取最后一条消息
+          take: 1,
+          select: {
+            id: true,
+            content: true,
+            createdAt: true,
+          },
         },
       },
       orderBy: orderBy || { updatedAt: 'desc' },
       take: limit,
       skip: offset,
     });
+
+    return conversations.map((conv) => ({
+      id: conv.id,
+      title: conv.title,
+      userId: conv.userId,
+      documentId: conv.documentId,
+      createdAt: conv.createdAt,
+      updatedAt: conv.updatedAt,
+      messageCount: conv._count.messages,
+      lastMessage: conv.messages[0] || null,
+    }));
   }
 
   /**

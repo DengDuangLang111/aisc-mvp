@@ -41,6 +41,7 @@ export function useChatLogic() {
     clearConversation,
     clearAllConversationsState,
     abortActiveRequest,
+    startNewConversation,
   } = useChatStore()
 
   const urlDocumentId = documentId || fileId || null
@@ -142,6 +143,9 @@ export function useChatLogic() {
     logger.info('已清空当前对话')
   }
 
+  const handleStartNewConversation = () =>
+    startNewConversation({ preserveDocument: true })
+
   return {
     messages,
     isLoading,
@@ -160,5 +164,6 @@ export function useChatLogic() {
     handleToggleDocument,
     handleSelectConversation,
     handleClearAllConversations,
+    handleStartNewConversation,
   }
 }

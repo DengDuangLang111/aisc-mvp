@@ -1937,8 +1937,10 @@ export default function RootLayout({
 ```
 
 **修改文件清单**:
-- [ ] 创建 `apps/web/components/ErrorBoundary.tsx`
-- [ ] 修改 `apps/web/app/layout.tsx`
+- [x] 创建 `apps/web/components/ErrorBoundary.tsx`
+- [x] 修改 `apps/web/app/layout.tsx`
+
+> ✅ 2025-11-10：全局 ErrorBoundary 已就位，RootLayout 统一包裹，异常时展示友好兜底提示并支持 Sentry 上报。
 
 ---
 
@@ -2056,7 +2058,7 @@ CacheModule.registerAsync({
 ### P2 - 1个月内
 - [x] P2-9: 引入 BullMQ 队列处理 OCR
 - [x] P2-10: 添加 Zustand 状态管理（apps/web/stores + chat/upload/focus hooks）
-- [ ] P2-11: 添加前端错误边界
+- [x] P2-11: 添加前端错误边界（apps/web/components/ErrorBoundary.tsx + RootLayout 包装）
 - [ ] P2-12: 解决 N+1 查询问题
 
 ### P3 - 有空再说

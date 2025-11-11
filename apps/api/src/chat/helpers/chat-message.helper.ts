@@ -58,10 +58,7 @@ export class ChatMessageHelper {
 
     // 2. 文档上下文（如果有）
     if (documentContext) {
-      messages.push({
-        role: 'system',
-        content: `以下是用户上传的文档内容，请基于此内容回答用户的问题：\n\n${documentContext.slice(0, 4000)}`, // 限制长度
-      });
+      this.appendDocumentContext(messages, documentContext);
     }
 
     // 3. 历史消息（最近 10 条）
@@ -81,5 +78,32 @@ export class ChatMessageHelper {
    */
   static generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private static appendDocumentContext(
+    messages: DeepSeekMessage[],
+    documentContext: string,
+  ): void {
+    const NORMALIZED = documentContext.replace(/\s+\n/g, '\n').trim();
+    const CHUNK_SIZE = 2000;
+    const MAX_CONTEXT = 20000;
+    const limitedContext = NORMALIZED.slice(0, MAX_CONTEXT);
+    const totalChunks = Math.ceil(limitedContext.length / CHUNK_SIZE);
+
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = limitedContext.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      messages.push({
+        role: 'system',
+        content: `文档片段 ${i + 1}/${totalChunks}（保持原始顺序）：\n${chunk}`,
+      });
+    }
+
+    if (NORMALIZED.length > MAX_CONTEXT) {
+      messages.push({
+        role: 'system',
+        content:
+          '⚠️ 文档内容较长，只截取了前半部分。若需要更详细的段落，可让学生指定页码或关键段落，我会再深入查阅。',
+      });
+    }
   }
 }

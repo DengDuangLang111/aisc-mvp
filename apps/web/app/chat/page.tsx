@@ -28,6 +28,7 @@ function ChatPageContent() {
     handleToggleDocument,
     handleSelectConversation,
     handleClearAllConversations,
+    handleStartNewConversation,
   } = useChatLogic();
 
   // 自动启动 Focus Mode（当有消息时）
@@ -59,6 +60,7 @@ function ChatPageContent() {
           onToggleFocusMode={() => setFocusModeActive(!focusModeActive)}
           onSelectConversation={handleSelectConversation}
           onClearAllConversations={handleClearAllConversations}
+          onNewConversation={handleStartNewConversation}
         />
       </div>
 
