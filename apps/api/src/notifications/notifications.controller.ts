@@ -21,7 +21,7 @@ export class NotificationsController {
     description: '可显示的提醒列表',
   })
   async getBanners(@Req() req: Request) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.notificationsService.getReminderBanners(userId);
   }
 }

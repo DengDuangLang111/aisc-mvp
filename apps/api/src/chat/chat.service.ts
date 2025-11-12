@@ -178,8 +178,8 @@ export class ChatService {
         eventName: EventName.CHAT_SESSION_START,
         eventCategory: EventCategory.CHAT,
         eventProperties: {
-          conversationId,
-          documentId,
+          conversationId: conversationId ?? null,
+          documentId: documentId ?? null,
           messageLength: message.length,
         },
       });
@@ -321,7 +321,7 @@ export class ChatService {
         eventCategory: EventCategory.CHAT,
         eventProperties: {
           error: error.message,
-          conversationId,
+          conversationId: conversationId ?? null,
         },
       });
 

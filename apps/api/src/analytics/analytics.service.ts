@@ -302,10 +302,30 @@ export class AnalyticsService {
       apiRequestsTotal: stats.apiRequestsTotal,
       apiRequestsSuccess: stats.apiRequestsSuccess,
       apiRequestsFailed: stats.apiRequestsFailed,
-      googleVisionCost: Number(stats.googleVisionCost ?? 0) || null,
-      deepseekCost: Number(stats.deepseekCost ?? 0) || null,
-      storageCost: Number(stats.storageCost ?? 0) || null,
-      totalCost: Number(stats.totalCost ?? 0) || null,
+      googleVisionCost:
+        typeof stats.googleVisionCost === 'number'
+          ? stats.googleVisionCost
+          : stats.googleVisionCost
+          ? Number(stats.googleVisionCost)
+          : undefined,
+      deepseekCost:
+        typeof stats.deepseekCost === 'number'
+          ? stats.deepseekCost
+          : stats.deepseekCost
+          ? Number(stats.deepseekCost)
+          : undefined,
+      storageCost:
+        typeof stats.storageCost === 'number'
+          ? stats.storageCost
+          : stats.storageCost
+          ? Number(stats.storageCost)
+          : undefined,
+      totalCost:
+        typeof stats.totalCost === 'number'
+          ? stats.totalCost
+          : stats.totalCost
+          ? Number(stats.totalCost)
+          : undefined,
       activeTimeMinutes: stats.activeTimeMinutes,
     };
   }

@@ -36,7 +36,7 @@ export class FocusController {
     @Body() createDto: CreateFocusSessionDto,
     @Req() req: Request,
   ) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.focusService.createSession(
       userId,
       createDto.documentId,
@@ -54,7 +54,7 @@ export class FocusController {
     @Body() updateDto: UpdateFocusSessionDto,
     @Req() req: Request,
   ) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.focusService.updateSession(sessionId, updateDto, userId);
   }
 
@@ -69,7 +69,7 @@ export class FocusController {
     @Body() distractionDto: LogDistractionDto,
     @Req() req: Request,
   ) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.focusService.logDistraction(sessionId, distractionDto, userId);
   }
 
@@ -83,7 +83,7 @@ export class FocusController {
     @Param('id') sessionId: string,
     @Body('completionProofId') completionProofId?: string,
   ) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.focusService.updateSession(
       sessionId,
       {
@@ -100,7 +100,7 @@ export class FocusController {
   @ApiOperation({ summary: '获取会话详情（需要认证）' })
   @ApiResponse({ status: 200, description: '返回会话详情' })
   async getSession(@Param('id') sessionId: string, @Req() req: Request) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.focusService.getSession(sessionId, userId);
   }
 
@@ -110,7 +110,7 @@ export class FocusController {
   @ApiOperation({ summary: '获取会话分析报告（需要认证）' })
   @ApiResponse({ status: 200, description: '返回会话分析数据' })
   async getSessionAnalytics(@Param('id') sessionId: string, @Req() req: Request) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.focusService.getSessionAnalytics(sessionId, userId);
   }
 
@@ -125,7 +125,7 @@ export class FocusController {
     @Query('offset') offset?: number,
     @Query('status') status?: string,
   ) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.focusService.getUserSessions(userId, {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,

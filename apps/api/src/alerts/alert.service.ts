@@ -5,7 +5,7 @@ export interface Alert {
   level: 'info' | 'warning' | 'error' | 'critical';
   title: string;
   message: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 @Injectable()
@@ -113,26 +113,26 @@ export class AlertService {
   }
 
   // 便捷方法
-  async info(title: string, message: string, metadata?: Record<string, any>) {
+  async info(title: string, message: string, metadata?: Record<string, unknown>) {
     return this.sendAlert({ level: 'info', title, message, metadata });
   }
 
   async warning(
     title: string,
     message: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
   ) {
     return this.sendAlert({ level: 'warning', title, message, metadata });
   }
 
-  async error(title: string, message: string, metadata?: Record<string, any>) {
+  async error(title: string, message: string, metadata?: Record<string, unknown>) {
     return this.sendAlert({ level: 'error', title, message, metadata });
   }
 
   async critical(
     title: string,
     message: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
   ) {
     return this.sendAlert({ level: 'critical', title, message, metadata });
   }

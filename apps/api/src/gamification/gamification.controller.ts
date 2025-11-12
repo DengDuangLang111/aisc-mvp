@@ -21,7 +21,7 @@ export class GamificationController {
     description: '当前用户的 gamification 进度',
   })
   async getProgress(@Req() req: Request) {
-    const userId = (req.user as any)?.sub;
+    const userId = req.user!.sub;
     return this.gamificationService.getUserProgress(userId);
   }
 }
