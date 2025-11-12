@@ -6,6 +6,8 @@ import * as fs from 'fs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GoogleCredentialsProvider } from '../common/providers/google-credentials.provider';
+import { withExternalCall } from '../common/utils/external-call.util';
+import { BusinessException, ErrorCode } from '../common/exceptions/business.exception';
 
 /**
  * OCR 提取结果
@@ -170,7 +172,14 @@ export class VisionService {
       }
 
       // 图片文件使用同步 API
-      const [result] = await this.client.documentTextDetection(gcsPath);
+      const [result] = await withExternalCall(
+        () => this.client.documentTextDetection(gcsPath),
+        {
+          logger: this.logger,
+          context: 'VISION_OCR_GCS',
+          resource: gcsPath,
+        },
+      );
       const fullTextAnnotation = result.fullTextAnnotation;
 
       if (!fullTextAnnotation || !fullTextAnnotation.text) {
@@ -264,8 +273,10 @@ export class VisionService {
       const outputPrefix = `ocr-output/${documentId}/`;
 
       // 使用异步批处理 API
-      const [operation] = await this.client.asyncBatchAnnotateFiles({
-        requests: [
+      const [operation] = await withExternalCall(
+        () =>
+          this.client.asyncBatchAnnotateFiles({
+            requests: [
           {
             inputConfig: {
               gcsSource: {
@@ -282,7 +293,13 @@ export class VisionService {
             },
           },
         ],
-      });
+      }),
+        {
+          logger: this.logger,
+          context: 'VISION_OCR_PDF',
+          resource: gcsPath,
+        },
+      );
 
       this.logger.log(
         `Waiting for PDF OCR operation to complete for document ${documentId}`,
@@ -322,7 +339,15 @@ export class VisionService {
       let nextPageNumber = 1;
 
       for (const file of sortedFiles) {
-        const [content] = await file.download();
+        const contentResult = await withExternalCall(
+          () => file.download(),
+          {
+            logger: this.logger,
+            context: 'VISION_OCR_PDF_DOWNLOAD',
+            resource: file.name,
+          },
+        );
+        const [content] = contentResult as [Buffer];
         const outputJson = JSON.parse(content.toString());
 
         for (const response of outputJson.responses || []) {
@@ -413,9 +438,17 @@ export class VisionService {
       this.logger.log(`Starting OCR from buffer for document ${documentId}`);
 
       // 调用 Vision API
-      const [result] = await this.client.documentTextDetection({
-        image: { content: fileBuffer },
-      });
+      const [result] = await withExternalCall(
+        () =>
+          this.client.documentTextDetection({
+            image: { content: fileBuffer },
+          }),
+        {
+          logger: this.logger,
+          context: 'VISION_OCR_BUFFER',
+          resource: documentId,
+        },
+      );
 
       const fullTextAnnotation = result.fullTextAnnotation;
 

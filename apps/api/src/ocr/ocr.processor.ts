@@ -25,9 +25,22 @@ export class OcrProcessor {
   async handleExtractText(job: Job<OcrJobData>): Promise<void> {
     const { documentId, gcsPath, localPath } = job.data;
 
-    this.logger.log(`Processing OCR job for document ${documentId}`);
+    this.logger.log(`Processing OCR job for document ${documentId}`, {
+      jobId: job.id,
+      attemptsMade: job.attemptsMade,
+    });
 
     try {
+      // Idempotency: if already completed, skip.
+      const current = await this.documentRepository.findById(documentId);
+      if (current?.ocrStatus === 'completed') {
+        this.logger.log('Skipping OCR job for already completed document', {
+          documentId,
+          jobId: job.id,
+        });
+        return;
+      }
+
       await this.documentRepository.updateOcrStatus(documentId, 'processing');
 
       const ocrResult = await this.processSource(documentId, {
@@ -39,16 +52,32 @@ export class OcrProcessor {
 
       this.logger.log('OCR job completed', {
         documentId,
+        jobId: job.id,
+        attemptsMade: job.attemptsMade,
         pageCount: ocrResult?.pageCount,
         confidence: ocrResult?.confidence,
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Mark failed for this attempt; Bull will handle retries based on attempts/backoff.
       await this.documentRepository.updateOcrStatus(documentId, 'failed');
 
       this.logger.error('OCR job failed', {
         documentId,
-        error: error instanceof Error ? error.message : String(error),
+        jobId: job.id,
+        attemptsMade: job.attemptsMade,
+        error: errorMessage,
       });
+
+      // On final failure (no more retries), emit a strong signal (logger-level only for now).
+      if (job.attemptsMade + 1 >= (job.opts.attempts || 1)) {
+        this.logger.error('OCR job reached max attempts, marking as permanently failed', {
+          documentId,
+          jobId: job.id,
+          attempts: job.opts.attempts || 1,
+        });
+      }
 
       throw error;
     }

@@ -5,6 +5,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { GoogleCredentialsProvider } from '../common/providers/google-credentials.provider';
+import { withExternalCall } from '../common/utils/external-call.util';
+import { BusinessException, ErrorCode } from '../common/exceptions/business.exception';
 
 /**
  * Google Cloud Storage 上传结果
@@ -70,15 +72,23 @@ export class GcsService {
       const fileObj = bucket.file(gcsPath);
 
       // 上传文件
-      await fileObj.save(file, {
-        metadata: {
-          contentType: this.getMimeType(ext),
-          metadata: {
-            originalFilename,
-            uploadedAt: new Date().toISOString(),
-          },
+      await withExternalCall(
+        () =>
+          fileObj.save(file, {
+            metadata: {
+              contentType: this.getMimeType(ext),
+              metadata: {
+                originalFilename,
+                uploadedAt: new Date().toISOString(),
+              },
+            },
+          }),
+        {
+          logger: this.logger,
+          context: 'GCS_UPLOAD',
+          resource: gcsPath,
         },
-      });
+      );
 
       // 生成 signed URL（7天有效 - GCS 最大限制）
       const gcsFullPath = `gs://${this.bucketName}/${gcsPath}`;
@@ -94,7 +104,16 @@ export class GcsService {
       };
     } catch (error) {
       this.logger.error(`Failed to upload file: ${originalFilename}`, error);
-      throw new Error(`GCS upload failed: ${error.message}`);
+      throw new BusinessException(
+        ErrorCode.EXTERNAL_SERVICE_ERROR,
+        'GCS upload failed',
+        undefined,
+        {
+          provider: 'gcs',
+          operation: 'upload',
+          originalFilename,
+        },
+      );
     }
   }
 
@@ -116,16 +135,33 @@ export class GcsService {
       const bucket = this.storage.bucket(this.bucketName);
       const file = bucket.file(filePath);
 
-      const [url] = await file.getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + expiresInDays * 24 * 60 * 60 * 1000,
-      });
+      const [url] = await withExternalCall(
+        () =>
+          file.getSignedUrl({
+            version: 'v4',
+            action: 'read',
+            expires: Date.now() + expiresInDays * 24 * 60 * 60 * 1000,
+          }),
+        {
+          logger: this.logger,
+          context: 'GCS_SIGNED_URL',
+          resource: gcsPath,
+        },
+      );
 
       return url;
     } catch (error) {
       this.logger.error(`Failed to generate signed URL for: ${gcsPath}`, error);
-      throw new Error(`Failed to generate signed URL: ${error.message}`);
+      throw new BusinessException(
+        ErrorCode.EXTERNAL_SERVICE_ERROR,
+        'Failed to generate signed URL',
+        undefined,
+        {
+          provider: 'gcs',
+          operation: 'getSignedUrl',
+          gcsPath,
+        },
+      );
     }
   }
 
@@ -140,11 +176,24 @@ export class GcsService {
       const bucket = this.storage.bucket(this.bucketName);
       const file = bucket.file(filePath);
 
-      await file.delete();
+      await withExternalCall(() => file.delete(), {
+        logger: this.logger,
+        context: 'GCS_DELETE',
+        resource: gcsPath,
+      });
       this.logger.log(`File deleted successfully: ${gcsPath}`);
     } catch (error) {
       this.logger.error(`Failed to delete file: ${gcsPath}`, error);
-      throw new Error(`Failed to delete file: ${error.message}`);
+      throw new BusinessException(
+        ErrorCode.EXTERNAL_SERVICE_ERROR,
+        'Failed to delete file from storage',
+        undefined,
+        {
+          provider: 'gcs',
+          operation: 'delete',
+          gcsPath,
+        },
+      );
     }
   }
 
@@ -157,12 +206,28 @@ export class GcsService {
   async listFiles(folder: string = 'uploads'): Promise<string[]> {
     try {
       const bucket = this.storage.bucket(this.bucketName);
-      const [files] = await bucket.getFiles({ prefix: folder });
+      const [files] = await withExternalCall(
+        () => bucket.getFiles({ prefix: folder }),
+        {
+          logger: this.logger,
+          context: 'GCS_LIST',
+          resource: folder,
+        },
+      );
 
       return files.map((file) => `gs://${this.bucketName}/${file.name}`);
     } catch (error) {
       this.logger.error(`Failed to list files in folder: ${folder}`, error);
-      throw new Error(`Failed to list files: ${error.message}`);
+      throw new BusinessException(
+        ErrorCode.EXTERNAL_SERVICE_ERROR,
+        'Failed to list files from storage',
+        undefined,
+        {
+          provider: 'gcs',
+          operation: 'list',
+          folder,
+        },
+      );
     }
   }
 
@@ -178,7 +243,11 @@ export class GcsService {
       const bucket = this.storage.bucket(this.bucketName);
       const file = bucket.file(filePath);
 
-      const [exists] = await file.exists();
+      const [exists] = await withExternalCall(() => file.exists(), {
+        logger: this.logger,
+        context: 'GCS_EXISTS',
+        resource: gcsPath,
+      });
       return exists;
     } catch (error) {
       this.logger.error(`Failed to check file existence: ${gcsPath}`, error);
