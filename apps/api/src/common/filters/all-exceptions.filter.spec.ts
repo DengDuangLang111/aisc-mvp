@@ -6,6 +6,7 @@ import {
   BusinessException,
   ErrorCode,
 } from '../exceptions/business.exception';
+import { ConfigService } from '@nestjs/config';
 
 describe('AllExceptionsFilter', () => {
   let filter: AllExceptionsFilter;
@@ -26,6 +27,7 @@ describe('AllExceptionsFilter', () => {
           provide: WINSTON_MODULE_PROVIDER,
           useValue: mockLogger,
         },
+        ConfigService,
       ],
     }).compile();
 

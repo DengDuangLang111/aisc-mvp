@@ -9,12 +9,17 @@ import {
 import { Request, Response } from 'express';
 import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
 import { Logger } from 'winston';
-import { BusinessException } from '../exceptions/business.exception';
+import { BusinessException, ErrorCode } from '../exceptions/business.exception';
+import { ConfigService } from '@nestjs/config';
+import { detectLocale } from '../i18n/i18n.utils';
+import { getI18nConfig } from '../i18n/i18n.config';
+import { resolveErrorMessage } from '../i18n/error-messages';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(
     @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
+    private readonly configService: ConfigService,
   ) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
@@ -27,16 +32,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let code = 'INTERNAL_SERVER_ERROR';
     let details: Record<string, unknown> | undefined;
 
+    const { enabled: i18nEnabled } = getI18nConfig(this.configService);
+
     if (exception instanceof BusinessException) {
       status = exception.getStatus();
       const payload = exception.getResponse() as {
-        code: string;
+        code: ErrorCode;
         message: string;
         details?: Record<string, unknown>;
       };
       code = payload.code;
       message = payload.message;
       details = payload.details;
+
+      if (i18nEnabled && code in ErrorCode) {
+        const locale = detectLocale(request, this.configService);
+        message = resolveErrorMessage(code as ErrorCode, message, locale);
+      }
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const statusLabel = HttpStatus[status];

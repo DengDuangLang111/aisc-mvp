@@ -2075,17 +2075,16 @@ Status: Initial audit shows no critical N+1 patterns; further optimizations shou
     - Clear mapping to `ErrorCode.EXTERNAL_SERVICE_ERROR` or similar where it affects user flows.
     - No unhandled promise rejections.
 
-### P3: Observability, Resilience & i18n (Planned)
+### P3: Observability, Resilience & i18n
 - Current baseline:
   - Metrics:
     - `MetricsService` with Prometheus metrics and `metrics.controller` endpoint.
     - Logging and metrics interceptors exist and are wired.
   - Alerts:
     - `AlertService` with Slack integration hook and leveled alerts.
-- i18n minimal strategy (to be implemented):
-  - [ ] Introduce a lightweight, env-switchable i18n layer:
-    - Map `ErrorCode` → message keys.
-    - Use `I18N_ENABLED` env to decide whether to translate or fall back to existing English messages.
-    - Keep response schema stable to avoid breaking clients.
+  - i18n (minimal, implemented and toggled by env):
+    - `apps/api/src/common/i18n/*` provides config + `ErrorCode` → localized message mapping.
+    - `AllExceptionsFilter` uses `I18N_ENABLED` + `Accept-Language` to optionally localize `BusinessException` messages.
+    - Response schema remains `{ statusCode, code, message, ... }` to avoid breaking clients.
 
 This status section is kept in sync with real code and tests as of 2025-11-11. For any future changes, update this section only after code and Jest tests pass to avoid divergence between docs and implementation.
