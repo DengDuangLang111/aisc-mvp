@@ -4,8 +4,15 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const redirectTo = searchParams.get('redirectTo') || '/dashboard'
-  const next = searchParams.get('next') ?? redirectTo
+  const rawRedirect = searchParams.get('redirectTo') || '/'
+  const sanitize = (p: string | null | undefined) => {
+    if (!p) return '/'
+    if (!p.startsWith('/')) return '/'
+    const allowed = /^\/(?:$|document(?:\/.*)?$|session(?:\/.*)?$)/
+    return allowed.test(p) ? p : '/'
+  }
+  const redirectTo = sanitize(rawRedirect)
+  const next = sanitize(searchParams.get('next') ?? redirectTo)
 
   if (code) {
     const supabase = await createClient()

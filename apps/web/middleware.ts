@@ -1,6 +1,7 @@
 import { type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
 import { createServerClient } from '@supabase/ssr'
+import { createMockClient } from './lib/supabase/mockClient'
 import { NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -22,23 +23,24 @@ export async function middleware(request: NextRequest) {
 
   // Check authentication for protected routes
   if (isProtectedRoute) {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return request.cookies.get(name)?.value
+    const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    const supabase: any = SUPABASE_URL && SUPABASE_ANON_KEY
+      ? createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          cookies: {
+            get(name: string) {
+              return request.cookies.get(name)?.value
+            },
+            set(name: string, value: string, options: any) {
+              // No-op for this check
+            },
+            remove(name: string, options: any) {
+              // No-op for this check
+            },
           },
-          set(name: string, value: string, options: any) {
-            // No-op for this check
-          },
-          remove(name: string, options: any) {
-            // No-op for this check
-          },
-        },
-      }
-    )
+        })
+      : createMockClient()
 
     const { data: { user } } = await supabase.auth.getUser()
 

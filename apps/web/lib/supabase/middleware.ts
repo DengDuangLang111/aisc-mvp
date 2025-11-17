@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createMockClient } from './mockClient'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
@@ -8,10 +9,11 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  const supabase: any = SUPABASE_URL && SUPABASE_ANON_KEY
+    ? createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       cookies: {
         get(name: string) {
           return request.cookies.get(name)?.value
@@ -52,7 +54,7 @@ export async function updateSession(request: NextRequest) {
         },
       },
     }
-  )
+  ) : createMockClient()
 
   await supabase.auth.getUser()
 

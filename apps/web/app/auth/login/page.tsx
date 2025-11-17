@@ -15,8 +15,16 @@ export default function LoginPage() {
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  // Get redirect URL from query params
-  const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+  // Get redirect URL from query params and sanitize to English-only pages
+  const rawRedirect = searchParams.get('redirectTo')
+  const sanitizeRedirect = (p: string | null | undefined) => {
+    if (!p) return '/'
+    // only allow internal paths and a small whitelist to English sections
+    if (!p.startsWith('/')) return '/'
+    const allowed = /^\/(?:$|document(?:\/.*)?$|session(?:\/.*)?$)/
+    return allowed.test(p) ? p : '/'
+  }
+  const redirectTo = sanitizeRedirect(rawRedirect)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -120,6 +128,30 @@ export default function LoginPage() {
             Sign In
           </Button>
         </form>
+
+        {/* Dev/Test Account Info */}
+        <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-gray-700 mb-1 font-medium">Dev / Test account</p>
+              <p className="text-sm text-gray-500">Use this locally if you don't have a Supabase project configured.</p>
+              <p className="mt-2 text-sm"><strong>Email:</strong> <span className="font-mono">test@oasis.local</span></p>
+              <p className="text-sm"><strong>Password:</strong> <span className="font-mono">password123</span></p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('test@oasis.local')
+                  setPassword('password123')
+                }}
+                className="px-3 py-2 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50"
+              >
+                Autofill
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* Divider */}
         <div className="relative my-6">

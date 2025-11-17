@@ -21,7 +21,7 @@ export default function ProfilePage() {
         return
       }
       
-      setUser(user)
+      setUser(user as unknown as User)
       setLoading(false)
     }
 

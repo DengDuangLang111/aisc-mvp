@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+      setUser(session?.user as unknown as User | null)
       setLoading(false)
     })
 
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      setUser(session?.user as unknown as User | null)
       setLoading(false)
     })
 
@@ -43,6 +43,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
     setUser(null)
   }
+
+  // Expose a simple window hook for quick sign-out in some dev scenarios
+  useEffect(() => {
+    ;(window as any).__supabase_sign_out__ = async () => {
+      try {
+        await supabase.auth.signOut()
+        setUser(null)
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const handler = async () => {
+      try {
+        await supabase.auth.signOut()
+        setUser(null)
+      } catch {}
+    }
+
+    window.addEventListener('oasis-signout', handler)
+    return () => {
+      delete (window as any).__supabase_sign_out__
+      window.removeEventListener('oasis-signout', handler)
+    }
+  }, [supabase])
 
   return (
     <AuthContext.Provider value={{ user, loading, signOut }}>

@@ -12,7 +12,8 @@ import type {
   HintLevel 
 } from '@study-oasis/contracts';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const MOCK_API = process.env.NEXT_PUBLIC_API_MOCK === '1';
 
 export interface UploadResponse {
   id: string;
@@ -61,6 +62,16 @@ export class ApiClient {
    * 发送聊天消息
    */
   static async chat(request: ChatRequest): Promise<ChatResponse> {
+    if (MOCK_API || !API_URL) {
+      // Simple mock response for local development
+      return Promise.resolve({
+        reply: `This is a mocked assistant reply to: "${request.message}"`,
+        conversationId: request.conversationId || `mock-${Date.now()}`,
+        timestamp: Date.now(),
+        hintLevel: 1,
+      } as ChatResponse);
+    }
+
     try {
       const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
@@ -100,6 +111,20 @@ export class ApiClient {
     complete: boolean;
     conversationId?: string;
   }> {
+    if (MOCK_API || !API_URL) {
+      // Yield a few mocked tokens to simulate streaming
+      const text = `This is a mocked streaming reply to: ${request.message}`;
+      const tokens = text.split(' ');
+      let accumulated = '';
+      for (let i = 0; i < tokens.length; i++) {
+        accumulated += (i === 0 ? '' : ' ') + tokens[i];
+        yield { token: accumulated, complete: i === tokens.length - 1, conversationId: request.conversationId || `mock-${Date.now()}` };
+        // slight delay to mimic streaming (consumer controls pacing)
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      return;
+    }
+
     const params = new URLSearchParams({
       message: request.message,
       conversationId: request.conversationId || '',

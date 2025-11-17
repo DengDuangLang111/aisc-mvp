@@ -7,10 +7,10 @@ interface ChatHeaderProps {
   messageCount: number;
   hasDocument: boolean;
   showDocument: boolean;
-  focusModeActive: boolean;
+  focusModeActive?: boolean;
   onClearChat: () => void;
   onToggleDocument: () => void;
-  onToggleFocusMode: () => void;
+  onToggleFocusMode?: () => void;
   onSelectConversation?: (sessionId: string) => void;
   onClearAllConversations?: () => void;
 }
@@ -19,10 +19,10 @@ export function ChatHeader({
   messageCount,
   hasDocument,
   showDocument,
-  focusModeActive,
+  focusModeActive = false,
   onClearChat,
   onToggleDocument,
-  onToggleFocusMode,
+  onToggleFocusMode = () => {},
   onSelectConversation,
   onClearAllConversations,
 }: ChatHeaderProps) {
