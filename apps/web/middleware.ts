@@ -1,3 +1,4 @@
+/* eslint-disable prefer-const, @typescript-eslint/no-explicit-any */
 import { type NextRequest } from 'next/server'
 import { updateSession } from './lib/supabase/middleware'
 import { createServerClient } from '@supabase/ssr'

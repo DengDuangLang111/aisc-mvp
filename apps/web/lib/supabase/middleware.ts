@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createMockClient } from './mockClient'
 import { NextResponse, type NextRequest } from 'next/server'

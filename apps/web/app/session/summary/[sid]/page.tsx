@@ -1,54 +1,57 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
 export default function SessionSummaryPage() {
   const params = useParams();
   const sid = params?.sid ?? "";
-  const [summary, setSummary] = useState<any | null>(null);
-  const [stats, setStats] = useState<any | null>(null);
-  const [dailyData, setDailyData] = useState<Array<{date:string, minutes:number}>>([]);
-
-  useEffect(() => {
+  const allSessions = useMemo(() => {
     try {
       const raw = localStorage.getItem('oasis:sessions');
-      const arr = raw ? JSON.parse(raw) : [];
-      const found = arr.find((s: any) => s.id === sid);
-      setSummary(found || null);
-      // load stats (streak)
-      try {
-        const stRaw = localStorage.getItem('oasis:stats');
-        setStats(stRaw ? JSON.parse(stRaw) : null);
-      } catch (err) { setStats(null); }
-
-      // build daily totals for last 14 days
-      try {
-        const days = 14;
-        const map: Record<string, number> = {};
-        const now = new Date();
-        for (let i = 0; i < days; i++) {
-          const d = new Date(now);
-          d.setDate(now.getDate() - (days - 1 - i));
-          const key = d.toISOString().slice(0,10);
-          map[key] = 0;
-        }
-        for (const s of arr) {
-          if (!s.endedAt) continue;
-          const key = new Date(s.endedAt).toISOString().slice(0,10);
-          if (map[key] !== undefined) {
-            map[key] += (s.secondsStudied || 0) / 60;
-          }
-        }
-        const dd = Object.keys(map).map(d => ({ date: d, minutes: Math.round((map[d]||0) * 10) / 10 }));
-        setDailyData(dd);
-      } catch (err) { setDailyData([]); }
-    } catch (err) {
-      console.error(err);
-      setSummary(null);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
     }
   }, [sid]);
+
+  const summary = useMemo(() => {
+    return allSessions.find((s: any) => s.id === sid) || null;
+  }, [allSessions, sid]);
+
+  const stats = useMemo(() => {
+    try {
+      const stRaw = localStorage.getItem('oasis:stats');
+      return stRaw ? JSON.parse(stRaw) : null;
+    } catch {
+      return null;
+    }
+  }, [sid]);
+
+  const dailyData = useMemo(() => {
+    try {
+      const days = 14;
+      const map: Record<string, number> = {};
+      const now = new Date();
+      for (let i = 0; i < days; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - (days - 1 - i));
+        const key = d.toISOString().slice(0,10);
+        map[key] = 0;
+      }
+      for (const s of allSessions) {
+        if (!s.endedAt) continue;
+        const key = new Date(s.endedAt).toISOString().slice(0,10);
+        if (map[key] !== undefined) {
+          map[key] += (s.secondsStudied || 0) / 60;
+        }
+      }
+      return Object.keys(map).map(d => ({ date: d, minutes: Math.round((map[d]||0) * 10) / 10 }));
+    } catch {
+      return [];
+    }
+  }, [allSessions]);
 
   if (!summary) {
     return (

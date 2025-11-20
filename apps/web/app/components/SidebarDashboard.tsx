@@ -107,21 +107,17 @@ export default function SidebarDashboard() {
 
   if (collapsed) {
     return (
-      <aside className="w-16 h-screen sticky top-0 p-2 bg-white border-r flex flex-col items-center overflow-y-auto">
+      <div className="fixed left-4 top-4 z-50">
         <button
           aria-label="Expand sidebar"
-          className="mb-4 p-2 rounded hover:bg-gray-100"
           onClick={() => setCollapsed(false)}
+          className="w-12 h-12 bg-white border rounded-md shadow flex flex-col items-center justify-center p-2"
         >
-          ▶
+          <span className="block w-5 h-[2px] bg-gray-700 mb-1 rounded" />
+          <span className="block w-5 h-[2px] bg-gray-700 mb-1 rounded" />
+          <span className="block w-5 h-[2px] bg-gray-700 rounded" />
         </button>
-        <div className="flex-1 flex flex-col items-center gap-4 mt-6 text-xs text-gray-600">
-          <div title="Uploads">⬆️</div>
-          <div title="Documents">📄</div>
-          <div title="Stats">📊</div>
-        </div>
-        {/* collapsed: keep minimal icons only */}
-      </aside>
+      </div>
     );
   }
 
@@ -136,9 +132,11 @@ export default function SidebarDashboard() {
         <button
           aria-label="Collapse sidebar"
           onClick={() => setCollapsed(true)}
-          className="text-sm text-gray-500 hover:text-gray-700"
+          className="p-2 rounded hover:bg-gray-100"
         >
-          Hide
+          <span className="block w-5 h-[2px] bg-gray-700 mb-1 rounded" />
+          <span className="block w-5 h-[2px] bg-gray-700 mb-1 rounded" />
+          <span className="block w-5 h-[2px] bg-gray-700 rounded" />
         </button>
       </div>
 
@@ -151,26 +149,41 @@ export default function SidebarDashboard() {
         {/* 2) Documents and folders */}
         <div>
           <div className="mb-2 text-xs text-gray-500">Folders</div>
-          <div className="space-y-2 mb-3">
+          <div className="space-y-1 mb-3">
             {folders.map((f) => (
-              <div
-                key={f.id}
-                onClick={() => selectFolder(f.id)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => onDropToFolder(e, f.id)}
-                className={`flex items-center justify-between p-2 rounded-lg cursor-pointer ${selectedFolder===f.id ? 'bg-blue-50 ring-1 ring-blue-100' : 'hover:bg-gray-50'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded bg-blue-100 flex items-center justify-center text-blue-700 text-xs">📁</div>
-                  <div className="text-sm font-medium text-gray-900">{f.name}</div>
+              <div key={f.id}>
+                <div
+                  onClick={() => selectFolder(f.id)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => onDropToFolder(e, f.id)}
+                  className={`flex items-center justify-between p-2 rounded-lg cursor-pointer ${selectedFolder===f.id ? 'bg-blue-50 ring-1 ring-blue-100' : 'hover:bg-gray-50'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded bg-blue-100 flex items-center justify-center text-blue-700 text-xs">📁</div>
+                    <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">{f.name}</div>
+                  </div>
+                  <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{folderCounts[f.id] || 0}</div>
                 </div>
-                <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">{folderCounts[f.id] || 0}</div>
+                {selectedFolder === f.id && (
+                  <div className="pl-5 pt-1 pb-2">
+                    <DocumentsList />
+                  </div>
+                )}
               </div>
             ))}
           </div>
 
-          <div className="mb-4">
-            <DocumentsList />
+
+
+          {/* single add-folder control above UploadArea */}
+          <div className="mt-2 mb-4 flex gap-2 items-center">
+            <input
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder="New folder"
+              className="flex-1 px-2 py-1 text-sm border rounded truncate"
+            />
+            <button onClick={createFolder} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">Add</button>
           </div>
         </div>
 
@@ -189,7 +202,8 @@ function UserBadge() {
   try {
     const { user, signOut } = useAuth()
     const router = useRouter()
-    const name = (user?.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || user?.email || 'Guest'
+    // Prefer explicit profile name; do NOT show email in the sidebar
+    const name = (user?.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || 'User'
 
     if (!user) {
       return (
@@ -200,24 +214,19 @@ function UserBadge() {
     }
 
     return (
-      <div className="mb-1 flex items-center justify-between">
-        <div className="pr-2">
-          <div className="text-sm font-semibold">{name}</div>
-        </div>
-        <div>
-          <button
-            onClick={async () => {
-              try {
-                await signOut()
-              } catch (e) {}
-              // redirect to login after sign-out
-              router.push('/auth/login')
-            }}
-            className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded border border-gray-100"
-          >
-            Sign out
-          </button>
-        </div>
+      <div className="mb-1">
+        <button
+          onClick={async () => {
+            try {
+              await signOut()
+            } catch (e) {}
+            // redirect to login after sign-out
+            router.push('/auth/login')
+          }}
+          className="text-sm text-gray-700 hover:text-gray-900 px-3 py-1 rounded border border-gray-100"
+        >
+          Sign out
+        </button>
       </div>
     )
   } catch (err) {

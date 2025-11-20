@@ -1,20 +1,19 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Header } from '@/components/Header';
 
 export default function StatsDetails() {
-  const [sessions, setSessions] = useState<any[]>([]);
-
-  useEffect(() => {
+  const [sessions] = useState<any[]>(() => {
     try {
       const raw = localStorage.getItem('oasis:sessions');
       const arr = raw ? JSON.parse(raw) : [];
-      setSessions(Array.isArray(arr) ? arr.reverse() : []);
-    } catch (err) {
-      setSessions([]);
+      return Array.isArray(arr) ? arr.reverse() : [];
+    } catch {
+      return [];
     }
-  }, []);
+  });
 
   const totals = useMemo(() => {
     const totalSeconds = sessions.reduce((acc, s) => acc + (s.secondsStudied || 0), 0);

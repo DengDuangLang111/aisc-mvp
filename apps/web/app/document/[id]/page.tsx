@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { useChatLogic } from '../../chat/hooks/useChatLogic'
+import { ChatLayout } from '../../chat/components/ChatLayout'
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
@@ -14,7 +16,9 @@ export default function DocumentViewPage() {
 
   const [doc, setDoc] = useState<Doc | null>(null);
   const [notes, setNotes] = useState("");
-  const [panel, setPanel] = useState<"both" | "doc" | "notes">("both");
+  const [showDoc, setShowDoc] = useState(true);
+  const [showNotes, setShowNotes] = useState(true);
+  const [showChat, setShowChat] = useState(true);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const timerRef = useRef<number | null>(null);
@@ -42,6 +46,46 @@ export default function DocumentViewPage() {
   function saveNotes(newNotes: string) {
     setNotes(newNotes);
     localStorage.setItem(`oasis:notes:${idx}`, newNotes);
+  }
+
+  function EmbeddedChat() {
+    const {
+      messages,
+      isLoading,
+      error,
+      showDocument,
+      fileUrl,
+      filename,
+      conversationId,
+      streamingContent,
+      isStreaming,
+      isThinking,
+      handleSend,
+      handleFileSelect,
+      handleClearChat,
+      handleToggleDocument,
+    } = useChatLogic();
+
+    return (
+      <div className="flex flex-col h-64">
+        <div className="flex-1 overflow-hidden">
+          <ChatLayout
+            messages={messages}
+            isLoading={isLoading}
+            showDocument={showDocument}
+            fileUrl={fileUrl}
+            filename={filename}
+            conversationId={conversationId ?? undefined}
+            streamingContent={streamingContent}
+            isStreaming={isStreaming}
+            isThinking={isThinking}
+            onSend={handleSend}
+            onFileSelect={handleFileSelect}
+            onToggleDocument={handleToggleDocument}
+          />
+        </div>
+      </div>
+    )
   }
 
   function exportNotesAsTxt() {
@@ -97,8 +141,8 @@ export default function DocumentViewPage() {
   );
 
   return (
-    <div className="min-h-screen p-6 bg-[#445e72]">
-      <div className="max-w-7xl mx-auto">
+    <div className="h-full p-6 bg-[#445e72]">
+      <div className="max-w-7xl mx-auto h-full flex flex-col">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4 text-[#e6eef2]">
             <Link href="/">←</Link>
@@ -107,9 +151,9 @@ export default function DocumentViewPage() {
           </div>
           <div className="flex items-center gap-3">
             <div className="inline-flex rounded-full bg-white/90 p-1 border">
-              <button onClick={() => setPanel("both")} className={`px-3 py-1 text-sm ${panel === "both" ? "bg-black text-white rounded" : "text-gray-700"}`}>Both</button>
-              <button onClick={() => setPanel("doc")} className={`px-3 py-1 text-sm ${panel === "doc" ? "bg-black text-white rounded" : "text-gray-700"}`}>Document</button>
-              <button onClick={() => setPanel("notes")} className={`px-3 py-1 text-sm ${panel === "notes" ? "bg-black text-white rounded" : "text-gray-700"}`}>Notes</button>
+              <button onClick={() => setShowDoc(!showDoc)} className={`px-3 py-1 text-sm ${showDoc ? "bg-black text-white rounded" : "text-gray-700"}`}>Document</button>
+              <button onClick={() => setShowNotes(!showNotes)} className={`px-3 py-1 text-sm ${showNotes ? "bg-black text-white rounded" : "text-gray-700"}`}>Notes</button>
+              <button onClick={() => setShowChat(!showChat)} className={`px-3 py-1 text-sm ${showChat ? "bg-black text-white rounded" : "text-gray-700"}`}>Chat</button>
             </div>
             <button onClick={exportNotesAsTxt} className="px-3 py-2 bg-white rounded border text-sm">Export Notes</button>
             <div className="text-xs text-[#cfe1ea]">(PDF/DOCX export not implemented)</div>
@@ -144,24 +188,37 @@ export default function DocumentViewPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          {(panel === "both" || panel === "doc") && (
-            <div className={`bg-white rounded-lg p-6 shadow-sm ${panel === "doc" ? "md:col-span-3" : "md:col-span-2"}`}>
-              {documentHtml}
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 items-start min-h-0 overflow-auto">
+          {showDoc && (
+            <div className="bg-white rounded-lg p-6 shadow-sm flex flex-col min-h-0">
+              <div className="flex-1 overflow-auto">
+                {documentHtml}
+              </div>
             </div>
           )}
 
-          {(panel === "both" || panel === "notes") && (
-            <div className={`bg-white rounded-lg p-4 shadow-sm flex flex-col ${panel === "notes" ? "md:col-span-3" : ""}`}>
-              <h3 className="font-medium text-gray-600 mb-2">Type Your Notes ....</h3>
-              <textarea
-                value={notes}
-                onChange={(e) => saveNotes(e.target.value)}
-                placeholder="Type your notes here..."
-                className="flex-1 w-full border-b pb-2 text-sm resize-none min-h-[50vh]"
-              />
-            </div>
-          )}
+          <div className={`space-y-6 ${!showDoc ? 'md:col-span-2' : ''} flex flex-col min-h-0`}> 
+            {showNotes && (
+              <div className="bg-white rounded-lg p-4 shadow-sm flex flex-col min-h-0">
+                <h3 className="font-medium text-gray-600 mb-2">Type Your Notes ....</h3>
+                <textarea
+                  value={notes}
+                  onChange={(e) => saveNotes(e.target.value)}
+                  placeholder="Type your notes here..."
+                  className="flex-1 w-full border-b pb-2 text-sm resize-none min-h-0 p-2 overflow-auto"
+                />
+              </div>
+            )}
+
+            {showChat && (
+              <div className="bg-white rounded-lg p-4 shadow-sm flex flex-col min-h-0">
+                <h3 className="font-medium text-gray-600 mb-2">Chat with AI</h3>
+                <div className="mt-4 bg-gray-50 rounded p-3 flex-1 overflow-auto">
+                  <EmbeddedChat />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         {/* Modal for selecting focus time */}
         {showModal && (

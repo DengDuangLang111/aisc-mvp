@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useEffect, useMemo, useState, useRef } from "react";
@@ -62,9 +63,8 @@ export default function SessionPage() {
       handleClearChat,
       handleToggleDocument,
     } = useChatLogic();
-
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-64">
         <div className="flex-1 overflow-hidden">
           <ChatLayout
             messages={messages}
@@ -151,10 +151,22 @@ export default function SessionPage() {
     const onFullScreenChange = () => {
       // if fullscreen was exited while session active and exit not allowed, pause and show modal
       if (!document.fullscreenElement && !allowExit) {
-        // pause timer
+        // pause timer: stop the study timer
         if (timerRef.current) {
           window.clearInterval(timerRef.current);
           timerRef.current = null;
+        }
+        // mark paused due to fullscreen exit
+        setPaused(true);
+        // If a pause is already active (pauseTimerRef running), keep it so pause times connect.
+        if (!pauseTimerRef.current) {
+          const start = Date.now();
+          setPauseStart(start);
+          // display should include any previously accumulated pause seconds
+          setPauseElapsed(totalPausedSeconds);
+          pauseTimerRef.current = window.setInterval(() => {
+            setPauseElapsed(Math.round(totalPausedSeconds + Math.round((Date.now() - start) / 1000)));
+          }, 1000);
         }
         setPausedByFullscreen(true);
         setShowFullscreenExitModal(true);
@@ -336,6 +348,7 @@ export default function SessionPage() {
                   setPaused(false);
                   if (!timerRef.current) timerRef.current = window.setInterval(() => setSecondsElapsed((s) => s + 1), 1000);
                 } else {
+                  // start pause: stop study timer and begin pause timer
                   setPaused(true);
                   if (timerRef.current) {
                     window.clearInterval(timerRef.current);
@@ -343,15 +356,20 @@ export default function SessionPage() {
                   }
                   const start = Date.now();
                   setPauseStart(start);
-                  setPauseElapsed(0);
+                  // show cumulative pause: start display from accumulated totalPausedSeconds
+                  setPauseElapsed((prev) => totalPausedSeconds);
+                  if (pauseTimerRef.current) {
+                    window.clearInterval(pauseTimerRef.current);
+                    pauseTimerRef.current = null;
+                  }
                   pauseTimerRef.current = window.setInterval(() => {
-                    setPauseElapsed(Math.round((Date.now() - start) / 1000));
+                    setPauseElapsed(Math.round(totalPausedSeconds + Math.round((Date.now() - start) / 1000)));
                   }, 1000);
                 }
               }}
               className={`px-4 py-2 rounded text-white font-semibold ${paused ? 'bg-gray-500' : 'bg-green-600'}`}
             >
-              {paused ? 'Resume' : 'Focus Mode'}
+                {paused ? 'Resume' : 'Pause'}
             </button>
             <button onClick={() => setShowExitModal(true)} className="px-3 py-2 rounded bg-gray-300 text-gray-800 font-medium">Exit</button>
           </div>
@@ -532,13 +550,7 @@ export default function SessionPage() {
                   }}
                   className="px-6 py-2 bg-green-600 text-white rounded-lg"
                 >Resume</button>
-                <button
-                  onClick={() => {
-                    // open exit modal from pause
-                    setShowExitModal(true);
-                  }}
-                  className="px-6 py-2 bg-red-500 text-white rounded-lg"
-                >Exit</button>
+                {/* Exit button removed from pause modal per UX request */}
               </div>
             </div>
           </div>
@@ -598,22 +610,39 @@ export default function SessionPage() {
             <div className="absolute inset-0 bg-black/40" />
             <div className="relative bg-white rounded-xl p-8 w-full max-w-2xl mx-4">
               <h2 className="text-2xl font-semibold text-center mb-4">You left full screen</h2>
-              <p className="text-center text-gray-600 mb-6">It looks like you've left fullscreen. Would you like to return to fullscreen and continue, or exit the session?</p>
+              <p className="text-center text-gray-600 mb-6">It looks like you've left fullscreen. Would you like to return to fullscreen and continue?</p>
+              <div className="text-center mb-4">
+                <div className="text-sm text-gray-500">Paused</div>
+                <div className="text-3xl font-mono text-gray-800">Paused: {String(Math.floor(((pauseElapsed||0) || totalPausedSeconds)/60)).padStart(2,'0')}:{String(((pauseElapsed||0) || totalPausedSeconds)%60).padStart(2,'0')}</div>
+              </div>
               <div className="flex items-center justify-center gap-6">
                 <button
                   onClick={async () => {
-                    // attempt to re-enter fullscreen and resume timer
+                    // If a pause is active, finalize it (merge pause duration into totals)
                     try {
+                      if (pauseStart) {
+                        const now = Date.now();
+                        const dur = Math.round((now - pauseStart) / 1000);
+                        setPauseEvents((p) => [...p, { start: pauseStart, end: now, duration: dur }]);
+                        setTotalPausedSeconds((t) => t + dur);
+                        setPauseStart(null);
+                      }
+                      if (pauseTimerRef.current) {
+                        window.clearInterval(pauseTimerRef.current);
+                        pauseTimerRef.current = null;
+                      }
+                      setPauseElapsed(0);
+                      // try to re-enter fullscreen and resume timer
                       if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
                     } catch (err) {
                       console.warn('request fullscreen failed', err);
-                      alert('Unable to re-enter fullscreen. You can choose Exit to finish the session.');
-                      return;
+                      // If fullscreen couldn't be re-entered, still resume the session timer
                     }
-                    // resume timer
+                    // resume study timer
                     if (!timerRef.current) {
                       timerRef.current = window.setInterval(() => setSecondsElapsed((s) => s + 1), 1000);
                     }
+                    setPaused(false);
                     setPausedByFullscreen(false);
                     setShowFullscreenExitModal(false);
                   }}
@@ -621,84 +650,67 @@ export default function SessionPage() {
                 >
                   Go Back to Fullscreen
                 </button>
-                <button
-                  onClick={() => {
-                    // open the exit modal so user must provide a reason
-                    setShowFullscreenExitModal(false);
-                    setShowExitModal(true);
-                  }}
-                  className="px-6 py-3 bg-red-400 text-white rounded-lg text-lg font-semibold"
-                >
-                  Exit
-                </button>
+                {/* Exit button removed from fullscreen-exited modal per UX request */}
               </div>
             </div>
           </div>
         )}
 
-  <div className="w-full h-full px-6 py-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left: Document */}
-        <div className="col-span-2 bg-white rounded-lg p-6 shadow-sm min-h-[68vh]">
-          <div className="hidden text-sm text-gray-500 mb-4">Document</div>
-          <div>
-            {docs[activeIdx] && docs[activeIdx].content ? (
-              docs[activeIdx].type && (docs[activeIdx].type === 'application/pdf' || docs[activeIdx].type?.startsWith('image/')) ? (
-                <div className="w-full h-[60vh]">
-                  <iframe src={docs[activeIdx].content} className="w-full h-full border rounded" />
-                </div>
-              ) : (
-                <div className="prose max-w-none">
-                  <pre className="whitespace-pre-wrap text-sm">{docs[activeIdx].content}</pre>
-                </div>
-              )
-            ) : (
-              <div className="prose max-w-none text-center text-gray-400 py-20">User File</div>
-            )}
+  <div className="w-full h-full px-6 py-8 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+    {/* Left: Document (occupies left half) */}
+    <div className="bg-white rounded-lg p-6 shadow-sm min-h-[68vh]">
+      <div className="hidden text-sm text-gray-500 mb-4">Document</div>
+      <div>
+        {docs[activeIdx] && docs[activeIdx].content ? (
+          docs[activeIdx].type && (docs[activeIdx].type === 'application/pdf' || docs[activeIdx].type?.startsWith('image/')) ? (
+            <div className="w-full h-[60vh]">
+              <iframe src={docs[activeIdx].content} className="w-full h-full border rounded" />
+            </div>
+          ) : (
+            <div className="prose max-w-none">
+              <pre className="whitespace-pre-wrap text-sm">{docs[activeIdx].content}</pre>
+            </div>
+          )
+        ) : (
+          <div className="prose max-w-none text-center text-gray-400 py-20">User File</div>
+        )}
+      </div>
+    </div>
+
+    {/* Right: Notes (top) and Chatbot (bottom) stacked to match Documents page spacing */}
+    <div className="space-y-6">
+      <div className="bg-white rounded-lg p-4 shadow-sm flex flex-col">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            {docs.map((d, i) => (
+              <button
+                key={i}
+                onClick={() => switchToDoc(i)}
+                className={`px-3 py-1 rounded-md ${i === activeIdx ? 'bg-green-100 text-green-800 font-semibold' : 'bg-white text-gray-700 border border-gray-200'}`}
+              >
+                {d.name}
+              </button>
+            ))}
           </div>
+          <div className="text-sm text-gray-500">{docs.length} documents</div>
         </div>
 
-        {/* Right: Notes (top) and Chatbot (bottom) */}
-        <div className="flex flex-col gap-6">
-            <div ref={rightColRef} className="flex flex-col gap-6">
-              <div className="bg-white rounded-lg shadow-sm" style={{display:'grid', gridTemplateRows: `${notesHeight}px 8px 1fr`}}>
-                <div className="p-4 overflow-auto">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      {docs.map((d, i) => (
-                        <button
-                          key={i}
-                          onClick={() => switchToDoc(i)}
-                          className={`px-3 py-1 rounded-md ${i === activeIdx ? 'bg-green-100 text-green-800 font-semibold' : 'bg-white text-gray-700 border border-gray-200'}`}
-                        >
-                          {d.name}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="text-sm text-gray-500">{docs.length} documents</div>
-                  </div>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => saveNotes(e.target.value)}
-                    placeholder="Type your notes here..."
-                    className="w-full h-full border rounded p-3 text-sm resize-none"
-                  />
-                </div>
-                {/* divider */}
-                <div
-                  onMouseDown={(e) => { draggingRef.current = true; document.body.style.userSelect = 'none'; }}
-                  className="bg-gray-100 hover:bg-gray-200 cursor-row-resize"
-                  style={{height:8}}
-                />
-                <div className="p-4 overflow-auto bg-white">
-                  <div className="text-sm text-gray-500 mb-2">Assistant</div>
-                  <div className="flex-1 bg-gray-50 rounded p-4 h-full">
-                      <EmbeddedChat />
-                  </div>
-                </div>
-              </div>
-            </div>
+        <textarea
+          value={notes}
+          onChange={(e) => saveNotes(e.target.value)}
+          placeholder="Type your notes here..."
+          className="flex-1 w-full border-b pb-2 text-sm resize-none min-h-[30vh] p-2"
+        />
+      </div>
+
+      <div className="bg-white rounded-lg p-4 shadow-sm flex flex-col">
+        <div className="text-sm text-gray-500 mb-2">Assistant</div>
+        <div className="mt-2 bg-gray-50 rounded p-3 flex-1">
+          <EmbeddedChat />
         </div>
       </div>
+    </div>
+  </div>
     </div>
   );
 }

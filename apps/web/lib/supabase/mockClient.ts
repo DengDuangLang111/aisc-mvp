@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Lightweight dev mock for Supabase client used when env vars are missing.
 // Provides minimal auth methods the frontend expects so UI can be developed
 // without a real Supabase project.

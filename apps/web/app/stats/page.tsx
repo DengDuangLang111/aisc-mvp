@@ -1,20 +1,35 @@
 "use client"
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 
 export default function StatsHome() {
-  const [sessions, setSessions] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
-
-  useEffect(() => {
+  const [sessions] = useState<any[]>(() => {
     try {
       const raw = localStorage.getItem('oasis:sessions');
       const arr = raw ? JSON.parse(raw) : [];
-      setSessions(arr);
-    } catch (err) { setSessions([]); }
-    try { const s = localStorage.getItem('oasis:stats'); setStats(s ? JSON.parse(s) : null); } catch (err) { setStats(null); }
-  }, []);
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [stats] = useState<any>(() => {
+    try {
+      const s = localStorage.getItem('oasis:stats');
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [documentsCount] = useState<number>(() => {
+    try {
+      return (JSON.parse(localStorage.getItem('oasis:documents') || '[]') || []).length;
+    } catch {
+      return 0;
+    }
+  });
 
   // computed metrics
   const totalSessions = sessions.length;

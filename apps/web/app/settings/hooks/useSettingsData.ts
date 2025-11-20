@@ -28,6 +28,24 @@ export function useSettingsData() {
   const [showExport, setShowExport] = useState(false);
   const [exportData, setExportData] = useState("");
 
+  function loadStats() {
+    const sessionStats = ChatStorage.getSessionStats();
+    const uploadHistory = UploadStorage.getUploadHistory();
+    const storageSize = StorageUtils.getStorageSize();
+
+    setStats({
+      sessions: sessionStats.totalSessions,
+      messages: sessionStats.totalMessages,
+      uploads: uploadHistory.length,
+      storageSize,
+    });
+  }
+
+  function loadSessions() {
+    const allSessions = ChatStorage.getAllSessions();
+    setSessions(allSessions);
+  }
+
   useEffect(() => {
     loadStats();
     loadSessions();
